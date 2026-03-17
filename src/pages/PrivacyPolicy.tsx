@@ -30,8 +30,8 @@ export default function PrivacyPolicyPage() {
           personal information, contact us at:
         </p>
 
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-          <p className="font-medium text-zinc-900">{COMPANY.name}</p>
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-brand-gray dark:bg-gray-800 p-5">
+          <p className="font-medium text-brand-dark dark:text-white">{COMPANY.name}</p>
           <p>ABN {COMPANY.abn}</p>
           <p>Email: {COMPANY.email}</p>
           <p>Phone: {COMPANY.phone}</p>
