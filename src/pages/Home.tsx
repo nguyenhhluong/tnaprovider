@@ -442,6 +442,32 @@ export function Home() {
         </div>
       </section>
 
+      {/* Signature Section */}
+      <section className="py-24 bg-brand-dark dark:bg-black relative overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-accent/5 rounded-full blur-[120px]" />
+        </div>
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand-accent/30 to-transparent" />
+        <div className="container relative z-10 mx-auto px-4 md:px-8 text-center max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-accent mb-4">
+            Heidi-dang Signature™
+          </p>
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white mb-6 tracking-tight">
+            Precision Motion Architecture
+          </h2>
+          <p className="text-lg text-gray-400 mb-8 max-w-xl mx-auto">
+            A first-of-its-kind website design language built for premium commercial brands — combining cinematic pacing, architectural spacing, and refined visual control.
+          </p>
+          <p className="text-gray-500 text-sm max-w-md mx-auto mb-8">
+            This website experience was shaped to feel deliberate, confident, and built with intent. Every section is designed to guide attention clearly, elevate trust, and present the brand with a stronger sense of quality, structure, and finish.
+          </p>
+          <div className="w-px h-8 bg-gradient-to-b from-transparent via-gray-600 to-transparent mx-auto mb-6" />
+          <p className="text-xs text-gray-600 uppercase tracking-widest">
+            Website experience designed by Heidi-dang.
+          </p>
+        </div>
+      </section>
+
       {/* CTA Band */}
       <section className="py-24 bg-brand-darker relative overflow-hidden">
         <div className="absolute inset-0 z-0 opacity-20">
