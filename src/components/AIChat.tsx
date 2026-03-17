@@ -86,17 +86,13 @@ Be professional, helpful, and concise. Do not use markdown formatting like boldi
     }
   };
 
-  const handleSend = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || isLoading) return;
 
-    const userText = input.trim();
-    setInput('');
-    
     const newUserMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      text: userText
+      text: text
     };
     
     setMessages(prev => [...prev, newUserMsg]);
@@ -106,7 +102,7 @@ Be professional, helpful, and concise. Do not use markdown formatting like boldi
       initChat();
       
       if (chatSessionRef.current) {
-        const response = await chatSessionRef.current.sendMessage({ message: userText });
+        const response = await chatSessionRef.current.sendMessage({ message: text });
         
         let responseText = response.text || "";
         
@@ -150,6 +146,17 @@ Be professional, helpful, and concise. Do not use markdown formatting like boldi
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSend = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const userText = input.trim();
+    setInput('');
+    await sendMessage(userText);
+  };
+
+  const handleQuickAction = (text: string) => {
+    sendMessage(text);
   };
 
   return (
@@ -202,20 +209,39 @@ Be professional, helpful, and concise. Do not use markdown formatting like boldi
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-gray-50 dark:bg-gray-900/50">
-              {messages.map((msg) => (
-                <div 
-                  key={msg.id} 
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
+              {messages.map((msg, index) => (
+                <div key={msg.id} className="flex flex-col gap-2">
                   <div 
-                    className={`max-w-[80%] p-3 rounded-2xl text-sm ${
-                      msg.role === 'user' 
-                        ? 'bg-brand-accent text-white rounded-tr-sm' 
-                        : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700 rounded-tl-sm shadow-sm'
-                    }`}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {msg.text}
+                    <div 
+                      className={`max-w-[80%] p-3 rounded-2xl text-sm ${
+                        msg.role === 'user' 
+                          ? 'bg-brand-accent text-white rounded-tr-sm' 
+                          : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700 rounded-tl-sm shadow-sm'
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
                   </div>
+                  
+                  {/* Quick Actions */}
+                  {index === 0 && messages.length === 1 && (
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      <button 
+                        onClick={() => handleQuickAction("I would like to get a quotation for a project.")}
+                        className="text-xs bg-white dark:bg-gray-800 border border-brand-accent text-brand-accent hover:bg-brand-accent hover:text-white transition-colors px-3 py-1.5 rounded-full shadow-sm"
+                      >
+                        Get a Quotation
+                      </button>
+                      <button 
+                        onClick={() => handleQuickAction("I would like to book an appointment.")}
+                        className="text-xs bg-white dark:bg-gray-800 border border-brand-accent text-brand-accent hover:bg-brand-accent hover:text-white transition-colors px-3 py-1.5 rounded-full shadow-sm"
+                      >
+                        Book an Appointment
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
               {isLoading && (
