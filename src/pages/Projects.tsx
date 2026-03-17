@@ -67,6 +67,8 @@ export function Projects() {
                     description={project.description}
                     imageUrl={project.imageUrl}
                     tags={project.tags}
+                    location={project.location}
+                    deliveryHighlights={project.deliveryHighlights}
                   />
                 </motion.div>
               ))}

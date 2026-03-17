@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { ArrowRight, CheckCircle2, Building2, Hammer, Ruler, HardHat } from "lucide-react";
+import { ArrowRight, CheckCircle2, Building2, Hammer, Ruler, HardHat, Wrench } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { SectionTitle } from "../components/ui/SectionTitle";
@@ -12,31 +12,31 @@ import { projects } from "../data/projects";
 const services = [
   {
     id: "joinery",
-    title: "Custom Joinery",
-    description: "In-house custom cabinets, display units, reception desks, shelving, CNC precision, and tailored finishes.",
+    title: "Bespoke Joinery Fabrication",
+    description: "Elevate your brand with premium, custom-built joinery manufactured in-house for perfect fit and finish.",
     icon: Hammer,
-    features: ["CNC Precision Routing", "Bespoke Cabinetry", "Premium Finishes"],
+    features: ["Precision CNC Manufacturing", "Premium Material Selection", "Flawless Installation"],
   },
   {
     id: "shopfitting",
-    title: "Shopfitting & Fitouts",
-    description: "Retail fixtures, signage integration, wall panelling, flooring coordination, and branded interior fitouts.",
+    title: "Complete Commercial Fitouts",
+    description: "Transform empty shells into engaging retail and hospitality environments that drive foot traffic and sales.",
     icon: Building2,
-    features: ["Retail & Hospitality", "Brand Integration", "End-to-end Installation"],
+    features: ["Rapid Retail Rollouts", "Brand-Aligned Interiors", "Minimal Trading Disruption"],
   },
   {
     id: "construction",
-    title: "Commercial Construction",
-    description: "Structural works, refurbishments, site coordination, project delivery, budget and timeline control.",
+    title: "End-to-End Construction",
+    description: "Deliver complex structural works and refurbishments on time and strictly within budget constraints.",
     icon: HardHat,
-    features: ["Structural Works", "Site Management", "Compliance & Safety"],
+    features: ["End-to-End Site Management", "Strict Safety Compliance", "Transparent Cost Control"],
   },
   {
-    id: "design",
-    title: "Design & Planning",
-    description: "CAD drawings, 3D modelling, layout optimisation, documentation support, and approvals guidance.",
-    icon: Ruler,
-    features: ["CAD & 3D Modelling", "Layout Optimisation", "Council Approvals"],
+    id: "metalwork",
+    title: "Architectural Metalwork",
+    description: "Custom metal fabrication adds a premium, industrial, or modern touch to any commercial space.",
+    icon: Wrench,
+    features: ["Custom Brass & Steel Fixtures", "Architectural Staircases", "Powder-Coated Finishes"],
   },
 ];
 
@@ -119,7 +119,7 @@ export function Home() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-5xl md:text-7xl lg:text-8xl font-bold text-white tracking-tight leading-[1.1] mb-8"
             >
-              Construction, Joinery & Shopfitting Delivered <span className="text-brand-accent">End-to-End</span>
+              Commercial Fitouts, Custom Joinery, and Shopfitting Delivered <span className="text-brand-accent">End-to-End.</span>
             </motion.h1>
             
             <motion.p 
@@ -138,17 +138,42 @@ export function Home() {
               className="flex flex-wrap items-center gap-4"
             >
               <Button asChild size="lg">
-                <Link to="/projects">View Our Projects <ArrowRight className="w-5 h-5 ml-2" /></Link>
+                <Link to="/contact">Request a Quote <ArrowRight className="w-5 h-5 ml-2" /></Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="bg-white/5 border-white/20 text-white hover:bg-white/10 hover:text-white">
-                <Link to="/contact">Request a Quote</Link>
+                <Link to="/projects">View Projects</Link>
               </Button>
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Trust Intro */}
+      {/* Trust Bar */}
+      <section className="bg-brand-darker border-t border-white/10 py-6 relative z-20">
+        <div className="container mx-auto px-4 md:px-8">
+          <div className="flex flex-wrap justify-center md:justify-between items-center gap-4 md:gap-8">
+            {[
+              "End-to-End Delivery",
+              "Custom Fabrication",
+              "Commercial Fitout Expertise",
+              "Australia-Wide Capability"
+            ].map((chip, index) => (
+              <motion.div 
+                key={index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 + (index * 0.1) }}
+                className="flex items-center gap-2 text-gray-300 text-sm md:text-base font-medium"
+              >
+                <CheckCircle2 className="w-4 h-4 text-brand-accent" />
+                {chip}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Why TNA Provider */}
       <section className="py-24 bg-white dark:bg-brand-darker overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -183,30 +208,31 @@ export function Home() {
               className="flex flex-col gap-8"
             >
               <SectionTitle 
-                subtitle="From Concept to Completion"
-                title="Specialists in Joinery, Shopfitting, and Construction"
+                subtitle="Why Choose Us"
+                title="Built for Speed, Quality, and Minimal Disruption"
               />
               <div className="prose prose-lg text-gray-600 dark:text-gray-400">
                 <p>
-                  At TNA Provider, we understand that a commercial fitout is more than just construction—it's the physical embodiment of your brand and the operational heart of your business.
+                  We know that in commercial fitouts, time is money. Every day your doors are closed is a day of lost revenue. That's why we've built our entire operation around speed, coordination, and uncompromising quality.
                 </p>
                 <p>
-                  We offer a true end-to-end service. By combining our in-house bespoke joinery manufacturing with expert on-site construction and project management, we eliminate the friction of dealing with multiple contractors. The result is a seamless delivery, on time and on budget.
+                  By keeping joinery manufacturing in-house and managing every trade on-site, we eliminate the delays and miscommunications that plague traditional builds. We work around your schedule, not ours.
                 </p>
               </div>
               
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
                 {[
-                  "In-house manufacturing",
-                  "Dedicated project managers",
-                  "After-hours work available",
-                  "Strict quality control",
-                  "On-time delivery guarantee",
-                  "Fully licensed & insured"
+                  { title: "Rapid Turnarounds", desc: "Streamlined processes to get you trading faster." },
+                  { title: "Seamless Coordination", desc: "One point of contact for the entire project lifecycle." },
+                  { title: "After-Hours Work", desc: "Night and weekend shifts to minimize business disruption." },
+                  { title: "Uncompromising Quality", desc: "In-house manufacturing ensures perfect fit and finish." }
                 ].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3 text-brand-dark dark:text-gray-200 font-medium">
-                    <CheckCircle2 className="w-5 h-5 text-brand-accent flex-shrink-0" />
-                    {item}
+                  <li key={i} className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2 text-brand-dark dark:text-gray-200 font-bold">
+                      <CheckCircle2 className="w-5 h-5 text-brand-accent flex-shrink-0" />
+                      {item.title}
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400 pl-7">{item.desc}</span>
                   </li>
                 ))}
               </ul>
@@ -263,6 +289,56 @@ export function Home() {
         </div>
       </section>
 
+      {/* Process Section */}
+      <section className="py-24 bg-brand-darker text-white overflow-hidden relative">
+        <div className="absolute inset-0 z-0 opacity-10">
+          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=2000')] bg-cover bg-center mix-blend-luminosity" />
+        </div>
+        <div className="container relative z-10 mx-auto px-4 md:px-8">
+          <motion.div 
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.7 }}
+            className="text-center mb-16"
+          >
+            <SectionTitle 
+              subtitle="How We Work"
+              title="Our Proven Delivery Process"
+              align="center"
+              light
+            />
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-8 relative">
+            <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-white/10 -translate-y-1/2 z-0" />
+            
+            {[
+              { step: "01", title: "Consult", desc: "Understanding your vision, budget, and operational requirements." },
+              { step: "02", title: "Design", desc: "Detailed CAD drawings, 3D models, and material selection." },
+              { step: "03", title: "Manufacture", desc: "In-house fabrication of bespoke joinery and metalwork." },
+              { step: "04", title: "Install", desc: "Coordinated on-site construction and fitout execution." },
+              { step: "05", title: "Handover", desc: "Final defect checks, deep clean, and project handover." }
+            ].map((item, index) => (
+              <motion.div 
+                key={index}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                className="relative z-10 flex flex-col items-center text-center"
+              >
+                <div className="w-16 h-16 rounded-full bg-brand-dark border-4 border-brand-darker shadow-[0_0_0_2px_rgba(255,255,255,0.1)] flex items-center justify-center text-brand-accent font-display font-bold text-xl mb-6">
+                  {item.step}
+                </div>
+                <h4 className="text-xl font-bold mb-3">{item.title}</h4>
+                <p className="text-sm text-gray-400 leading-relaxed">{item.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Featured Projects */}
       <section className="py-24 bg-white dark:bg-brand-darker overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
@@ -299,6 +375,8 @@ export function Home() {
                   description={project.description}
                   imageUrl={project.imageUrl}
                   tags={project.tags}
+                  location={project.location}
+                  deliveryHighlights={project.deliveryHighlights}
                 />
               </motion.div>
             ))}

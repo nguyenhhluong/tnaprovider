@@ -4,9 +4,9 @@ import { Hammer, Building2, HardHat, Wrench, Ruler, Clock, MoonStar, ShieldCheck
 const services = [
   {
     id: "joinery",
-    title: "Custom Joinery Manufacturing",
+    title: "Bespoke Joinery Fabrication",
     icon: Hammer,
-    overview: "Our state-of-the-art manufacturing facility produces high-quality, bespoke joinery tailored to your exact specifications.",
+    overview: "Elevate your brand with premium, custom-built joinery manufactured in-house for perfect fit and finish. We translate your vision into tangible, high-quality assets.",
     deliverables: ["Custom cabinets & shelving", "Display units & POS counters", "Reception desks", "Premium veneer & laminate finishes", "CNC precision routing"],
     clients: "Retail stores, corporate offices, hospitality venues, high-end residential.",
     benefits: "In-house production ensures strict quality control, faster turnaround times, and seamless integration with the overall fitout.",
@@ -14,9 +14,9 @@ const services = [
   },
   {
     id: "shopfitting",
-    title: "Shopfitting & Interior Fitouts",
+    title: "Complete Commercial Fitouts",
     icon: Building2,
-    overview: "We transform empty shells into immersive brand experiences. Our shopfitting team coordinates every trade to deliver a polished final product.",
+    overview: "Transform empty shells into immersive brand experiences. We coordinate every trade to deliver a polished, ready-to-trade environment with minimal disruption.",
     deliverables: ["Retail fixtures & racking", "Signage integration", "Wall panelling & cladding", "Flooring coordination", "Lighting & electrical integration"],
     clients: "National retail chains, boutique stores, cafes, restaurants, gyms.",
     benefits: "Minimal disruption to trading, after-hours work capabilities, and a dedicated project manager for a single point of contact.",
@@ -24,7 +24,7 @@ const services = [
   },
   {
     id: "construction",
-    title: "Commercial Construction",
+    title: "End-to-End Construction",
     icon: HardHat,
     overview: "Beyond interior fitouts, we handle the heavy lifting. From structural modifications to complete refurbishments, our licensed builders manage the entire construction phase.",
     deliverables: ["Structural works & modifications", "Base building refurbishments", "Site coordination & management", "Demolition & strip-outs", "Budget & timeline control"],
@@ -36,21 +36,11 @@ const services = [
     id: "metalwork",
     title: "Architectural Metalwork",
     icon: Wrench,
-    overview: "Custom metal fabrication adds a premium, industrial, or modern touch to any commercial space. We design and fabricate bespoke metal elements.",
+    overview: "Custom metal fabrication adds a premium, industrial, or modern touch to any commercial space. We design and fabricate bespoke metal elements that integrate perfectly.",
     deliverables: ["Custom brass & steel fixtures", "Architectural staircases & balustrades", "Metal display frames", "Custom door hardware", "Powder-coated finishes"],
     clients: "High-end retail, luxury hospitality, modern office spaces.",
     benefits: "Durable, high-impact design elements that elevate the aesthetic of the space and integrate perfectly with our joinery.",
     image: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=1200"
-  },
-  {
-    id: "design",
-    title: "Design & Planning",
-    icon: Ruler,
-    overview: "A successful project starts with meticulous planning. We bridge the gap between architectural vision and practical construction.",
-    deliverables: ["CAD drawings & shop detailing", "3D modelling & visualization", "Layout & spatial optimisation", "Documentation support", "Approvals & council process guidance"],
-    clients: "Architects, interior designers, direct clients needing design-and-construct services.",
-    benefits: "Identifies potential issues before construction begins, ensures accurate pricing, and streamlines the approval process.",
-    image: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=1200"
   }
 ];
 

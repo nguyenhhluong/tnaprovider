@@ -10,6 +10,9 @@ export function Contact() {
     email: "",
     phone: "",
     service: "",
+    location: "",
+    budget: "",
+    targetDate: "",
     message: "",
     requestCallback: false,
     callbackTime: "",
@@ -42,7 +45,16 @@ export function Contact() {
         }
         break;
       case "service":
-        if (!value) error = "Please select a service";
+        if (!value) error = "Please select a project type";
+        break;
+      case "location":
+        if (!value) error = "Location is required";
+        break;
+      case "budget":
+        if (!value) error = "Please select a budget range";
+        break;
+      case "targetDate":
+        if (!value) error = "Please select a target start date";
         break;
       case "message":
         if (!value) error = "Message is required";
@@ -100,6 +112,9 @@ export function Contact() {
           email: "",
           phone: "",
           service: "",
+          location: "",
+          budget: "",
+          targetDate: "",
           message: "",
           requestCallback: false,
           callbackTime: "",
@@ -115,12 +130,12 @@ export function Contact() {
         <div className="container relative z-10 mx-auto px-4 md:px-8">
           <div className="max-w-3xl">
             <SectionTitle 
-              subtitle="Get in Touch"
-              title="Start Your Next Commercial Project"
+              subtitle="Get a Quote"
+              title="Ready to Transform Your Commercial Space?"
               light
             />
             <p className="mt-6 text-xl text-gray-300 leading-relaxed">
-              Contact TNA Provider today to discuss your construction, joinery, or shopfitting requirements. We provide end-to-end solutions across Australia.
+              Tell us about your project requirements. Our team of experts will review your details and provide a comprehensive, no-obligation quote tailored to your specific needs.
             </p>
           </div>
         </div>
@@ -222,7 +237,7 @@ export function Contact() {
                     </div>
                     
                     <div className="flex flex-col gap-2">
-                      <label htmlFor="service" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Service Required <span className="text-red-500">*</span></label>
+                      <label htmlFor="service" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Project Type <span className="text-red-500">*</span></label>
                       <select 
                         id="service" 
                         name="service"
@@ -234,14 +249,78 @@ export function Contact() {
                         aria-describedby={errors.service ? "service-error" : undefined}
                         className={`h-12 px-4 rounded-lg border ${errors.service ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                       >
-                        <option value="">Select a service...</option>
-                        <option value="joinery">Custom Joinery Manufacturing</option>
-                        <option value="shopfitting">Shopfitting & Fitouts</option>
-                        <option value="construction">Commercial Construction</option>
+                        <option value="">Select project type...</option>
+                        <option value="joinery">Bespoke Joinery Fabrication</option>
+                        <option value="shopfitting">Complete Commercial Fitouts</option>
+                        <option value="construction">End-to-End Construction</option>
                         <option value="metalwork">Architectural Metalwork</option>
-                        <option value="design">Design & Planning</option>
                       </select>
                       {errors.service && <span id="service-error" className="text-xs text-red-500" role="alert">{errors.service}</span>}
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label htmlFor="location" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Project Location <span className="text-red-500">*</span></label>
+                      <input 
+                        type="text" 
+                        id="location" 
+                        name="location"
+                        value={formData.location}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        aria-required="true"
+                        aria-invalid={!!errors.location}
+                        aria-describedby={errors.location ? "location-error" : undefined}
+                        className={`h-12 px-4 rounded-lg border ${errors.location ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                        placeholder="e.g. Sydney CBD, NSW"
+                      />
+                      {errors.location && <span id="location-error" className="text-xs text-red-500" role="alert">{errors.location}</span>}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="flex flex-col gap-2">
+                        <label htmlFor="budget" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Budget Range <span className="text-red-500">*</span></label>
+                        <select 
+                          id="budget" 
+                          name="budget"
+                          value={formData.budget}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          aria-required="true"
+                          aria-invalid={!!errors.budget}
+                          aria-describedby={errors.budget ? "budget-error" : undefined}
+                          className={`h-12 px-4 rounded-lg border ${errors.budget ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                        >
+                          <option value="">Select budget range...</option>
+                          <option value="under50k">Under $50k</option>
+                          <option value="50k-100k">$50k - $100k</option>
+                          <option value="100k-250k">$100k - $250k</option>
+                          <option value="250k-500k">$250k - $500k</option>
+                          <option value="500k+">$500k+</option>
+                        </select>
+                        {errors.budget && <span id="budget-error" className="text-xs text-red-500" role="alert">{errors.budget}</span>}
+                      </div>
+                      
+                      <div className="flex flex-col gap-2">
+                        <label htmlFor="targetDate" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Target Start Date <span className="text-red-500">*</span></label>
+                        <select 
+                          id="targetDate" 
+                          name="targetDate"
+                          value={formData.targetDate}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          aria-required="true"
+                          aria-invalid={!!errors.targetDate}
+                          aria-describedby={errors.targetDate ? "targetDate-error" : undefined}
+                          className={`h-12 px-4 rounded-lg border ${errors.targetDate ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                        >
+                          <option value="">Select target start...</option>
+                          <option value="asap">ASAP</option>
+                          <option value="1-3months">1-3 Months</option>
+                          <option value="3-6months">3-6 Months</option>
+                          <option value="6months+">6+ Months</option>
+                        </select>
+                        {errors.targetDate && <span id="targetDate-error" className="text-xs text-red-500" role="alert">{errors.targetDate}</span>}
+                      </div>
                     </div>
                     
                     <div className="flex flex-col gap-2">
@@ -373,6 +452,19 @@ export function Contact() {
                     </p>
                     <p className="text-sm text-brand-accent mt-2 font-medium">
                       * After-hours construction work available upon request.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-6">
+                  <div className="w-14 h-14 rounded-full bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-center text-brand-accent flex-shrink-0">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-bold text-brand-dark dark:text-white mb-2">Company Details</h4>
+                    <p className="text-gray-600 dark:text-gray-400">
+                      TNA Provider Pty Ltd<br />
+                      ABN: 80 664 454 924
                     </p>
                   </div>
                 </div>

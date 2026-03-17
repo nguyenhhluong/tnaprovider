@@ -60,11 +60,10 @@ export function Footer() {
             <h4 className="text-lg font-display font-bold tracking-tight">Our Services</h4>
             <ul className="flex flex-col gap-3">
               {[
-                { name: "Custom Joinery Manufacturing", hash: "joinery" },
-                { name: "Shopfitting & Interior Fitouts", hash: "shopfitting" },
-                { name: "Commercial Construction", hash: "construction" },
-                { name: "Architectural Metalwork", hash: "metalwork" },
-                { name: "Design & Planning", hash: "design" }
+                { name: "Bespoke Joinery Fabrication", hash: "joinery" },
+                { name: "Complete Commercial Fitouts", hash: "shopfitting" },
+                { name: "End-to-End Construction", hash: "construction" },
+                { name: "Architectural Metalwork", hash: "metalwork" }
               ].map((service) => (
                 <li key={service.hash}>
                   <HashLink 

@@ -11,6 +11,7 @@ export const projects = [
     client: "Private Client",
     year: "2023",
     location: "Sydney, NSW",
+    deliveryHighlights: ["Custom LED Integration", "4-Week Turnaround"],
     gallery: [
       "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800",
@@ -32,6 +33,7 @@ export const projects = [
     client: "Private Client",
     year: "2023",
     location: "Melbourne, VIC",
+    deliveryHighlights: ["Premium Material Sourcing", "Zero Defect Handover"],
     gallery: [
       "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=800",
@@ -53,6 +55,7 @@ export const projects = [
     client: "Private Client",
     year: "2024",
     location: "Brisbane, QLD",
+    deliveryHighlights: ["Integrated Appliances", "Seamless Finishes"],
     gallery: [
       "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800",
@@ -74,6 +77,7 @@ export const projects = [
     client: "Private Client",
     year: "2024",
     location: "Gold Coast, QLD",
+    deliveryHighlights: ["Complex Material Integration", "On-Time Delivery"],
     gallery: [
       "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800",
@@ -95,6 +99,7 @@ export const projects = [
     client: "Private Client",
     year: "2023",
     location: "Perth, WA",
+    deliveryHighlights: ["Architectural Lighting", "Bespoke Joinery"],
     gallery: [
       "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800",
@@ -116,6 +121,7 @@ export const projects = [
     client: "Lumina Hospitality Group",
     year: "2024",
     location: "Sydney CBD, NSW",
+    deliveryHighlights: ["After-Hours Work", "High-End Finishes"],
     gallery: [
       "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800",
@@ -137,6 +143,7 @@ export const projects = [
     client: "Nexus Technologies",
     year: "2023",
     location: "North Sydney, NSW",
+    deliveryHighlights: ["Acoustic Treatment", "Live Environment Work"],
     gallery: [
       "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800",
@@ -158,6 +165,7 @@ export const projects = [
     client: "Aura Fashion",
     year: "2024",
     location: "Melbourne CBD, VIC",
+    deliveryHighlights: ["Heritage Compliance", "Bespoke Metalwork"],
     gallery: [
       "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800",
@@ -179,6 +187,7 @@ export const projects = [
     client: "Private Client",
     year: "2025",
     location: "Adelaide, SA",
+    deliveryHighlights: ["Ergonomic Design", "High-Durability Finishes"],
     gallery: [
       "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&q=80&w=800",
@@ -200,6 +209,7 @@ export const projects = [
     client: "Private Client",
     year: "2024",
     location: "Hobart, TAS",
+    deliveryHighlights: ["Custom Timber Sourcing", "Precision Installation"],
     gallery: [
       "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&q=80&w=800",
@@ -221,6 +231,7 @@ export const projects = [
     client: "BuildTech Industries",
     year: "2025",
     location: "Darwin, NT",
+    deliveryHighlights: ["Structural Integrity", "Climate-Resilient Materials"],
     gallery: [
       "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1504307651254-35680f356f58?auto=format&fit=crop&q=80&w=800",
@@ -242,6 +253,7 @@ export const projects = [
     client: "City Health Partners",
     year: "2024",
     location: "Canberra, ACT",
+    deliveryHighlights: ["Medical Grade Finishes", "Strict Compliance"],
     gallery: [
       "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&q=80&w=800",
@@ -263,6 +275,7 @@ export const projects = [
     client: "Private Client",
     year: "2024",
     location: "Sydney, NSW",
+    deliveryHighlights: ["High-Traffic Durability", "Brand Integration"],
     gallery: [
       "https://storage.googleapis.com/aistudio-user-uploads/67d7d082236319803362a98f/IMG_6043.jpeg",
       "https://storage.googleapis.com/aistudio-user-uploads/67d7d082236319803362a98f/IMG_6042.jpeg",
