@@ -174,7 +174,7 @@ export function Home() {
       </section>
 
       {/* Why TNA Provider */}
-      <section className="py-24 bg-white dark:bg-brand-darker overflow-hidden">
+      <section className="py-24 bg-brand-dark dark:bg-black overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <motion.div 
@@ -194,9 +194,9 @@ export function Home() {
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <div className="absolute -bottom-8 -right-8 bg-brand-dark dark:bg-gray-900 text-white p-8 rounded-2xl shadow-xl max-w-xs hidden md:block">
+              <div className="absolute -bottom-8 -right-8 bg-brand-gray dark:bg-gray-800 text-white p-8 rounded-xl shadow-xl max-w-xs hidden md:block border border-gray-700">
                 <div className="text-4xl font-display font-bold text-brand-accent mb-2">15+</div>
-                <div className="text-sm font-medium text-gray-300 dark:text-gray-400">Years of combined experience delivering premium commercial spaces across Australia.</div>
+                <div className="text-sm font-medium text-gray-300">Years in commercial construction and joinery.</div>
               </div>
             </motion.div>
             
@@ -205,14 +205,15 @@ export function Home() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.7 }}
-              className="flex flex-col gap-8"
+              className="flex flex-col gap-6"
             >
-              <SectionTitle 
-                subtitle="Why Choose Us"
-                title="Built for Speed and Minimal Disruption"
-              />
-              <div className="prose prose-lg text-gray-600 dark:text-gray-400">
-                <p>
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wider text-brand-accent mb-2">Why Choose Us</p>
+                <h2 className="text-3xl md:text-4xl font-display font-bold text-white">Built for Speed and Minimal Disruption</h2>
+              </div>
+              
+              <div className="text-gray-300 text-lg leading-relaxed max-w-xl">
+                <p className="mb-4">
                   Commercial fitouts cost money every day your doors are closed. We've built our operation around getting you trading faster — without cutting corners.
                 </p>
                 <p>
@@ -220,24 +221,24 @@ export function Home() {
                 </p>
               </div>
               
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
                   { title: "In-House Joinery", desc: "We make it ourselves. No supplier delays." },
                   { title: "Single Point of Contact", desc: "One project manager from start to finish." },
                   { title: "After-Hours Work", desc: "We can work nights and weekends." },
                   { title: "Fixed Timeline", desc: "We commit to dates and stick to them." }
                 ].map((item, i) => (
-                  <li key={i} className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2 text-brand-dark dark:text-gray-200 font-bold">
-                      <CheckCircle2 className="w-5 h-5 text-brand-accent flex-shrink-0" />
-                      {item.title}
+                  <li key={i} className="flex items-start gap-3 p-4 bg-white/5 rounded-lg border border-white/10">
+                    <CheckCircle2 className="w-5 h-5 text-brand-accent flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-white font-semibold text-sm">{item.title}</div>
+                      <div className="text-gray-400 text-sm">{item.desc}</div>
                     </div>
-                    <span className="text-sm text-gray-500 dark:text-gray-400 pl-7">{item.desc}</span>
                   </li>
                 ))}
               </ul>
               
-              <div className="pt-6">
+              <div className="pt-4">
                 <Button asChild>
                   <Link to="/about">Learn More About Us</Link>
                 </Button>
@@ -248,7 +249,7 @@ export function Home() {
       </section>
 
       {/* Services Overview */}
-      <section className="py-24 bg-brand-gray dark:bg-gray-900 overflow-hidden">
+      <section className="py-24 bg-brand-dark dark:bg-black overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
           <motion.div 
             initial={{ opacity: 0, y: 40 }}

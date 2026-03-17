@@ -16,23 +16,23 @@ export function ServiceCard({ id, title, description, icon: Icon, features }: Se
   return (
     <motion.div 
       whileHover={{ y: -5 }}
-      className="group flex flex-col p-8 bg-white dark:bg-brand-darker border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl transition-all hover:shadow-md dark:hover:shadow-xl dark:hover:shadow-black/50"
+      className="group flex flex-col p-6 bg-white/5 dark:bg-gray-800/50 border border-white/10 dark:border-gray-700 rounded-xl transition-all hover:bg-white/10 hover:border-brand-accent/30"
     >
-      <div className="w-14 h-14 rounded-lg bg-brand-gray dark:bg-gray-800 flex items-center justify-center mb-6 group-hover:bg-brand-accent group-hover:text-white transition-colors text-brand-dark dark:text-white">
-        <Icon className="w-7 h-7" />
+      <div className="w-12 h-12 rounded-lg bg-brand-accent/10 flex items-center justify-center mb-5 group-hover:bg-brand-accent/20 transition-colors">
+        <Icon className="w-6 h-6 text-brand-accent" />
       </div>
       
-      <h3 className="text-2xl font-bold text-brand-dark dark:text-white mb-3">
+      <h3 className="text-xl font-bold text-white mb-3">
         {title}
       </h3>
       
-      <p className="text-gray-600 dark:text-gray-400 mb-6 flex-grow">
+      <p className="text-gray-400 text-sm mb-5 flex-grow leading-relaxed">
         {description}
       </p>
       
-      <ul className="space-y-2 mb-8">
+      <ul className="space-y-2 mb-6">
         {features.slice(0, 3).map((feature, idx) => (
-          <li key={idx} className="flex items-start text-sm text-gray-500 dark:text-gray-400">
+          <li key={idx} className="flex items-start text-sm text-gray-500">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-accent mt-1.5 mr-2 flex-shrink-0" />
             {feature}
           </li>
@@ -41,9 +41,9 @@ export function ServiceCard({ id, title, description, icon: Icon, features }: Se
       
       <Link 
         to={`/services#${id}`}
-        className="inline-flex items-center text-sm font-semibold text-brand-dark dark:text-white group-hover:text-brand-accent dark:group-hover:text-brand-accent transition-colors mt-auto"
+        className="inline-flex items-center text-sm font-semibold text-white group-hover:text-brand-accent transition-colors mt-auto"
       >
-        Explore Service
+        Learn more
         <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
       </Link>
     </motion.div>
