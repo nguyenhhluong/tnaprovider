@@ -57,6 +57,7 @@ export function About() {
                 alt="Joinery Workshop" 
                 className="rounded-2xl w-full h-64 object-cover"
                 loading="lazy"
+                decoding="async"
                 referrerPolicy="no-referrer"
               />
               <img 
@@ -64,6 +65,7 @@ export function About() {
                 alt="Construction Site" 
                 className="rounded-2xl w-full h-64 object-cover mt-8"
                 loading="lazy"
+                decoding="async"
                 referrerPolicy="no-referrer"
               />
             </div>

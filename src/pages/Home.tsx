@@ -178,16 +178,23 @@ export function Home() {
       </section>
 
       {/* Trust Intro */}
-      <section className="py-24 bg-white dark:bg-brand-darker">
+      <section className="py-24 bg-white dark:bg-brand-darker overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div className="relative">
+            <motion.div 
+              initial={{ opacity: 0, x: -40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7 }}
+              className="relative"
+            >
               <div className="aspect-[4/5] rounded-2xl overflow-hidden">
                 <img 
                   src="https://images.unsplash.com/photo-1541888086925-920a0b414631?auto=format&fit=crop&q=80&w=1200" 
                   alt="TNA Provider Team" 
                   className="w-full h-full object-cover"
                   loading="lazy"
+                  decoding="async"
                   referrerPolicy="no-referrer"
                 />
               </div>
@@ -195,9 +202,15 @@ export function Home() {
                 <div className="text-4xl font-display font-bold text-brand-accent mb-2">15+</div>
                 <div className="text-sm font-medium text-gray-300 dark:text-gray-400">Years of combined experience delivering premium commercial spaces across Australia.</div>
               </div>
-            </div>
+            </motion.div>
             
-            <div className="flex flex-col gap-8">
+            <motion.div 
+              initial={{ opacity: 0, x: 40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7 }}
+              className="flex flex-col gap-8"
+            >
               <SectionTitle 
                 subtitle="From Concept to Completion"
                 title="Specialists in Joinery, Shopfitting, and Construction"
@@ -232,15 +245,21 @@ export function Home() {
                   <Link to="/about">Learn More About Us</Link>
                 </Button>
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
       {/* Services Overview */}
-      <section className="py-24 bg-brand-gray dark:bg-gray-900">
+      <section className="py-24 bg-brand-gray dark:bg-gray-900 overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+          <motion.div 
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.7 }}
+            className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16"
+          >
             <SectionTitle 
               subtitle="Our Capabilities"
               title="End-to-End Solutions"
@@ -249,27 +268,40 @@ export function Home() {
             <Button asChild variant="outline">
               <Link to="/services">View All Services</Link>
             </Button>
-          </div>
+          </motion.div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {services.map((service) => (
-              <ServiceCard 
-                key={service.id} 
-                id={service.id}
-                title={service.title}
-                description={service.description}
-                icon={service.icon}
-                features={service.features}
-              />
+            {services.map((service, index) => (
+              <motion.div
+                key={service.id}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+              >
+                <ServiceCard 
+                  id={service.id}
+                  title={service.title}
+                  description={service.description}
+                  icon={service.icon}
+                  features={service.features}
+                />
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
       {/* Featured Projects */}
-      <section className="py-24 bg-white dark:bg-brand-darker">
+      <section className="py-24 bg-white dark:bg-brand-darker overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+          <motion.div 
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.7 }}
+            className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16"
+          >
             <SectionTitle 
               subtitle="Our Work"
               title="Featured Projects"
@@ -277,58 +309,86 @@ export function Home() {
             <Button asChild variant="outline">
               <Link to="/projects">View Gallery</Link>
             </Button>
-          </div>
+          </motion.div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {projects.map((project) => (
-              <ProjectCard 
-                key={project.id} 
-                id={project.id}
-                title={project.title}
-                sector={project.sector}
-                scope={project.scope}
-                description={project.description}
-                imageUrl={project.imageUrl}
-                tags={project.tags}
-              />
+            {projects.map((project, index) => (
+              <motion.div
+                key={project.id}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+              >
+                <ProjectCard 
+                  id={project.id}
+                  title={project.title}
+                  sector={project.sector}
+                  scope={project.scope}
+                  description={project.description}
+                  imageUrl={project.imageUrl}
+                  tags={project.tags}
+                />
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
       {/* Testimonials */}
-      <section className="py-24 bg-brand-gray dark:bg-gray-900">
+      <section className="py-24 bg-brand-gray dark:bg-gray-900 overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
-          <SectionTitle 
-            subtitle="Client Success"
-            title="Trusted by Australian Businesses"
-            align="center"
-            className="mb-16"
-          />
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.7 }}
+          >
+            <SectionTitle 
+              subtitle="Client Success"
+              title="Trusted by Australian Businesses"
+              align="center"
+              className="mb-16"
+            />
+          </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, i) => (
-              <Testimonial 
-                key={i} 
-                quote={testimonial.quote}
-                author={testimonial.author}
-                role={testimonial.role}
-                company={testimonial.company}
-              />
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+              >
+                <Testimonial 
+                  quote={testimonial.quote}
+                  author={testimonial.author}
+                  role={testimonial.role}
+                  company={testimonial.company}
+                />
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
       {/* FAQ */}
-      <section className="py-24 bg-white dark:bg-brand-darker">
+      <section className="py-24 bg-white dark:bg-brand-darker overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
-          <SectionTitle 
-            subtitle="Common Questions"
-            title="Frequently Asked Questions"
-            align="center"
-            className="mb-16"
-          />
-          <FAQAccordion items={faqs} />
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.7 }}
+          >
+            <SectionTitle 
+              subtitle="Common Questions"
+              title="Frequently Asked Questions"
+              align="center"
+              className="mb-16"
+            />
+            <FAQAccordion items={faqs} />
+          </motion.div>
         </div>
       </section>
 

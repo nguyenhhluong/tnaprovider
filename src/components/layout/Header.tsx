@@ -90,15 +90,35 @@ export function Header() {
           <div className="flex items-center gap-2 lg:hidden z-50">
             <ThemeToggle />
             <button 
-              className={cn("p-2", isScrolled ? "text-brand-dark dark:text-white" : "text-brand-dark md:text-white dark:text-white")}
+              className={cn("p-2 relative w-10 h-10 flex items-center justify-center", isScrolled ? "text-brand-dark dark:text-white" : "text-brand-dark md:text-white dark:text-white")}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle menu"
             >
-              {mobileMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
+              <AnimatePresence mode="wait">
+                {mobileMenuOpen ? (
+                  <motion.div
+                    key="close"
+                    initial={{ rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute"
+                  >
+                    <X className="w-6 h-6" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="menu"
+                    initial={{ rotate: 90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: -90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute"
+                  >
+                    <Menu className="w-6 h-6" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </button>
           </div>
         </div>
@@ -128,7 +148,7 @@ export function Header() {
               ))}
             </nav>
             
-            <div className="mt-auto flex flex-col gap-6 pt-8 border-t border-gray-100 dark:border-gray-800">
+            <div className="mt-auto flex flex-col gap-6 pt-8 border-t border-gray-100 dark:border-gray-800 pb-safe">
               <a href="tel:0406409668" className="flex items-center gap-3 text-brand-dark dark:text-white font-medium">
                 <div className="w-10 h-10 rounded-full bg-brand-gray dark:bg-gray-800 flex items-center justify-center text-brand-accent">
                   <Phone className="w-5 h-5" />
@@ -141,7 +161,7 @@ export function Header() {
                 </div>
                 info@tnaprovider.com.au
               </a>
-              <Button asChild className="w-full mt-4" size="lg">
+              <Button asChild className="w-full mt-4 py-6 text-lg shadow-xl shadow-brand-accent/20" size="lg">
                 <Link to="/contact">Request a Quote</Link>
               </Button>
             </div>

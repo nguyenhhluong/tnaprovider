@@ -1,5 +1,5 @@
-import React from "react";
-import { motion } from "motion/react";
+import React, { useRef } from "react";
+import { motion, useScroll, useTransform } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -15,23 +15,33 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ id, title, sector, scope, description, imageUrl, tags }: ProjectCardProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"]
+  });
+  const y = useTransform(scrollYProgress, [0, 1], ["-10%", "10%"]);
+
   return (
     <motion.div 
+      ref={ref}
       whileHover={{ y: -8, scale: 1.02 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
       className="group relative flex flex-col overflow-hidden bg-white dark:bg-gray-900 shadow-sm hover:shadow-xl border border-gray-100 dark:border-gray-800 rounded-xl transition-shadow duration-300"
     >
       <div className="relative aspect-[4/3] overflow-hidden">
-        <img 
+        <motion.img 
+          style={{ y, scale: 1.2 }}
           src={imageUrl} 
           alt={title} 
           className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105"
           loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-darker/80 via-brand-darker/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         <div className="absolute top-4 left-4 flex flex-wrap gap-2 z-10">
-          <span className="px-3 py-1 text-xs font-semibold bg-white/90 backdrop-blur-sm text-brand-dark rounded-full shadow-sm">
+          <span className="px-3 py-1.5 text-xs font-bold bg-brand-dark/80 text-brand-accent border border-brand-accent/20 backdrop-blur-md rounded-full shadow-lg uppercase tracking-wider">
             {sector}
           </span>
         </div>
