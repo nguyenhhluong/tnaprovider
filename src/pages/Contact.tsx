@@ -158,10 +158,13 @@ export function Contact() {
                           value={formData.firstName}
                           onChange={handleChange}
                           onBlur={handleBlur}
+                          aria-required="true"
+                          aria-invalid={!!errors.firstName}
+                          aria-describedby={errors.firstName ? "firstName-error" : undefined}
                           className={`h-12 px-4 rounded-lg border ${errors.firstName ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                           placeholder="John"
                         />
-                        {errors.firstName && <span className="text-xs text-red-500">{errors.firstName}</span>}
+                        {errors.firstName && <span id="firstName-error" className="text-xs text-red-500" role="alert">{errors.firstName}</span>}
                       </div>
                       <div className="flex flex-col gap-2">
                         <label htmlFor="lastName" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Last Name <span className="text-red-500">*</span></label>
@@ -172,10 +175,13 @@ export function Contact() {
                           value={formData.lastName}
                           onChange={handleChange}
                           onBlur={handleBlur}
+                          aria-required="true"
+                          aria-invalid={!!errors.lastName}
+                          aria-describedby={errors.lastName ? "lastName-error" : undefined}
                           className={`h-12 px-4 rounded-lg border ${errors.lastName ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                           placeholder="Doe"
                         />
-                        {errors.lastName && <span className="text-xs text-red-500">{errors.lastName}</span>}
+                        {errors.lastName && <span id="lastName-error" className="text-xs text-red-500" role="alert">{errors.lastName}</span>}
                       </div>
                     </div>
                     
@@ -188,10 +194,13 @@ export function Contact() {
                         value={formData.email}
                         onChange={handleChange}
                         onBlur={handleBlur}
+                        aria-required="true"
+                        aria-invalid={!!errors.email}
+                        aria-describedby={errors.email ? "email-error" : undefined}
                         className={`h-12 px-4 rounded-lg border ${errors.email ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                         placeholder="john@example.com"
                       />
-                      {errors.email && <span className="text-xs text-red-500">{errors.email}</span>}
+                      {errors.email && <span id="email-error" className="text-xs text-red-500" role="alert">{errors.email}</span>}
                     </div>
                     
                     <div className="flex flex-col gap-2">
@@ -203,10 +212,13 @@ export function Contact() {
                         value={formData.phone}
                         onChange={handleChange}
                         onBlur={handleBlur}
+                        aria-required="true"
+                        aria-invalid={!!errors.phone}
+                        aria-describedby={errors.phone ? "phone-error" : undefined}
                         className={`h-12 px-4 rounded-lg border ${errors.phone ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                         placeholder="0406 409 668"
                       />
-                      {errors.phone && <span className="text-xs text-red-500">{errors.phone}</span>}
+                      {errors.phone && <span id="phone-error" className="text-xs text-red-500" role="alert">{errors.phone}</span>}
                     </div>
                     
                     <div className="flex flex-col gap-2">
@@ -217,6 +229,9 @@ export function Contact() {
                         value={formData.service}
                         onChange={handleChange}
                         onBlur={handleBlur}
+                        aria-required="true"
+                        aria-invalid={!!errors.service}
+                        aria-describedby={errors.service ? "service-error" : undefined}
                         className={`h-12 px-4 rounded-lg border ${errors.service ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                       >
                         <option value="">Select a service...</option>
@@ -226,7 +241,7 @@ export function Contact() {
                         <option value="metalwork">Architectural Metalwork</option>
                         <option value="design">Design & Planning</option>
                       </select>
-                      {errors.service && <span className="text-xs text-red-500">{errors.service}</span>}
+                      {errors.service && <span id="service-error" className="text-xs text-red-500" role="alert">{errors.service}</span>}
                     </div>
                     
                     <div className="flex flex-col gap-2">
@@ -238,10 +253,13 @@ export function Contact() {
                         onChange={handleChange}
                         onBlur={handleBlur}
                         rows={5}
+                        aria-required="true"
+                        aria-invalid={!!errors.message}
+                        aria-describedby={errors.message ? "message-error" : undefined}
                         className={`p-4 rounded-lg border ${errors.message ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors resize-none`}
                         placeholder="Tell us about your project scope, timeline, and budget..."
                       ></textarea>
-                      {errors.message && <span className="text-xs text-red-500">{errors.message}</span>}
+                      {errors.message && <span id="message-error" className="text-xs text-red-500" role="alert">{errors.message}</span>}
                     </div>
 
                     <div className="flex flex-col gap-4 p-4 bg-brand-gray dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
@@ -252,6 +270,7 @@ export function Contact() {
                           name="requestCallback"
                           checked={formData.requestCallback}
                           onChange={handleChange}
+                          aria-checked={formData.requestCallback}
                           className="w-5 h-5 rounded border-gray-300 text-brand-accent focus:ring-brand-accent"
                         />
                         <label htmlFor="requestCallback" className="text-sm font-semibold text-gray-700 dark:text-gray-300 cursor-pointer">
@@ -268,6 +287,9 @@ export function Contact() {
                             value={formData.callbackTime}
                             onChange={handleChange}
                             onBlur={handleBlur}
+                            aria-required="true"
+                            aria-invalid={!!errors.callbackTime}
+                            aria-describedby={errors.callbackTime ? "callbackTime-error" : undefined}
                             className={`h-12 px-4 rounded-lg border ${errors.callbackTime ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                           >
                             <option value="">Select preferred time...</option>
@@ -275,7 +297,7 @@ export function Contact() {
                             <option value="afternoon">Afternoon (12:00 PM - 5:00 PM)</option>
                             <option value="evening">Evening (After 5:00 PM)</option>
                           </select>
-                          {errors.callbackTime && <span className="text-xs text-red-500">{errors.callbackTime}</span>}
+                          {errors.callbackTime && <span id="callbackTime-error" className="text-xs text-red-500" role="alert">{errors.callbackTime}</span>}
                         </div>
                       )}
                     </div>

@@ -1,8 +1,8 @@
 import React, { forwardRef } from "react";
 import { cn } from "../../utils/cn";
-import { motion } from "motion/react";
+import { motion, HTMLMotionProps } from "motion/react";
 
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends HTMLMotionProps<"button"> {
   variant?: "primary" | "secondary" | "outline" | "ghost";
   size?: "sm" | "md" | "lg";
   asChild?: boolean;

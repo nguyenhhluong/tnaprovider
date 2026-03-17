@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { HashLink } from "react-router-hash-link";
 import { Mail, Phone, MapPin, ArrowRight, Linkedin, Instagram, Facebook } from "lucide-react";
 
 export function Footer() {
@@ -59,19 +60,20 @@ export function Footer() {
             <h4 className="text-lg font-display font-bold tracking-tight">Our Services</h4>
             <ul className="flex flex-col gap-3">
               {[
-                "Custom Joinery Manufacturing",
-                "Shopfitting & Interior Fitouts",
-                "Commercial Construction",
-                "Architectural Metalwork",
-                "Design & Planning"
+                { name: "Custom Joinery Manufacturing", hash: "joinery" },
+                { name: "Shopfitting & Interior Fitouts", hash: "shopfitting" },
+                { name: "Commercial Construction", hash: "construction" },
+                { name: "Architectural Metalwork", hash: "metalwork" },
+                { name: "Design & Planning", hash: "design" }
               ].map((service) => (
-                <li key={service}>
-                  <Link 
-                    to="/services"
+                <li key={service.hash}>
+                  <HashLink 
+                    to={`/services#${service.hash}`}
+                    smooth
                     className="text-gray-400 hover:text-brand-accent transition-colors text-sm"
                   >
-                    {service}
-                  </Link>
+                    {service.name}
+                  </HashLink>
                 </li>
               ))}
             </ul>

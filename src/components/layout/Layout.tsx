@@ -1,6 +1,7 @@
 import { Outlet, ScrollRestoration } from "react-router-dom";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
+import { AIChat } from "../AIChat";
 
 export function Layout() {
   return (
@@ -11,6 +12,7 @@ export function Layout() {
         <Outlet />
       </main>
       <Footer />
+      <AIChat />
     </div>
   );
 }
