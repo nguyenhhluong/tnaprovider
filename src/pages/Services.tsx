@@ -4,52 +4,52 @@ import { Hammer, Building2, HardHat, Wrench, Ruler, Clock, MoonStar, ShieldCheck
 const services = [
   {
     id: "joinery",
-    title: "Bespoke Joinery Fabrication",
+    title: "Custom Joinery Manufacturing",
     icon: Hammer,
-    overview: "Elevate your brand with premium, custom-built joinery manufactured in-house for perfect fit and finish. We translate your vision into tangible, high-quality assets.",
+    overview: "We manufacture custom joinery in-house — cabinets, shelving, display units, reception desks — built to your specifications with our own CNC equipment.",
     deliverables: ["Custom cabinets & shelving", "Display units & POS counters", "Reception desks", "Premium veneer & laminate finishes", "CNC precision routing"],
-    clients: "Retail stores, corporate offices, hospitality venues, high-end residential.",
-    benefits: "In-house production ensures strict quality control, faster turnaround times, and seamless integration with the overall fitout.",
+    clients: "Retail stores, corporate offices, hospitality venues.",
+    benefits: "In-house production means faster turnaround and direct quality control. We make it ourselves.",
     image: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&q=80&w=1200"
   },
   {
     id: "shopfitting",
-    title: "Complete Commercial Fitouts",
+    title: "Shopfitting & Interior Fitouts",
     icon: Building2,
-    overview: "Transform empty shells into immersive brand experiences. We coordinate every trade to deliver a polished, ready-to-trade environment with minimal disruption.",
+    overview: "We fit out retail and hospitality spaces for trading. Full coordination from base building to finished fitout.",
     deliverables: ["Retail fixtures & racking", "Signage integration", "Wall panelling & cladding", "Flooring coordination", "Lighting & electrical integration"],
-    clients: "National retail chains, boutique stores, cafes, restaurants, gyms.",
-    benefits: "Minimal disruption to trading, after-hours work capabilities, and a dedicated project manager for a single point of contact.",
+    clients: "Retail chains, boutique stores, cafes, restaurants, gyms.",
+    benefits: "One team managing the whole job. We can work after hours to keep your business running.",
     image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=1200"
   },
   {
     id: "construction",
-    title: "End-to-End Construction",
+    title: "Commercial Construction",
     icon: HardHat,
-    overview: "Beyond interior fitouts, we handle the heavy lifting. From structural modifications to complete refurbishments, our licensed builders manage the entire construction phase.",
+    overview: "Structural modifications, refurbishments, and base building works. Licensed builders managing the full construction process.",
     deliverables: ["Structural works & modifications", "Base building refurbishments", "Site coordination & management", "Demolition & strip-outs", "Budget & timeline control"],
     clients: "Property developers, landlords, large corporate tenants, educational institutions.",
-    benefits: "Comprehensive risk management, strict adherence to safety and compliance standards, and transparent reporting.",
+    benefits: "Full project management with transparent costing. We handle compliance and safety.",
     image: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=1200"
   },
   {
     id: "cabinet-making",
     title: "Cabinet Making",
     icon: Hammer,
-    overview: "Custom cabinet making and joinery services for commercial spaces. We craft high-quality, bespoke cabinetry solutions tailored to your brand and operational needs.",
-    deliverables: ["Precision CNC manufacturing", "Premium material selection", "Seamless integration with fitouts"],
+    overview: "Custom cabinetry for commercial spaces. Made to measure with our CNC equipment, installed as part of your fitout.",
+    deliverables: ["Precision CNC manufacturing", "Material selection", "Integrated installation"],
     clients: "Retail stores, corporate offices, hospitality venues.",
-    benefits: "High-quality craftsmanship, durable materials, and solutions designed to enhance both functionality and aesthetics.",
+    benefits: "Made in-house, fitted on-site. No separate cabinet maker and installer.",
     image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1200"
   },
   {
     id: "design",
     title: "Design & Planning",
     icon: Ruler,
-    overview: "A successful project starts with meticulous planning. We bridge the gap between architectural vision and practical construction.",
+    overview: "Shop drawings, CAD documentation, and 3D modelling. We prepare the details that get the job built.",
     deliverables: ["CAD drawings & shop detailing", "3D modelling & visualization", "Layout & spatial optimisation", "Documentation support", "Approvals & council process guidance"],
-    clients: "Architects, interior designers, direct clients needing design-and-construct services.",
-    benefits: "Identifies potential issues before construction begins, ensures accurate pricing, and streamlines the approval process.",
+    clients: "Architects, interior designers, direct clients.",
+    benefits: "Drawings that actually build. We know what works on site.",
     image: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=1200"
   }
 ];
@@ -63,11 +63,11 @@ export function Services() {
           <div className="max-w-3xl">
             <SectionTitle 
               subtitle="Our Services"
-              title="Comprehensive Solutions for Commercial Spaces"
+              title="What We Do"
               light
             />
             <p className="mt-6 text-xl text-gray-300 leading-relaxed">
-              From bespoke joinery to full-scale commercial construction, TNA Provider offers a true end-to-end service. We manage every detail so you can focus on your business.
+              We handle joinery manufacturing, shopfitting, and construction in-house. One team, one point of contact, from start to handover.
             </p>
           </div>
         </div>
@@ -167,9 +167,9 @@ export function Services() {
               <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center text-brand-accent mb-6 shadow-sm">
                 <MoonStar className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold text-brand-dark dark:text-white mb-4">Overnight Transformations</h3>
+              <h3 className="text-xl font-bold text-brand-dark dark:text-white mb-4">After-Hours Work</h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Our teams mobilize quickly at closing time. By morning, the site is cleaned, secured, and ready for you to open for business as usual.
+                We can work nights and weekends. Your business keeps trading while we fit out.
               </p>
             </div>
 
@@ -177,9 +177,9 @@ export function Services() {
               <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center text-brand-accent mb-6 shadow-sm">
                 <ShieldCheck className="w-8 h-8" />
               </div>
-              <h3 className="text-xl font-bold text-brand-dark dark:text-white mb-4">Secure & Compliant</h3>
+              <h3 className="text-xl font-bold text-brand-dark dark:text-white mb-4">Compliance</h3>
               <p className="text-gray-600 dark:text-gray-400">
-                We maintain strict security protocols and safety standards during after-hours operations, giving you peace of mind while you sleep.
+                We handle safety and compliance. All work meets Australian standards.
               </p>
             </div>
           </div>

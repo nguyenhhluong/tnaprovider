@@ -22,7 +22,7 @@ export function Footer() {
               </div>
             </Link>
             <p className="text-gray-400 text-sm leading-relaxed max-w-xs">
-              TNA Provider delivers trusted end-to-end solutions for commercial and retail spaces, combining bespoke joinery, expert construction, and disciplined project management to bring every project from concept to completion with quality, precision, and reliability.
+              Sydney-based commercial construction and joinery company. We handle fitouts, custom joinery, and construction work across retail, hospitality, and office sectors.
             </p>
             <div className="flex items-center gap-4 mt-2">
               <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-brand-accent hover:text-white transition-colors" aria-label="LinkedIn">

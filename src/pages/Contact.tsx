@@ -136,11 +136,11 @@ export function Contact() {
           <div className="max-w-3xl">
             <SectionTitle 
               subtitle="Get a Quote"
-              title="Ready to Transform Your Commercial Space?"
+              title="Tell Us About Your Project"
               light
             />
             <p className="mt-6 text-xl text-gray-300 leading-relaxed">
-              Tell us about your project requirements. Our team of experts will review your details and provide a comprehensive, no-obligation quote tailored to your specific needs.
+              Fill in the details below and we'll get back to you with a quote.
             </p>
           </div>
         </div>

@@ -12,49 +12,49 @@ import { projects } from "../data/projects";
 const services = [
   {
     id: "joinery",
-    title: "Bespoke Joinery Fabrication",
-    description: "Elevate your brand with premium, custom-built joinery manufactured in-house for perfect fit and finish.",
+    title: "Custom Joinery",
+    description: "We manufacture bespoke joinery in-house — cabinets, fixtures, reception desks — built to exact specifications with our own CNC equipment.",
     icon: Hammer,
-    features: ["Precision CNC Manufacturing", "Premium Material Selection", "Flawless Installation"],
+    features: ["In-House Manufacturing", "Custom Specifications", "Full Installation"],
   },
   {
     id: "shopfitting",
-    title: "Complete Commercial Fitouts",
-    description: "Transform empty shells into engaging retail and hospitality environments that drive foot traffic and sales.",
+    title: "Shopfitting",
+    description: "We fit out retail and hospitality spaces for trading. Coordinated delivery from start to handover.",
     icon: Building2,
-    features: ["Rapid Retail Rollouts", "Brand-Aligned Interiors", "Minimal Trading Disruption"],
+    features: ["Retail & Hospitality", "Trade Coordination", "Flexible Scheduling"],
   },
   {
     id: "construction",
-    title: "End-to-End Construction",
-    description: "Deliver complex structural works and refurbishments on time and strictly within budget constraints.",
+    title: "Construction",
+    description: "Structural modifications, refurbishments, and base building works. Licensed builders managing the full build process.",
     icon: HardHat,
-    features: ["End-to-End Site Management", "Strict Safety Compliance", "Transparent Cost Control"],
+    features: ["Licensed Builders", "Site Management", "Compliance"],
   },
   {
     id: "metalwork",
-    title: "Architectural Metalwork",
-    description: "Custom metal fabrication adds a premium, industrial, or modern touch to any commercial space.",
+    title: "Metalwork",
+    description: "Custom metal fixtures and fittings fabricated to match your design. Brackets, railings, and architectural elements.",
     icon: Wrench,
-    features: ["Custom Brass & Steel Fixtures", "Architectural Staircases", "Powder-Coated Finishes"],
+    features: ["Custom Fabrication", "Steel & Brass", "Powder Coating"],
   },
 ];
 
 const testimonials = [
   {
-    quote: "TNA Provider delivered our flagship store on time and under budget. Their in-house joinery team meant we didn't have to wait for third-party suppliers, which saved us weeks.",
+    quote: "TNA delivered our store on time. Their in-house joinery meant no waiting for external suppliers — saved us weeks.",
     author: "Sarah Jenkins",
     role: "Retail Director",
     company: "Aura Boutique"
   },
   {
-    quote: "The level of communication and project management was exceptional. They handled the entire office fitout while our team continued working with minimal disruption.",
+    quote: "They managed the entire office fitout while we kept working. Good communication throughout.",
     author: "David Chen",
     role: "Operations Manager",
     company: "Nexus Tech Hub"
   },
   {
-    quote: "Finding a contractor who understands the strict compliance requirements of a medical fitout is rare. TNA Provider exceeded our expectations in every aspect of the build.",
+    quote: "Medical fitout needed strict compliance. TNA knew the requirements and delivered without issues.",
     author: "Dr. Emily Roberts",
     role: "Principal Dentist",
     company: "Elevate Dental"
@@ -64,23 +64,23 @@ const testimonials = [
 const faqs = [
   {
     question: "Do you manufacture your own joinery?",
-    answer: "Yes, we have our own state-of-the-art manufacturing facility. This allows us to maintain strict quality control, reduce lead times, and offer truly bespoke solutions without relying on third-party suppliers."
+    answer: "Yes. We have our own joinery workshop with CNC equipment. We don't outsource — everything is made in-house."
   },
   {
-    question: "Can you work after hours to minimize disruption?",
-    answer: "Absolutely. We understand that commercial spaces often need to remain operational during the day. We offer flexible scheduling, including night and weekend work, to ensure your business experiences minimal downtime."
+    question: "Can you work after hours?",
+    answer: "Yes. We schedule night and weekend work to avoid disrupting your trading. Let us know what works for you."
   },
   {
-    question: "Do you handle council approvals and permits?",
-    answer: "Yes, our design and planning team can assist with the entire approvals process, from initial documentation to liaising with local councils and private certifiers to ensure your project is fully compliant."
+    question: "Do you handle council approvals?",
+    answer: "We can prepare documentation and liaise with councils and certifiers. Tell us what you need."
   },
   {
     question: "What areas do you service?",
-    answer: "We are based in Sydney but provide our commercial construction and fitout services Australia-wide for major retail rollouts and significant commercial projects."
+    answer: "We're based in Sydney and work across NSW and Australia for larger projects."
   },
   {
-    question: "How long does a typical commercial fitout take?",
-    answer: "Timelines vary greatly depending on the scope and scale of the project. A small retail kiosk might take 2-3 weeks, while a large corporate office fitout could take 8-12 weeks. We provide a detailed, realistic timeline during the quoting phase and guarantee our delivery dates."
+    question: "How long does a fitout take?",
+    answer: "It depends on scope. A small retail kiosk might be 2-3 weeks. A full office fitout could be 8-12 weeks. We give you a realistic timeline at quote stage."
   }
 ];
 
@@ -119,7 +119,7 @@ export function Home() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="text-5xl md:text-7xl lg:text-8xl font-bold text-white tracking-tight leading-[1.1] mb-8"
             >
-              Commercial Fitouts, Custom Joinery, and Shopfitting Delivered <span className="text-brand-accent">End-to-End.</span>
+              Commercial Fitouts, Joinery, and Shopfitting.
             </motion.h1>
             
             <motion.p 
@@ -153,10 +153,10 @@ export function Home() {
         <div className="container mx-auto px-4 md:px-8">
           <div className="flex flex-wrap justify-center md:justify-between items-center gap-4 md:gap-8">
             {[
-              "End-to-End Delivery",
+              "In-House Joinery",
               "Custom Fabrication",
-              "Commercial Fitout Expertise",
-              "Australia-Wide Capability"
+              "Shopfitting Specialists",
+              "Sydney Based"
             ].map((chip, index) => (
               <motion.div 
                 key={index}
@@ -209,23 +209,23 @@ export function Home() {
             >
               <SectionTitle 
                 subtitle="Why Choose Us"
-                title="Built for Speed, Quality, and Minimal Disruption"
+                title="Built for Speed and Minimal Disruption"
               />
               <div className="prose prose-lg text-gray-600 dark:text-gray-400">
                 <p>
-                  We know that in commercial fitouts, time is money. Every day your doors are closed is a day of lost revenue. That's why we've built our entire operation around speed, coordination, and uncompromising quality.
+                  Commercial fitouts cost money every day your doors are closed. We've built our operation around getting you trading faster — without cutting corners.
                 </p>
                 <p>
-                  By keeping joinery manufacturing in-house and managing every trade on-site, we eliminate the delays and miscommunications that plague traditional builds. We work around your schedule, not ours.
+                  We keep joinery manufacturing in-house and manage every trade on-site. No passing the buck to third-party subcontractors. We work around your trading hours.
                 </p>
               </div>
               
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
                 {[
-                  { title: "Rapid Turnarounds", desc: "Streamlined processes to get you trading faster." },
-                  { title: "Seamless Coordination", desc: "One point of contact for the entire project lifecycle." },
-                  { title: "After-Hours Work", desc: "Night and weekend shifts to minimize business disruption." },
-                  { title: "Uncompromising Quality", desc: "In-house manufacturing ensures perfect fit and finish." }
+                  { title: "In-House Joinery", desc: "We make it ourselves. No supplier delays." },
+                  { title: "Single Point of Contact", desc: "One project manager from start to finish." },
+                  { title: "After-Hours Work", desc: "We can work nights and weekends." },
+                  { title: "Fixed Timeline", desc: "We commit to dates and stick to them." }
                 ].map((item, i) => (
                   <li key={i} className="flex flex-col gap-1">
                     <div className="flex items-center gap-2 text-brand-dark dark:text-gray-200 font-bold">
@@ -259,7 +259,7 @@ export function Home() {
           >
             <SectionTitle 
               subtitle="Our Capabilities"
-              title="End-to-End Solutions"
+              title="What We Do"
               className="max-w-2xl"
             />
             <Button asChild variant="outline">
@@ -448,10 +448,10 @@ export function Home() {
         </div>
         <div className="container relative z-10 mx-auto px-4 md:px-8 text-center max-w-4xl">
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-white mb-8 tracking-tight">
-            Ready to Build Your Next Commercial Space?
+            Ready to Start Your Project?
           </h2>
           <p className="text-xl text-gray-300 mb-10">
-            Contact TNA Provider today for a consultation and quote. We deliver quality workmanship, custom fabrication, and reliable delivery across Australia.
+            Get in touch for a quote. We handle joinery, fitout, and construction — start to finish.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button asChild size="lg" className="w-full sm:w-auto">

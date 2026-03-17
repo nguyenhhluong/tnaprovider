@@ -20,11 +20,11 @@ export function About() {
           <div className="max-w-3xl">
             <SectionTitle 
               subtitle="About TNA Provider"
-              title="Building Commercial Excellence Across Australia"
+              title="Commercial Construction and Joinery"
               light
             />
             <p className="mt-6 text-xl text-gray-300 leading-relaxed">
-              We are a premier Australian construction company specializing in end-to-end solutions for commercial and retail spaces. From bespoke joinery fabrication to on-site construction and project management, we deliver quality without compromise.
+              We handle commercial fitouts, custom joinery, and on-site construction work across Sydney and Australia. Our team manages the full delivery path from shop drawing to handover.
             </p>
           </div>
         </div>
@@ -37,17 +37,17 @@ export function About() {
             <div className="flex flex-col gap-8">
               <SectionTitle 
                 subtitle="Our Story"
-                title="A Foundation of Trust and Craftsmanship"
+                title="How We Work"
               />
               <div className="prose prose-lg text-gray-600 dark:text-gray-400">
                 <p>
-                  TNA Provider was founded on a simple principle: commercial construction and fitouts shouldn't be a fragmented, stressful process. By bringing design, manufacturing, and construction under one roof, we provide a streamlined experience for our clients.
+                  TNA Provider brings together joinery manufacturing and on-site construction under one team. This means we control the timeline and quality instead of coordinating multiple subcontractors.
                 </p>
                 <p>
-                  Our in-house joinery facility allows us to maintain strict quality control over every bespoke element, while our experienced site managers ensure that the physical build progresses smoothly, safely, and on schedule.
+                  Our joinery facility handles custom fabrication while our site managers run the physical build. Whether it's a retail fitout, hospitality refit, or office refurbishment, we deliver the complete package.
                 </p>
                 <p>
-                  Whether it's a high-end retail boutique, a bustling hospitality venue, or a modern corporate office, we have the expertise to bring your vision to life.
+                  We work across retail, hospitality, office, and specialist environments. Each sector has its own requirements — we know the difference.
                 </p>
               </div>
             </div>
@@ -86,18 +86,18 @@ export function About() {
             {[
               {
                 icon: Target,
-                title: "End-to-End Capability",
-                desc: "From initial design and planning through to custom manufacturing and final installation, we handle every aspect of your project."
+                title: "One Team, One Point of Contact",
+                desc: "We handle design, joinery, and construction in-house. You deal with one team from quote to handover."
               },
               {
                 icon: Shield,
-                title: "Uncompromising Quality",
-                desc: "Our in-house joinery and strict site management protocols ensure that every detail meets our exacting standards."
+                title: "We Show Up",
+                desc: "We have our own joinery shop and own site crews. No chasing subcontractors."
               },
               {
                 icon: Clock,
-                title: "Reliable Delivery",
-                desc: "We understand that time is money in commercial spaces. We commit to realistic timelines and deliver on them, every time."
+                title: "We Deliver on Time",
+                desc: "We set realistic timelines and stick to them. No excuses — just done."
               }
             ].map((value, i) => (
               <motion.div 
