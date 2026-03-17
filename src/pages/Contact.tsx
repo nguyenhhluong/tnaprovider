@@ -16,6 +16,7 @@ export function Contact() {
     message: "",
     requestCallback: false,
     callbackTime: "",
+    privacyConsent: false,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -62,6 +63,9 @@ export function Contact() {
         break;
       case "callbackTime":
         if (formData.requestCallback && !value) error = "Please select a preferred time";
+        break;
+      case "privacyConsent":
+        if (!value) error = "You must agree to the Privacy Policy";
         break;
       default:
         break;
@@ -118,6 +122,7 @@ export function Contact() {
           message: "",
           requestCallback: false,
           callbackTime: "",
+          privacyConsent: false,
         });
       }, 1000);
     }
@@ -249,11 +254,12 @@ export function Contact() {
                         aria-describedby={errors.service ? "service-error" : undefined}
                         className={`h-12 px-4 rounded-lg border ${errors.service ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                       >
-                        <option value="">Select project type...</option>
-                        <option value="joinery">Bespoke Joinery Fabrication</option>
-                        <option value="shopfitting">Complete Commercial Fitouts</option>
-                        <option value="construction">End-to-End Construction</option>
-                        <option value="metalwork">Architectural Metalwork</option>
+                        <option value="">Select a service...</option>
+                        <option value="joinery">Custom Joinery Manufacturing</option>
+                        <option value="shopfitting">Shopfitting & Fitouts</option>
+                        <option value="construction">Commercial Construction</option>
+                        <option value="cabinet-making">Cabinet Making</option>
+                        <option value="design">Design & Planning</option>
                       </select>
                       {errors.service && <span id="service-error" className="text-xs text-red-500" role="alert">{errors.service}</span>}
                     </div>
@@ -380,6 +386,24 @@ export function Contact() {
                         </div>
                       )}
                     </div>
+                    
+                    {/* Privacy Consent */}
+                    <div className="flex flex-row gap-3 items-start">
+                      <input
+                        type="checkbox"
+                        id="privacyConsent"
+                        name="privacyConsent"
+                        checked={formData.privacyConsent}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        aria-checked={formData.privacyConsent}
+                        className="mt-1 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-accent focus:ring-brand-accent"
+                      />
+                      <label htmlFor="privacyConsent" className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+                        I have read and agree to the <a href="/privacy-policy" target="_blank" className="text-brand-accent hover:underline">Privacy Policy</a> and <a href="/terms-of-service" target="_blank" className="text-brand-accent hover:underline">Terms of Service</a>.
+                      </label>
+                    </div>
+                    {errors.privacyConsent && <span id="privacyConsent-error" className="text-xs text-red-500" role="alert">{errors.privacyConsent}</span>}
                     
                     <Button type="submit" size="lg" className="w-full mt-2">
                       Submit Request

@@ -20,7 +20,7 @@ export function AIChat() {
     {
       id: '1',
       role: 'model',
-      text: 'Hi! I am TNA, your AI assistant. I can help you get a quotation for your project or book an appointment with our team. How can I help you today?'
+      text: 'Hi! I am Heidi TNA, your AI assistant. I can help you get a quotation for your project or book an appointment with our team. How can I help you today?'
     }
   ]);
   const [input, setInput] = useState('');
@@ -71,7 +71,7 @@ export function AIChat() {
         chatSessionRef.current = ai.chats.create({
           model: "gemini-3-flash-preview",
           config: {
-            systemInstruction: `You are TNA, an AI assistant for TNA Provider (a commercial construction, shopfitting, and joinery company in Australia). 
+            systemInstruction: `You are Heidi TNA, an AI assistant for TNA Provider (a commercial construction, shopfitting, and joinery company in Australia). 
 Your primary capabilities are:
 1. Providing quotations: Ask the user for their project type, scope, and budget. Once provided, use the getQuotation tool to generate an estimate.
 2. Booking appointments: Ask the user for their preferred date, time, name, and phone number. Once provided, use the bookAppointment tool to confirm the booking.
@@ -194,7 +194,7 @@ Be professional, helpful, and concise. Do not use markdown formatting like boldi
                   <Bot className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-display font-bold text-sm">TNA Assistant</h3>
+                  <h3 className="font-display font-bold text-sm">Heidi TNA</h3>
                   <p className="text-[10px] text-gray-300">Online</p>
                 </div>
               </div>
@@ -248,7 +248,7 @@ Be professional, helpful, and concise. Do not use markdown formatting like boldi
                 <div className="flex justify-start">
                   <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-brand-accent" />
-                    <span className="text-xs text-gray-500 dark:text-gray-400">TNA is typing...</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Heidi TNA is typing...</span>
                   </div>
                 </div>
               )}

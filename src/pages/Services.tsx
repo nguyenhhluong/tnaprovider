@@ -33,14 +33,24 @@ const services = [
     image: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=1200"
   },
   {
-    id: "metalwork",
-    title: "Architectural Metalwork",
-    icon: Wrench,
-    overview: "Custom metal fabrication adds a premium, industrial, or modern touch to any commercial space. We design and fabricate bespoke metal elements that integrate perfectly.",
-    deliverables: ["Custom brass & steel fixtures", "Architectural staircases & balustrades", "Metal display frames", "Custom door hardware", "Powder-coated finishes"],
-    clients: "High-end retail, luxury hospitality, modern office spaces.",
-    benefits: "Durable, high-impact design elements that elevate the aesthetic of the space and integrate perfectly with our joinery.",
-    image: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=1200"
+    id: "cabinet-making",
+    title: "Cabinet Making",
+    icon: Hammer,
+    overview: "Custom cabinet making and joinery services for commercial spaces. We craft high-quality, bespoke cabinetry solutions tailored to your brand and operational needs.",
+    deliverables: ["Precision CNC manufacturing", "Premium material selection", "Seamless integration with fitouts"],
+    clients: "Retail stores, corporate offices, hospitality venues.",
+    benefits: "High-quality craftsmanship, durable materials, and solutions designed to enhance both functionality and aesthetics.",
+    image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=1200"
+  },
+  {
+    id: "design",
+    title: "Design & Planning",
+    icon: Ruler,
+    overview: "A successful project starts with meticulous planning. We bridge the gap between architectural vision and practical construction.",
+    deliverables: ["CAD drawings & shop detailing", "3D modelling & visualization", "Layout & spatial optimisation", "Documentation support", "Approvals & council process guidance"],
+    clients: "Architects, interior designers, direct clients needing design-and-construct services.",
+    benefits: "Identifies potential issues before construction begins, ensures accurate pricing, and streamlines the approval process.",
+    image: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=1200"
   }
 ];
 

@@ -22,7 +22,7 @@ export function Footer() {
               </div>
             </Link>
             <p className="text-gray-400 text-sm leading-relaxed max-w-xs">
-              End-to-end solutions for commercial and retail spaces, combining bespoke joinery fabrication, on-site construction, and project management.
+              TNA Provider delivers trusted end-to-end solutions for commercial and retail spaces, combining bespoke joinery, expert construction, and disciplined project management to bring every project from concept to completion with quality, precision, and reliability.
             </p>
             <div className="flex items-center gap-4 mt-2">
               <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-brand-accent hover:text-white transition-colors" aria-label="LinkedIn">
@@ -60,10 +60,11 @@ export function Footer() {
             <h4 className="text-lg font-display font-bold tracking-tight">Our Services</h4>
             <ul className="flex flex-col gap-3">
               {[
-                { name: "Bespoke Joinery Fabrication", hash: "joinery" },
-                { name: "Complete Commercial Fitouts", hash: "shopfitting" },
-                { name: "End-to-End Construction", hash: "construction" },
-                { name: "Architectural Metalwork", hash: "metalwork" }
+                { name: "Custom Joinery Manufacturing", hash: "joinery" },
+                { name: "Shopfitting & Interior Fitouts", hash: "shopfitting" },
+                { name: "Commercial Construction", hash: "construction" },
+                { name: "Cabinet Making", hash: "cabinet-making" },
+                { name: "Design & Planning", hash: "design" }
               ].map((service) => (
                 <li key={service.hash}>
                   <HashLink 
@@ -105,8 +106,8 @@ export function Footer() {
           </p>
           <div className="flex items-center gap-6 text-sm text-gray-500">
             <span>ABN: 80 664 454 924</span>
-            <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+            <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link to="/terms-of-service" className="hover:text-white transition-colors">Terms of Service</Link>
           </div>
         </div>
       </div>
