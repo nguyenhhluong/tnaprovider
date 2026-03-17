@@ -1,38 +1,44 @@
 export const projects = [
   {
     id: "1",
-    title: "Modern Charcoal Entertainment Unit",
+    title: "Charcoal Entertainment Unit",
     sector: "Residential",
     scope: "Custom Joinery & Lighting",
-    description: "Bespoke living room entertainment unit featuring a dark grey finish, integrated LED backlighting, a glass display cabinet, and a slatted wood panel.",
+    description: "A bespoke entertainment unit that transforms the living space. Featuring a sophisticated dark grey finish, integrated LED backlighting, and a custom glass display cabinet, this piece seamlessly blends modern aesthetics with practical storage.",
     imageUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=1600",
     tags: ["Residential", "Joinery", "Living Room"],
-    fullDescription: "This bespoke living room entertainment unit was designed to be the focal point of a modern residential space. The dark grey finish provides a sophisticated contrast to the integrated LED backlighting, which highlights the custom glass display cabinet and slatted wood panel. Every element was meticulously crafted to ensure seamless integration with the home's existing architecture.",
+    fullDescription: "Designed as the ultimate focal point for a modern residential space, this bespoke entertainment unit perfectly balances form and function. The sophisticated charcoal finish creates a striking contrast against the integrated LED backlighting, drawing the eye to the custom glass display cabinet and textured slatted wood paneling. Meticulously crafted to integrate seamlessly with the home's architecture, it provides elegant storage while elevating the entire living experience.",
     client: "Private Client",
     year: "2023",
     location: "Sydney, NSW",
     gallery: [
       "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600585154526-990dced4ea0d?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600566752355-35792bedcfea?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
     id: "2",
-    title: "Bespoke Dining Room Storage",
+    title: "Bespoke Dining Storage",
     sector: "Residential",
     scope: "Custom Cabinetry",
-    description: "Modern dining/living room storage unit with dark grey glossy cabinets, a wood-grain open shelf with LED lighting, and glass display cabinets.",
+    description: "Elevate your dining experience with this modern storage unit. Featuring high-gloss dark grey cabinets, warm wood-grain open shelving, and elegant glass displays, all highlighted by integrated LED lighting.",
     imageUrl: "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=1600",
     tags: ["Residential", "Joinery", "Dining Room"],
-    fullDescription: "Designed to maximize storage without compromising on style, this dining room unit features dark grey glossy cabinets that reflect light, making the space feel larger. The wood-grain open shelf with integrated LED lighting provides a warm contrast and a perfect display area for curated items. The glass display cabinets add a touch of elegance, perfect for showcasing fine diningware.",
+    fullDescription: "This bespoke dining storage unit was crafted to maximize utility without compromising on high-end style. The high-gloss dark grey cabinets reflect ambient light, enhancing the sense of space, while the wood-grain open shelving introduces a layer of warmth and texture. Integrated LED lighting perfectly illuminates curated display items, and the elegant glass cabinets offer a sophisticated showcase for fine diningware, making it a stunning centerpiece for entertaining.",
     client: "Private Client",
     year: "2023",
     location: "Melbourne, VIC",
     gallery: [
       "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600607686527-6fb886090705?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600121848594-d8644e57abab?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
@@ -40,17 +46,20 @@ export const projects = [
     title: "Minimalist White Kitchen",
     sector: "Residential",
     scope: "Kitchen Fitout",
-    description: "Sleek modern kitchen featuring white flat-panel cabinets, a white marble-look splashback, and a contrasting black sink and cooktop area.",
+    description: "A masterclass in modern minimalism. This sleek kitchen features pristine white flat-panel cabinetry, a luxurious marble-look splashback, and striking black accents for a perfectly balanced culinary space.",
     imageUrl: "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=1600",
     tags: ["Residential", "Kitchen", "Joinery"],
-    fullDescription: "This minimalist white kitchen is a testament to clean lines and functional design. The white flat-panel cabinets create a seamless look, while the marble-look splashback adds a subtle touch of luxury. The contrasting black sink and cooktop area ground the design, creating a striking visual balance. High-quality hardware and integrated appliances complete this modern culinary space.",
+    fullDescription: "A true testament to the power of clean lines and functional design, this minimalist white kitchen offers a serene and highly efficient culinary environment. The seamless white flat-panel cabinetry creates an uncluttered aesthetic, beautifully complemented by the subtle luxury of a marble-look splashback. Striking black accents at the sink and cooktop ground the airy design, while premium hardware and fully integrated appliances ensure a flawless, modern finish.",
     client: "Private Client",
     year: "2024",
     location: "Brisbane, QLD",
     gallery: [
       "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600585154363-67eb9e2e2099?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
@@ -58,35 +67,41 @@ export const projects = [
     title: "Marble & Timber TV Unit",
     sector: "Residential",
     scope: "Custom Joinery",
-    description: "Elegant living room entertainment unit with white drawers, a marble-look TV backdrop, a wood-slat panel, and a wood-grain open shelving unit with blue LED lighting.",
+    description: "An elegant entertainment solution combining crisp white cabinetry with a luxurious marble-look backdrop. Warm wood-slat paneling and ambient blue LED lighting complete this contemporary masterpiece.",
     imageUrl: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=1600",
     tags: ["Residential", "Joinery", "Living Room"],
-    fullDescription: "A striking combination of materials defines this elegant TV unit. The crisp white drawers provide ample hidden storage, while the marble-look backdrop adds a luxurious focal point. The wood-slat panel introduces texture and warmth, perfectly complemented by the wood-grain open shelving. The subtle blue LED lighting adds a contemporary edge, making this unit a standout feature in the living room.",
+    fullDescription: "Defining contemporary elegance through a striking combination of premium materials, this custom TV unit is a masterpiece of residential joinery. Crisp white drawers offer generous hidden storage, allowing the luxurious marble-look backdrop to take center stage. The addition of a textured wood-slat panel and wood-grain open shelving introduces natural warmth, while subtle blue LED lighting adds a modern, atmospheric edge to the living space.",
     client: "Private Client",
     year: "2024",
     location: "Gold Coast, QLD",
     gallery: [
       "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600566753151-384129cf4e3e?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600585154526-990dced4ea0d?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
     id: "5",
-    title: "Illuminated Entertainment Wall",
+    title: "Illuminated Media Wall",
     sector: "Residential",
     scope: "Custom Joinery & Lighting",
-    description: "Another view of the elegant living room entertainment unit, highlighting the seamless integration of the marble-look backdrop and illuminated wood-grain shelving.",
+    description: "Showcasing the seamless integration of custom lighting and bespoke joinery. This illuminated media wall features a stunning marble-look backdrop and perfectly highlighted wood-grain shelving.",
     imageUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=1600",
     tags: ["Residential", "Joinery", "Living Room"],
-    fullDescription: "This project showcases our expertise in integrating custom lighting with bespoke joinery. The illuminated entertainment wall features a stunning marble-look backdrop that is perfectly highlighted by carefully positioned LED strips. The wood-grain shelving provides a warm contrast, creating a balanced and inviting atmosphere. Every detail was considered to ensure a flawless finish.",
+    fullDescription: "Highlighting our unparalleled expertise in integrating architectural lighting with bespoke joinery, this illuminated media wall transforms the living area into a cinematic experience. The stunning marble-look backdrop is perfectly accentuated by carefully positioned LED strips, creating depth and drama. Warm wood-grain shelving provides a beautiful contrast, resulting in a balanced, inviting atmosphere where every detail has been meticulously crafted for a flawless finish.",
     client: "Private Client",
     year: "2023",
     location: "Perth, WA",
     gallery: [
       "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600566752355-35792bedcfea?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600607686527-6fb886090705?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
@@ -94,17 +109,20 @@ export const projects = [
     title: "Lumina Cafe Flagship",
     sector: "Hospitality",
     scope: "Full Fitout & Joinery",
-    description: "Complete interior fitout including custom curved timber counter, banquette seating, and architectural lighting integration.",
+    description: "A comprehensive hospitality fitout designed to captivate. Featuring a signature curved timber counter, bespoke banquette seating, and seamlessly integrated architectural lighting.",
     imageUrl: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=1600",
     tags: ["Hospitality", "Joinery"],
-    fullDescription: "The Lumina Cafe Flagship project required a comprehensive interior fitout that reflected the brand's modern and welcoming identity. The centerpiece is a custom curved timber counter that guides customer flow and serves as a stunning focal point. Bespoke banquette seating maximizes space and comfort, while architectural lighting integration highlights the intricate joinery details and creates a warm ambiance.",
+    fullDescription: "Tasked with bringing a modern and welcoming brand identity to life, the Lumina Cafe Flagship project is a triumph of hospitality design. The space is anchored by a breathtaking custom curved timber counter that naturally guides customer flow while serving as a stunning focal point. Bespoke banquette seating maximizes both capacity and comfort, and expertly integrated architectural lighting highlights the intricate joinery, creating an inviting ambiance that keeps customers returning.",
     client: "Lumina Hospitality Group",
     year: "2024",
     location: "Sydney CBD, NSW",
     gallery: [
       "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1559925393-8be0ec4767c8?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1521017432531-fbd92076e51b?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
@@ -112,17 +130,20 @@ export const projects = [
     title: "Nexus Tech Hub",
     sector: "Commercial Office",
     scope: "Construction & Fitout",
-    description: "A 2000sqm office refurbishment featuring acoustic meeting pods, custom reception desk, and open-plan workstations.",
+    description: "An expansive 2000sqm commercial office refurbishment. Designed for innovation with custom acoustic meeting pods, a striking reception desk, and ergonomic open-plan workstations.",
     imageUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1600",
     tags: ["Office", "Construction"],
-    fullDescription: "This expansive 2000sqm office refurbishment was designed to foster collaboration and innovation. The Nexus Tech Hub features custom-built acoustic meeting pods that provide quiet spaces within the open-plan environment. A striking custom reception desk makes a strong first impression, while ergonomically designed open-plan workstations ensure employee comfort and productivity. The project was delivered on time and within budget, minimizing disruption to the client's operations.",
+    fullDescription: "Designed to foster collaboration and drive innovation, this expansive 2000sqm commercial office refurbishment completely reimagines the modern workplace. The Nexus Tech Hub features custom-built acoustic meeting pods that offer essential quiet zones within a vibrant open-plan environment. A striking, bespoke reception desk makes a powerful first impression, while ergonomically optimized workstations ensure maximum employee comfort and productivity. Delivered on time and within budget, this project exemplifies our commitment to seamless commercial execution.",
     client: "Nexus Technologies",
     year: "2023",
     location: "North Sydney, NSW",
     gallery: [
       "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
@@ -130,17 +151,20 @@ export const projects = [
     title: "Aura Boutique",
     sector: "Retail",
     scope: "Shopfitting & Joinery",
-    description: "High-end fashion retail fitout with bespoke brass display racks, marble counters, and premium veneer panelling.",
+    description: "A luxurious retail environment crafted for high-end fashion. Featuring bespoke brass display racks, elegant marble counters, and rich premium veneer paneling.",
     imageUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=1600",
     tags: ["Retail", "Shopfitting"],
-    fullDescription: "Aura Boutique required a fitout that matched the luxury of their high-end fashion offerings. We delivered a sophisticated space featuring bespoke brass display racks that elegantly showcase the garments. Marble counters provide a premium point of sale experience, while rich veneer panelling adds warmth and texture to the walls. The meticulous attention to detail in the shopfitting and joinery ensures a truly luxurious shopping environment.",
+    fullDescription: "Crafted to perfectly mirror the luxury of its high-end fashion offerings, the Aura Boutique fitout is a masterclass in sophisticated retail design. We delivered an exquisite space featuring bespoke brass display racks that elevate the presentation of every garment. Elegant marble counters provide a premium point-of-sale experience, while rich veneer paneling adds incredible warmth and texture to the environment. Our meticulous attention to detail in every aspect of the shopfitting and joinery guarantees a truly unforgettable shopping experience.",
     client: "Aura Fashion",
     year: "2024",
     location: "Melbourne CBD, VIC",
     gallery: [
       "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1581338834647-b0fb40704e21?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1555529771-835f59fc5efe?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
@@ -148,53 +172,62 @@ export const projects = [
     title: "Contemporary Grey Kitchen",
     sector: "Residential",
     scope: "Kitchen Fitout",
-    description: "A sleek, contemporary kitchen featuring handleless grey cabinetry, a striking marble-veined splashback, and integrated appliances for a seamless look.",
+    description: "Sophistication meets functionality in this contemporary kitchen. Handleless grey cabinetry, a dramatic marble-veined splashback, and fully integrated appliances create a flawlessly seamless aesthetic.",
     imageUrl: "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&q=80&w=1600",
     tags: ["Residential", "Kitchen", "Joinery"],
-    fullDescription: "This contemporary kitchen design focuses on clean lines and sophisticated finishes. The handleless grey cabinetry provides a minimalist aesthetic, while the dramatic marble-veined splashback serves as a stunning focal point. Integrated appliances maintain the seamless look, and the carefully planned layout ensures optimal functionality for the home chef.",
+    fullDescription: "Focusing on clean architectural lines and highly sophisticated finishes, this contemporary kitchen is a chef's dream. The handleless grey cabinetry delivers a sleek, minimalist aesthetic, allowing the dramatic marble-veined splashback to command attention as a stunning focal point. Fully integrated appliances maintain the uninterrupted visual flow, while the meticulously planned layout ensures optimal functionality and effortless workflow for everyday cooking and entertaining.",
     client: "Private Client",
     year: "2025",
     location: "Adelaide, SA",
     gallery: [
       "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600566753151-384129cf4e3e?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600585154363-67eb9e2e2099?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
     id: "10",
-    title: "Classic White Shaker Kitchen",
+    title: "Classic Shaker Kitchen",
     sector: "Residential",
     scope: "Kitchen Renovation",
-    description: "A timeless kitchen renovation featuring classic white shaker-style cabinets, contrasting dark countertops, and premium hardware.",
+    description: "Bring timeless elegance to your home with this classic renovation. Featuring pristine white shaker-style cabinets, striking dark countertops, and sophisticated premium hardware.",
     imageUrl: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&q=80&w=1600",
     tags: ["Residential", "Kitchen", "Renovation"],
-    fullDescription: "This kitchen renovation brings a timeless elegance to the home with classic white shaker-style cabinets. The contrasting dark countertops provide a striking visual anchor, while premium hardware adds a touch of sophistication. The design incorporates ample storage solutions and a spacious island, making it perfect for both cooking and entertaining.",
+    fullDescription: "Infusing the home with timeless elegance, this comprehensive kitchen renovation centers around beautifully crafted white shaker-style cabinets. The contrasting dark countertops provide a striking visual anchor that grounds the bright space, while premium hardware adds a refined touch of sophistication. Thoughtfully designed with ample, intelligent storage solutions and a spacious central island, it is the perfect environment for both passionate cooking and relaxed entertaining.",
     client: "Private Client",
     year: "2024",
     location: "Hobart, TAS",
     gallery: [
       "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1556910103-1c02745a872f?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600585154526-990dced4ea0d?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600566752355-35792bedcfea?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
     id: "11",
-    title: "Commercial Workshop Fitout",
+    title: "Commercial Workshop",
     sector: "Commercial",
     scope: "Workshop Joinery",
-    description: "Custom flat-pack cabinetry and robust joinery solutions designed for a high-traffic commercial workshop environment.",
+    description: "Industrial-grade durability meets precision design. Custom flat-pack cabinetry and robust joinery solutions engineered specifically for high-traffic commercial workshop environments.",
     imageUrl: "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?auto=format&fit=crop&q=80&w=1600",
     tags: ["Commercial", "Workshop", "Joinery"],
-    fullDescription: "This commercial project required highly durable and functional joinery solutions for a busy workshop. We designed and manufactured custom flat-pack cabinetry that maximizes storage efficiency while withstanding the rigors of a high-traffic environment. The project highlights our capability to deliver robust, industrial-grade joinery at scale.",
+    fullDescription: "Demanding highly durable and exceptionally functional joinery, this busy commercial workshop required a robust, industrial-grade solution. We designed and manufactured custom flat-pack cabinetry that maximizes storage efficiency while easily withstanding the daily rigors of a high-traffic environment. This project perfectly highlights our capability to deliver incredibly tough, precision-engineered commercial joinery at scale, without compromising on quality or turnaround time.",
     client: "BuildTech Industries",
     year: "2025",
     location: "Darwin, NT",
     gallery: [
       "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1504307651254-35680f356f58?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1530124566582-a618bc2615dc?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1530124566582-a618bc2615dc?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1580983546130-5341059b0213?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
@@ -202,28 +235,31 @@ export const projects = [
     title: "Modern Medical Clinic",
     sector: "Healthcare",
     scope: "Clinic Fitout",
-    description: "A clean, modern fitout for a medical clinic featuring custom reception joinery, hygienic surfaces, and optimized patient flow.",
+    description: "A state-of-the-art medical clinic fitout prioritizing hygiene and comfort. Featuring welcoming custom reception joinery, specialized clean surfaces, and an optimized layout for patient flow.",
     imageUrl: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=1600",
     tags: ["Healthcare", "Fitout", "Joinery"],
-    fullDescription: "This medical clinic fitout prioritizes hygiene, functionality, and patient comfort. The custom reception joinery creates a welcoming first impression, while the use of specialized, easy-to-clean surfaces ensures compliance with healthcare standards. The layout was carefully planned to optimize patient flow and provide efficient workspaces for the medical staff.",
+    fullDescription: "Prioritizing uncompromising hygiene, seamless functionality, and ultimate patient comfort, this modern medical clinic fitout sets a new standard for healthcare environments. The custom-crafted reception joinery creates a warm, welcoming first impression, while the strategic use of specialized, easy-to-clean surfaces ensures strict compliance with healthcare standards. The entire layout was meticulously planned to optimize patient flow and provide highly efficient, ergonomic workspaces for the dedicated medical staff.",
     client: "City Health Partners",
     year: "2024",
     location: "Canberra, ACT",
     gallery: [
       "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&q=80&w=800",
-      "https://images.unsplash.com/photo-1551076805-e1869033e561?auto=format&fit=crop&q=80&w=800"
+      "https://images.unsplash.com/photo-1551076805-e1869033e561?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1538108149393-fbbd81895907?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&q=80&w=800"
     ]
   },
   {
     id: "13",
-    title: "Custom Kitchen & Living Space Joinery",
+    title: "Kitchen & Living Joinery",
     sector: "Residential",
     scope: "Custom Kitchen & Living Joinery",
-    description: "A comprehensive residential fitout featuring a modern kitchen with integrated appliances, custom living room cabinetry, and bespoke shelving solutions.",
+    description: "A cohesive residential transformation. Featuring a sleek modern kitchen with integrated appliances, alongside custom living room cabinetry and bespoke shelving for a seamless flow.",
     imageUrl: "https://storage.googleapis.com/aistudio-user-uploads/67d7d082236319803362a98f/IMG_6043.jpeg",
     tags: ["Residential", "Kitchen", "Living Room", "Joinery"],
-    fullDescription: "This extensive residential project showcases our ability to deliver cohesive joinery solutions across multiple living spaces. The modern kitchen features sleek, handleless cabinetry with integrated appliances and a striking stone splashback. The living area is complemented by custom-built entertainment units and bespoke shelving, all finished to the highest standard to create a seamless flow throughout the home.",
+    fullDescription: "Showcasing our exceptional ability to deliver cohesive, whole-home joinery solutions, this extensive residential project transforms multiple living spaces. The state-of-the-art modern kitchen features sleek, handleless cabinetry, fully integrated appliances, and a striking stone splashback. This design language flows effortlessly into the living area, which is complemented by custom-built entertainment units and bespoke shelving. Every element is finished to the highest possible standard, creating a truly seamless and luxurious environment.",
     client: "Private Client",
     year: "2024",
     location: "Sydney, NSW",
@@ -231,7 +267,10 @@ export const projects = [
       "https://storage.googleapis.com/aistudio-user-uploads/67d7d082236319803362a98f/IMG_6043.jpeg",
       "https://storage.googleapis.com/aistudio-user-uploads/67d7d082236319803362a98f/IMG_6042.jpeg",
       "https://storage.googleapis.com/aistudio-user-uploads/67d7d082236319803362a98f/IMG_6041.jpeg",
-      "https://storage.googleapis.com/aistudio-user-uploads/67d7d082236319803362a98f/IMG_6040.jpeg"
+      "https://storage.googleapis.com/aistudio-user-uploads/67d7d082236319803362a98f/IMG_6040.jpeg",
+      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800",
+      "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=800"
     ]
   }
 ];
