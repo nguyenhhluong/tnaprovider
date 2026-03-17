@@ -462,9 +462,17 @@ export function Home() {
             This website experience was shaped to feel deliberate, confident, and built with intent. Every section is designed to guide attention clearly, elevate trust, and present the brand with a stronger sense of quality, structure, and finish.
           </p>
           <div className="w-px h-8 bg-gradient-to-b from-transparent via-gray-600 to-transparent mx-auto mb-6" />
-          <p className="text-xs text-gray-600 uppercase tracking-widest">
+          <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">
             Website experience designed by Heidi-dang.
           </p>
+          <a 
+            href="https://github.com/heidi-dang" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-xs text-gray-600 hover:text-brand-accent transition-colors"
+          >
+            GitHub: github.com/heidi-dang
+          </a>
         </div>
       </section>
 
