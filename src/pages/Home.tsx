@@ -7,6 +7,7 @@ import { ServiceCard } from "../components/ui/ServiceCard";
 import { ProjectCard } from "../components/ui/ProjectCard";
 import { Testimonial } from "../components/ui/Testimonial";
 import { FAQAccordion } from "../components/ui/Accordion";
+import { projects } from "../data/projects";
 
 const services = [
   {
@@ -36,36 +37,6 @@ const services = [
     description: "CAD drawings, 3D modelling, layout optimisation, documentation support, and approvals guidance.",
     icon: Ruler,
     features: ["CAD & 3D Modelling", "Layout Optimisation", "Council Approvals"],
-  },
-];
-
-const projects = [
-  {
-    id: "1",
-    title: "Lumina Cafe Flagship",
-    sector: "Hospitality",
-    scope: "Full Fitout & Joinery",
-    description: "Complete interior fitout including custom curved timber counter, banquette seating, and architectural lighting integration.",
-    imageUrl: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=1600",
-    tags: ["Hospitality", "Joinery"],
-  },
-  {
-    id: "2",
-    title: "Nexus Tech Hub",
-    sector: "Commercial Office",
-    scope: "Construction & Fitout",
-    description: "A 2000sqm office refurbishment featuring acoustic meeting pods, custom reception desk, and open-plan workstations.",
-    imageUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=1600",
-    tags: ["Office", "Construction"],
-  },
-  {
-    id: "3",
-    title: "Aura Boutique",
-    sector: "Retail",
-    scope: "Shopfitting & Joinery",
-    description: "High-end fashion retail fitout with bespoke brass display racks, marble counters, and premium veneer panelling.",
-    imageUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=1600",
-    tags: ["Retail", "Shopfitting"],
   },
 ];
 
@@ -312,7 +283,7 @@ export function Home() {
           </motion.div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {projects.map((project, index) => (
+            {projects.slice(0, 3).map((project, index) => (
               <motion.div
                 key={project.id}
                 initial={{ opacity: 0, y: 40 }}

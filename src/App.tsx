@@ -10,6 +10,7 @@ import { About } from "./pages/About";
 import { Services } from "./pages/Services";
 import { Sectors } from "./pages/Sectors";
 import { Projects } from "./pages/Projects";
+import { ProjectDetail } from "./pages/ProjectDetail";
 import { Contact } from "./pages/Contact";
 import { ThemeProvider } from "./components/ThemeProvider";
 
@@ -23,6 +24,7 @@ const router = createBrowserRouter([
       { path: "services", element: <Services /> },
       { path: "sectors", element: <Sectors /> },
       { path: "projects", element: <Projects /> },
+      { path: "projects/:id", element: <ProjectDetail /> },
       { path: "contact", element: <Contact /> },
     ],
   },
