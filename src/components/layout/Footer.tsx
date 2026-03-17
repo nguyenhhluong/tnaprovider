@@ -100,6 +100,29 @@ export function Footer() {
 
         </div>
 
+        {/* Heidi-dang Signature */}
+        <div className="py-8 border-t border-white/10">
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-accent">
+              Heidi-dang Signature™
+            </p>
+            <p className="text-xs text-gray-500">
+              Precision Motion Architecture
+            </p>
+            <p className="text-xs text-gray-600">
+              Website experience designed by <span className="text-gray-500">Heidi-dang</span>.
+            </p>
+            <a 
+              href="https://github.com/heidi-dang" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-xs text-gray-600 hover:text-brand-accent transition-colors"
+            >
+              github.com/heidi-dang
+            </a>
+          </div>
+        </div>
+
         <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-gray-500 text-sm">
             &copy; {currentYear} TNA Provider. All rights reserved.
