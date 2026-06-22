@@ -1,8 +1,7 @@
-import React from "react";
 import LegalLayout, { LegalSection } from "../components/legal/LegalLayout";
 import { COMPANY } from "../lib/company";
 
-export default function PrivacyPolicyPage() {
+export function PrivacyPolicyPage() {
   return (
     <LegalLayout
       title="Privacy Policy"

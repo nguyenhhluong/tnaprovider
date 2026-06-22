@@ -1,8 +1,7 @@
-import React from "react";
 import LegalLayout, { LegalSection } from "../components/legal/LegalLayout";
 import { COMPANY } from "../lib/company";
 
-export default function TermsOfServicePage() {
+export function TermsOfServicePage() {
   return (
     <LegalLayout
       title="Terms of Service"

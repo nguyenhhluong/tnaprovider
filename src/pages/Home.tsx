@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { ArrowRight, CheckCircle2, Building2, Hammer, Ruler, HardHat, Wrench } from "lucide-react";
+import { ArrowRight, CheckCircle2, Building2, Hammer, HardHat, Wrench } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { SectionTitle } from "../components/ui/SectionTitle";

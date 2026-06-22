@@ -10,6 +10,25 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(__dirname, 'dist');
 
+app.use(express.json());
+
+app.post('/api/contact', (req, res) => {
+  const submission = {
+    ...req.body,
+    receivedAt: new Date().toISOString(),
+  };
+  const logDir = path.join(__dirname, 'data');
+  if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+  const logFile = path.join(logDir, 'contact-submissions.json');
+  let submissions = [];
+  if (fs.existsSync(logFile)) {
+    try { submissions = JSON.parse(fs.readFileSync(logFile, 'utf-8')); } catch {}
+  }
+  submissions.push(submission);
+  fs.writeFileSync(logFile, JSON.stringify(submissions, null, 2));
+  res.json({ success: true });
+});
+
 app.use(express.static(DIST_DIR, {
   maxAge: '1h',
   etag: true,

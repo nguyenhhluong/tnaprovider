@@ -34,6 +34,9 @@ export function FAQAccordion({ items }: FAQAccordionProps) {
           >
             <button
               onClick={() => toggleItem(index)}
+              aria-expanded={isOpen}
+              aria-controls={`accordion-panel-${index}`}
+              id={`accordion-button-${index}`}
               className="flex items-center justify-between w-full p-6 text-left focus:outline-none"
             >
               <span className="text-lg font-semibold text-brand-dark dark:text-white pr-8">{item.question}</span>
@@ -47,10 +50,14 @@ export function FAQAccordion({ items }: FAQAccordionProps) {
             <AnimatePresence initial={false}>
               {isOpen && (
                 <motion.div
+                  key="panel"
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.3, ease: "easeInOut" }}
+                  id={`accordion-panel-${index}`}
+                  role="region"
+                  aria-labelledby={`accordion-button-${index}`}
                 >
                   <div className="px-6 pb-6 text-gray-600 dark:text-gray-400 leading-relaxed">
                     {item.answer}

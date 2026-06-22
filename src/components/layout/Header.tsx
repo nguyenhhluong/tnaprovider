@@ -48,8 +48,8 @@ export function Header() {
               <span className="text-white font-display font-bold text-xl tracking-tighter">TNA</span>
             </div>
             <div className="flex flex-col">
-              <span className={cn("font-display font-bold text-xl leading-none tracking-tight", isScrolled ? "text-brand-dark dark:text-white" : "text-brand-dark lg:text-white dark:text-white")}>TNA Provider</span>
-              <span className={cn("text-[10px] font-semibold tracking-widest uppercase", isScrolled ? "text-gray-500 dark:text-gray-400" : "text-gray-500 lg:text-gray-300 dark:text-gray-400")}>Construction & Joinery</span>
+              <span className={cn("font-display font-bold text-xl leading-none tracking-tight", isScrolled ? "text-brand-dark dark:text-white" : "text-white")}>TNA Provider</span>
+              <span className={cn("text-[10px] font-semibold tracking-widest uppercase", isScrolled ? "text-gray-500 dark:text-gray-400" : "text-gray-300 dark:text-gray-400")}>Construction & Joinery</span>
             </div>
           </Link>
 
@@ -80,7 +80,7 @@ export function Header() {
                 <Phone className="w-4 h-4" />
                 <span>0406 409 668</span>
               </a>
-              <Button asChild variant={isScrolled ? "primary" : "primary"} size="sm">
+              <Button asChild variant="primary" size="sm">
                 <Link to="/contact">Request Quote</Link>
               </Button>
             </div>
@@ -90,7 +90,7 @@ export function Header() {
           <div className="flex items-center gap-2 lg:hidden z-50">
             <ThemeToggle />
             <button 
-              className={cn("p-2 relative w-10 h-10 flex items-center justify-center", isScrolled ? "text-brand-dark dark:text-white" : "text-brand-dark md:text-white dark:text-white")}
+              className={cn("p-2 relative w-10 h-10 flex items-center justify-center", isScrolled ? "text-brand-dark dark:text-white" : "text-white")}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle menu"
             >

@@ -12,8 +12,8 @@ import { Sectors } from "./pages/Sectors";
 import { Projects } from "./pages/Projects";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { Contact } from "./pages/Contact";
-import Privacy from "./pages/PrivacyPolicy";
-import Terms from "./pages/TermsOfService";
+import { PrivacyPolicyPage } from "./pages/PrivacyPolicy";
+import { TermsOfServicePage } from "./pages/TermsOfService";
 import { ThemeProvider } from "./components/ThemeProvider";
 
 const router = createBrowserRouter([
@@ -28,8 +28,8 @@ const router = createBrowserRouter([
       { path: "projects", element: <Projects /> },
       { path: "projects/:id", element: <ProjectDetail /> },
       { path: "contact", element: <Contact /> },
-      { path: "privacy-policy", element: <Privacy /> },
-      { path: "terms-of-service", element: <Terms /> },
+      { path: "privacy-policy", element: <PrivacyPolicyPage /> },
+      { path: "terms-of-service", element: <TermsOfServicePage /> },
     ],
   },
 ]);

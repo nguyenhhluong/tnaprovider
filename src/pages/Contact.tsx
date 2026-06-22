@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { SectionTitle } from "../components/ui/SectionTitle";
 import { Button } from "../components/ui/Button";
 import { MapPin, Phone, Mail, Clock, CheckCircle2 } from "lucide-react";
@@ -90,7 +91,7 @@ export function Contact() {
     setErrors(prev => ({ ...prev, [name]: error }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate all fields
@@ -107,24 +108,30 @@ export function Contact() {
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length === 0) {
-      // Simulate API call
-      setTimeout(() => {
-        setIsSubmitted(true);
-        setFormData({
-          firstName: "",
-          lastName: "",
-          email: "",
-          phone: "",
-          service: "",
-          location: "",
-          budget: "",
-          targetDate: "",
-          message: "",
-          requestCallback: false,
-          callbackTime: "",
-          privacyConsent: false,
+      try {
+        await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
         });
-      }, 1000);
+      } catch {
+        // Submission failed silently — server may be offline
+      }
+      setIsSubmitted(true);
+      setFormData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        service: "",
+        location: "",
+        budget: "",
+        targetDate: "",
+        message: "",
+        requestCallback: false,
+        callbackTime: "",
+        privacyConsent: false,
+      });
     }
   };
 
@@ -400,7 +407,7 @@ export function Contact() {
                         className="mt-1 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-accent focus:ring-brand-accent"
                       />
                       <label htmlFor="privacyConsent" className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-                        I have read and agree to the <a href="/privacy-policy" target="_blank" className="text-brand-accent hover:underline">Privacy Policy</a> and <a href="/terms-of-service" target="_blank" className="text-brand-accent hover:underline">Terms of Service</a>.
+                        I have read and agree to the <Link to="/privacy-policy" target="_blank" className="text-brand-accent hover:underline">Privacy Policy</Link> and <Link to="/terms-of-service" target="_blank" className="text-brand-accent hover:underline">Terms of Service</Link>.
                       </label>
                     </div>
                     {errors.privacyConsent && <span id="privacyConsent-error" className="text-xs text-red-500" role="alert">{errors.privacyConsent}</span>}

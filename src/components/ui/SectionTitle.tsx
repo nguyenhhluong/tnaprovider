@@ -19,7 +19,7 @@ export function SectionTitle({ title, subtitle, align = "left", className, light
           viewport={{ once: true }}
           className={cn(
             "text-sm font-semibold tracking-wider uppercase",
-            light ? "text-brand-accent" : "text-brand-accent"
+            light ? "text-brand-accent" : "text-brand-dark dark:text-brand-accent"
           )}
         >
           {subtitle}

@@ -269,7 +269,7 @@ export const projects = [
     sector: "Residential",
     scope: "Custom Kitchen & Living Joinery",
     description: "A cohesive residential transformation. Featuring a sleek modern kitchen with integrated appliances, alongside custom living room cabinetry and bespoke shelving for a seamless flow.",
-    imageUrl: "https://storage.googleapis.com/aistudio-user-uploads/67d7d082236319803362a98f/IMG_6043.jpeg",
+    imageUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=1200",
     tags: ["Residential", "Kitchen", "Living Room", "Joinery"],
     fullDescription: "Showcasing our exceptional ability to deliver cohesive, whole-home joinery solutions, this extensive residential project transforms multiple living spaces. The state-of-the-art modern kitchen features sleek, handleless cabinetry, fully integrated appliances, and a striking stone splashback. This design language flows effortlessly into the living area, which is complemented by custom-built entertainment units and bespoke shelving. Every element is finished to the highest possible standard, creating a truly seamless and luxurious environment.",
     client: "Private Client",
