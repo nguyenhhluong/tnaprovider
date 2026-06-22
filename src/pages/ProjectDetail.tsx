@@ -78,22 +78,36 @@ export function ProjectDetail() {
               </p>
 
               {/* Gallery */}
-              <h3 className="text-xl md:text-2xl font-display font-light text-brand-dark dark:text-white mb-6">
-                Gallery
-              </h3>
+              <motion.div
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.7, delay: 0.1 }}
+              >
+                <h3 className="text-xl md:text-2xl font-display font-light text-brand-dark dark:text-white mb-6">
+                  Gallery
+                </h3>
+              </motion.div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {project.gallery.map((img, index) => (
-                  <img 
+                  <motion.div
                     key={index}
-                    src={img}
-                    alt={`${project.title} gallery ${index + 1}`}
-                    className="w-full h-64 object-cover rounded-lg shadow-sm"
-                    referrerPolicy="no-referrer"
-                  />
-                ))}
-              </div>
-            </motion.div>
-          </div>
+                    initial={{ opacity: 0, y: 40 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-100px" }}
+                    transition={{ duration: 0.5, delay: index * 0.1 }}
+                  >
+                    <img 
+                      src={img}
+                      alt={`${project.title} gallery ${index + 1}`}
+                      className="w-full h-64 object-cover rounded-lg shadow-sm"
+                      referrerPolicy="no-referrer"
+                    />
+                  </motion.div>
+                    ))}
+                </div>
+              </motion.div>
+            </div>
 
           {/* Sidebar Details */}
           <div className="lg:col-span-1">
@@ -109,27 +123,30 @@ export function ProjectDetail() {
               </h3>
               
               <div className="space-y-6">
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Client</p>
-                  <p className="font-medium text-brand-dark dark:text-gray-200">{project.client}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Location</p>
-                  <p className="font-medium text-brand-dark dark:text-gray-200">{project.location}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Year</p>
-                  <p className="font-medium text-brand-dark dark:text-gray-200">{project.year}</p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Scope of Work</p>
-                  <p className="font-medium text-brand-dark dark:text-gray-200">{project.scope}</p>
-                </div>
+                {[
+                  { label: "Client", value: project.client },
+                  { label: "Location", value: project.location },
+                  { label: "Year", value: project.year },
+                  { label: "Scope of Work", value: project.scope },
+                ].map((item, i) => (
+                  <motion.div
+                    key={item.label}
+                    initial={{ opacity: 0, x: 20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.4, delay: 0.3 + i * 0.08 }}
+                  >
+                    <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">{item.label}</p>
+                    <p className="font-medium text-brand-dark dark:text-gray-200">{item.value}</p>
+                  </motion.div>
+                ))}
 
-                <div>
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4, delay: 0.3 + 4 * 0.08 }}
+                >
                   <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Tags</p>
                   <div className="flex flex-wrap gap-2">
                     {project.tags.map(tag => (
@@ -138,7 +155,7 @@ export function ProjectDetail() {
                       </span>
                     ))}
                   </div>
-                </div>
+                </motion.div>
               </div>
             </motion.div>
           </div>
