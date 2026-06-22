@@ -24,15 +24,27 @@ export function Projects() {
       {/* Projects Grid */}
       <section className="py-24 bg-brand-gray dark:bg-brand-darker">
         <div className="container mx-auto px-4 md:px-8">
-          <div className="mb-12">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.7 }}
+            className="mb-12"
+          >
             <h2 className="text-3xl md:text-4xl font-display font-light text-brand-dark dark:text-white mb-4">
               All Projects
             </h2>
             <div className="w-12 h-[2px] bg-brand-accent mb-8" />
-          </div>
+          </motion.div>
 
           {/* Filters */}
-          <div className="flex flex-wrap gap-4 mb-12">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.7, delay: 0.1 }}
+            className="flex flex-wrap gap-4 mb-12"
+          >
             {filters.map((filter) => (
               <button 
                 key={filter}
@@ -46,18 +58,20 @@ export function Projects() {
                 {filter}
               </button>
             ))}
-          </div>
+          </motion.div>
 
           <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <AnimatePresence mode="popLayout">
-              {filteredProjects.map((project) => (
+              {filteredProjects.map((project, index) => (
                 <motion.div
                   key={project.id}
                   layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.3 }}
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -40 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: index * 0.05 }}
                 >
                   <ProjectCard 
                     id={project.id}
