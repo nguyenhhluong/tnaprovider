@@ -41,14 +41,20 @@ export function Footer() {
           <div className="flex flex-col gap-6">
             <h4 className="text-lg font-display font-bold tracking-tight">Quick Links</h4>
             <ul className="flex flex-col gap-3">
-              {["About Us", "Our Services", "Sectors", "Projects", "Contact"].map((link) => (
-                <li key={link}>
+              {[
+                { name: "About Us", path: "/about" },
+                { name: "Our Services", path: "/services" },
+                { name: "Sectors", path: "/sectors" },
+                { name: "Projects", path: "/projects" },
+                { name: "Contact", path: "/contact" },
+              ].map((link) => (
+                <li key={link.name}>
                   <Link 
-                    to={`/${link.toLowerCase().replace(" ", "-")}`}
+                    to={link.path}
                     className="text-gray-400 hover:text-brand-accent transition-colors text-sm flex items-center group"
                   >
                     <ArrowRight className="w-3 h-3 mr-2 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all" />
-                    {link}
+                    {link.name}
                   </Link>
                 </li>
               ))}
