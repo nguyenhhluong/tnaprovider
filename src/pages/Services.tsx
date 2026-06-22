@@ -1,3 +1,4 @@
+import { motion } from "motion/react";
 import { SectionTitle } from "../components/ui/SectionTitle";
 import { Hammer, Building2, HardHat, Wrench, Ruler, Clock, MoonStar, ShieldCheck } from "lucide-react";
 
@@ -60,7 +61,12 @@ export function Services() {
       {/* Hero */}
       <section className="bg-brand-darker text-white py-24 md:py-32 relative overflow-hidden">
         <div className="container relative z-10 mx-auto px-4 md:px-8">
-          <div className="max-w-3xl">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-3xl"
+          >
             <SectionTitle 
               subtitle="Our Services"
               title="What We Do"
@@ -69,7 +75,7 @@ export function Services() {
             <p className="mt-6 text-xl text-gray-300 leading-relaxed">
               We handle joinery manufacturing, shopfitting, and construction in-house. One team, one point of contact, from start to handover.
             </p>
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -78,9 +84,13 @@ export function Services() {
         <div className="container mx-auto px-4 md:px-8">
           <div className="flex flex-col gap-24">
             {services.map((service, index) => (
-              <div 
+              <motion.div 
                 key={service.id} 
                 id={service.id}
+                initial={{ opacity: 0, x: index % 2 === 0 ? -40 : 40 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.7, delay: index * 0.1 }}
                 className={`flex flex-col lg:flex-row gap-12 items-center ${index % 2 !== 0 ? 'lg:flex-row-reverse' : ''}`}
               >
                 <div className="w-full lg:w-1/2">
@@ -132,7 +142,7 @@ export function Services() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -141,7 +151,13 @@ export function Services() {
       {/* After-hours Work Section */}
       <section className="py-24 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
         <div className="container mx-auto px-4 md:px-8">
-          <div className="max-w-4xl mx-auto text-center mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.7 }}
+            className="max-w-4xl mx-auto text-center mb-16"
+          >
             <SectionTitle 
               subtitle="Minimal Disruption"
               title="After-Hours Construction & Fitout"
@@ -150,10 +166,15 @@ export function Services() {
             <p className="mt-6 text-xl text-gray-600 dark:text-gray-400 leading-relaxed">
               We understand that closing your doors for renovations means lost revenue. Our dedicated after-hours teams ensure your business can continue trading while we transform your space overnight.
             </p>
-          </div>
+          </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-brand-gray dark:bg-brand-darker p-8 rounded-2xl border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.5, delay: 0 }}
+              className="bg-brand-gray dark:bg-brand-darker p-8 rounded-2xl border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center">
               <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center text-brand-accent mb-6 shadow-sm">
                 <Clock className="w-8 h-8" />
               </div>
@@ -161,9 +182,15 @@ export function Services() {
               <p className="text-gray-600 dark:text-gray-400">
                 We schedule noisy, disruptive, or structural work outside of your operating hours, ensuring your customers and staff are never inconvenienced.
               </p>
-            </div>
+            </motion.div>
 
-            <div className="bg-brand-gray dark:bg-brand-darker p-8 rounded-2xl border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="bg-brand-gray dark:bg-brand-darker p-8 rounded-2xl border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center"
+            >
               <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center text-brand-accent mb-6 shadow-sm">
                 <MoonStar className="w-8 h-8" />
               </div>
@@ -171,9 +198,15 @@ export function Services() {
               <p className="text-gray-600 dark:text-gray-400">
                 We can work nights and weekends. Your business keeps trading while we fit out.
               </p>
-            </div>
+            </motion.div>
 
-            <div className="bg-brand-gray dark:bg-brand-darker p-8 rounded-2xl border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="bg-brand-gray dark:bg-brand-darker p-8 rounded-2xl border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center"
+            >
               <div className="w-16 h-16 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center text-brand-accent mb-6 shadow-sm">
                 <ShieldCheck className="w-8 h-8" />
               </div>
@@ -181,7 +214,7 @@ export function Services() {
               <p className="text-gray-600 dark:text-gray-400">
                 We handle safety and compliance. All work meets Australian standards.
               </p>
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>

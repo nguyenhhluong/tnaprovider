@@ -176,43 +176,20 @@ export function Home() {
       {/* Why TNA Provider */}
       <section className="py-24 bg-brand-dark dark:bg-black overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div className="grid grid-cols-1 gap-16 items-center justify-items-center">
             <motion.div 
-              initial={{ opacity: 0, x: -40 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.7 }}
-              className="relative"
-            >
-              <div className="aspect-[4/5] rounded-2xl overflow-hidden">
-                <img 
-                  src="https://images.unsplash.com/photo-1541888086925-920a0b414631?auto=format&fit=crop&q=80&w=1200" 
-                  alt="TNA Provider Team" 
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <div className="absolute -bottom-8 -right-8 bg-brand-gray dark:bg-gray-800 text-white p-8 rounded-xl shadow-xl max-w-xs hidden md:block border border-gray-700">
-                <div className="text-4xl font-display font-bold text-brand-accent mb-2">15+</div>
-                <div className="text-sm font-medium text-gray-300">Years in commercial construction and joinery.</div>
-              </div>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, x: 40 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.7 }}
-              className="flex flex-col gap-6"
+              className="flex flex-col gap-6 items-center text-center"
             >
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wider text-brand-accent mb-2">Why Choose Us</p>
                 <h2 className="text-3xl md:text-4xl font-display font-bold text-white">Built for Speed and Minimal Disruption</h2>
               </div>
               
-              <div className="text-gray-300 text-lg leading-relaxed max-w-xl">
+              <div className="text-gray-300 text-lg leading-relaxed max-w-xl text-center">
                 <p className="mb-4">
                   Commercial fitouts cost money every day your doors are closed. We've built our operation around getting you trading faster — without cutting corners.
                 </p>
@@ -221,7 +198,7 @@ export function Home() {
                 </p>
               </div>
               
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
                 {[
                   { title: "In-House Joinery", desc: "We make it ourselves. No supplier delays." },
                   { title: "Single Point of Contact", desc: "One project manager from start to finish." },

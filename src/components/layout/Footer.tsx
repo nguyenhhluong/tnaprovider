@@ -85,7 +85,7 @@ export function Footer() {
             <ul className="flex flex-col gap-4">
               <li className="flex items-start gap-3 text-gray-400 text-sm">
                 <MapPin className="w-5 h-5 text-brand-accent flex-shrink-0 mt-0.5" />
-                <span>16/46 Wellington Road,<br />South Granville, NSW, 2142</span>
+                <a href="https://www.google.com/maps/dir/?api=1&destination=16%2F46+Wellington+Road+South+Granville+NSW+2142" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">16/46 Wellington Road,<br />South Granville, NSW, 2142</a>
               </li>
               <li className="flex items-center gap-3 text-gray-400 text-sm">
                 <Phone className="w-5 h-5 text-brand-accent flex-shrink-0" />

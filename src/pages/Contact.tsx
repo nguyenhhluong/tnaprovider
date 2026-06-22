@@ -432,10 +432,10 @@ export function Contact() {
                   </div>
                   <div>
                     <h4 className="text-xl font-bold text-brand-dark dark:text-white mb-2">Office & Manufacturing</h4>
-                    <p className="text-gray-600 dark:text-gray-400">
+                    <a href="https://www.google.com/maps/dir/?api=1&destination=16%2F46+Wellington+Road+South+Granville+NSW+2142" target="_blank" rel="noopener noreferrer" className="text-gray-600 dark:text-gray-400 hover:text-brand-accent dark:hover:text-brand-accent transition-colors">
                       16/46 Wellington Road<br />
                       South Granville, NSW, 2142
-                    </p>
+                    </a>
                   </div>
                 </div>
                 
@@ -494,12 +494,18 @@ export function Contact() {
                 </div>
               </div>
               
-              {/* Map Placeholder */}
-              <div className="w-full h-64 bg-gray-200 dark:bg-gray-800 rounded-2xl overflow-hidden relative mt-4">
-                <div className="absolute inset-0 flex items-center justify-center flex-col gap-2 text-gray-500 dark:text-gray-400">
-                  <MapPin className="w-8 h-8" />
-                  <span className="font-medium">Interactive Map Placeholder</span>
-                </div>
+              {/* Map */}
+              <div className="w-full h-64 rounded-2xl overflow-hidden mt-4">
+                <iframe
+                  src="https://www.google.com/maps?q=16%2F46+Wellington+Road+South+Granville+NSW+2142&output=embed&z=15"
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title="TNA Provider Office Location"
+                />
               </div>
             </div>
             

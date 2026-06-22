@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { SectionTitle } from "../components/ui/SectionTitle";
-import { CheckCircle2, Target, Shield, Clock } from "lucide-react";
+import { Target, Shield, Clock } from "lucide-react";
 
 export function About() {
   return (
@@ -17,7 +17,12 @@ export function About() {
           />
         </div>
         <div className="container relative z-10 mx-auto px-4 md:px-8">
-          <div className="max-w-3xl">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-3xl"
+          >
             <SectionTitle 
               subtitle="About TNA Provider"
               title="Commercial Construction and Joinery"
@@ -26,7 +31,7 @@ export function About() {
             <p className="mt-6 text-xl text-gray-300 leading-relaxed">
               We handle commercial fitouts, custom joinery, and on-site construction work across Sydney and Australia. Our team manages the full delivery path from shop drawing to handover.
             </p>
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -34,7 +39,13 @@ export function About() {
       <section className="py-24 bg-white dark:bg-brand-darker">
         <div className="container mx-auto px-4 md:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div className="flex flex-col gap-8">
+            <motion.div
+              initial={{ opacity: 0, x: -40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7 }}
+              className="flex flex-col gap-8"
+            >
               <SectionTitle 
                 subtitle="Our Story"
                 title="How We Work"
@@ -50,25 +61,23 @@ export function About() {
                   We work across retail, hospitality, office, and specialist environments. Each sector has its own requirements — we know the difference.
                 </p>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: 40 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7 }}
+              className="flex justify-center"
+            >
               <img 
                 src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=800" 
                 alt="Joinery Workshop" 
-                className="rounded-2xl w-full h-64 object-cover"
+                className="rounded-2xl w-full max-w-md h-64 object-cover"
                 loading="lazy"
                 decoding="async"
                 referrerPolicy="no-referrer"
               />
-              <img 
-                src="https://images.unsplash.com/photo-1541888086925-920a0b414631?auto=format&fit=crop&q=80&w=800" 
-                alt="Construction Site" 
-                className="rounded-2xl w-full h-64 object-cover mt-8"
-                loading="lazy"
-                decoding="async"
-                referrerPolicy="no-referrer"
-              />
-            </div>
+            </motion.div>
           </div>
         </div>
       </section>
@@ -76,12 +85,19 @@ export function About() {
       {/* Values */}
       <section className="py-24 bg-brand-gray dark:bg-gray-900">
         <div className="container mx-auto px-4 md:px-8">
-          <SectionTitle 
-            subtitle="Our Values"
-            title="What Makes Us Different"
-            align="center"
-            className="mb-16"
-          />
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.7 }}
+          >
+            <SectionTitle 
+              subtitle="Our Values"
+              title="What Makes Us Different"
+              align="center"
+              className="mb-16"
+            />
+          </motion.div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
@@ -102,6 +118,10 @@ export function About() {
             ].map((value, i) => (
               <motion.div 
                 key={i}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
                 whileHover={{ y: -5 }}
                 className="bg-white dark:bg-brand-darker p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 text-center flex flex-col items-center"
               >
@@ -118,7 +138,13 @@ export function About() {
 
       {/* Company Details */}
       <section className="py-24 bg-white dark:bg-brand-darker">
-        <div className="container mx-auto px-4 md:px-8 max-w-4xl text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.7 }}
+          className="container mx-auto px-4 md:px-8 max-w-4xl text-center"
+        >
           <h2 className="text-3xl font-display font-bold text-brand-dark dark:text-white mb-8">Company Information</h2>
           <div className="inline-flex flex-col sm:flex-row items-center justify-center gap-8 p-8 bg-brand-gray dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 w-full">
             <div className="flex flex-col items-center sm:items-start text-left">
@@ -136,7 +162,7 @@ export function About() {
               <span className="text-xl font-bold text-brand-dark dark:text-white">Australia-wide</span>
             </div>
           </div>
-        </div>
+        </motion.div>
       </section>
     </div>
   );

@@ -1,3 +1,4 @@
+import { motion } from "motion/react";
 import { SectionTitle } from "../components/ui/SectionTitle";
 import { ShoppingBag, Coffee, Briefcase, Stethoscope, GraduationCap } from "lucide-react";
 
@@ -45,7 +46,12 @@ export function Sectors() {
       {/* Hero */}
       <section className="bg-brand-darker text-white py-24 md:py-32 relative overflow-hidden">
         <div className="container relative z-10 mx-auto px-4 md:px-8">
-          <div className="max-w-3xl">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-3xl"
+          >
             <SectionTitle 
               subtitle="Industries We Serve"
               title="Specialized Expertise Across Key Sectors"
@@ -54,7 +60,7 @@ export function Sectors() {
             <p className="mt-6 text-xl text-gray-300 leading-relaxed">
               TNA Provider brings deep industry knowledge to every project. We understand the unique compliance, operational, and aesthetic requirements of different commercial environments.
             </p>
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -62,9 +68,13 @@ export function Sectors() {
       <section className="py-24 bg-brand-gray dark:bg-gray-900">
         <div className="container mx-auto px-4 md:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {sectors.map((sector) => (
-              <div 
+            {sectors.map((sector, index) => (
+              <motion.div 
                 key={sector.id}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
                 className="group flex flex-col bg-white dark:bg-brand-darker rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 hover:shadow-md dark:hover:shadow-xl dark:hover:shadow-black/50 transition-all"
               >
                 <div className="relative aspect-[4/3] overflow-hidden">
@@ -89,7 +99,7 @@ export function Sectors() {
                     {sector.description}
                   </p>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
