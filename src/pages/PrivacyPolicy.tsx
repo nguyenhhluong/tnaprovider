@@ -1,14 +1,18 @@
+import { SEO } from "../components/SEO";
 import LegalLayout, { LegalSection } from "../components/legal/LegalLayout";
 import { COMPANY } from "../lib/company";
 
 export function PrivacyPolicyPage() {
   return (
-    <LegalLayout
-      title="Privacy Policy"
-      companyName={COMPANY.name}
-      abn={COMPANY.abn}
-      lastUpdated={COMPANY.lastUpdated}
-    >
+    <>
+      <SEO title="Privacy Policy | TNA Provider" description="TNA Provider's privacy policy explains how we collect, use, and protect your personal information when you visit our website or use our services." canonical="https://tnaprovider.com.au/privacy-policy" />
+      <meta name="robots" content="noindex, follow" />
+      <LegalLayout
+        title="Privacy Policy"
+        companyName={COMPANY.name}
+        abn={COMPANY.abn}
+        lastUpdated={COMPANY.lastUpdated}
+      >
       <LegalSection title="1. Overview">
         <p>
           TNA Provider respects your privacy and is committed to handling
@@ -184,5 +188,6 @@ export function PrivacyPolicyPage() {
         </p>
       </LegalSection>
     </LegalLayout>
+    </>
   );
 }

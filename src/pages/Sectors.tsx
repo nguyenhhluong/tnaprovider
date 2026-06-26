@@ -1,3 +1,4 @@
+import { SEO } from "../components/SEO";
 import { motion } from "motion/react";
 import { SectionTitle } from "../components/ui/SectionTitle";
 import { ShoppingBag, Coffee, Briefcase, Stethoscope, GraduationCap } from "lucide-react";
@@ -43,6 +44,7 @@ const sectors = [
 export function Sectors() {
   return (
     <div className="flex flex-col min-h-screen pt-24">
+      <SEO title="Industries We Serve | Commercial Construction Sydney | TNA Provider" description="TNA Provider delivers commercial fitouts and joinery for retail, hospitality, office, healthcare, and education sectors across Australia." canonical="https://tnaprovider.com.au/sectors" ogImage="https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=1200&h=630&fit=crop" />
       {/* Hero */}
       <section className="bg-brand-darker text-white py-24 md:py-32 relative overflow-hidden">
         <div className="container relative z-10 mx-auto px-4 md:px-8">
@@ -53,6 +55,7 @@ export function Sectors() {
             className="max-w-3xl"
           >
             <SectionTitle 
+              as="h1"
               subtitle="Industries We Serve"
               title="Specialized Expertise Across Key Sectors"
               light

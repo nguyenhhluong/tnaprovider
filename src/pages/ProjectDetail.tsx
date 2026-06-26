@@ -1,3 +1,4 @@
+import { SEO } from "../components/SEO";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { ArrowLeft } from "lucide-react";
@@ -10,6 +11,7 @@ export function ProjectDetail() {
   if (!project) {
     return (
       <div className="min-h-screen flex items-center justify-center pt-20">
+        <meta name="robots" content="noindex" />
         <div className="text-center">
           <h1 className="text-3xl font-bold text-brand-dark dark:text-white mb-4">Project Not Found</h1>
           <Link to="/projects" className="text-brand-accent hover:underline inline-flex items-center">
@@ -21,8 +23,16 @@ export function ProjectDetail() {
     );
   }
 
+  const pm = {
+    title: `${project.title} | ${project.sector} | TNA Provider`,
+    description: project.description,
+    canonical: `https://tnaprovider.com.au/projects/${project.id}`,
+    image: project.imageUrl,
+  };
+
   return (
     <div className="min-h-screen pt-20 bg-brand-gray dark:bg-brand-darker">
+      <SEO title={pm.title} description={pm.description} canonical={pm.canonical} ogImage={pm.image} />
       {/* Hero Section */}
       <div className="relative h-[50vh] md:h-[70vh] w-full">
         <img 

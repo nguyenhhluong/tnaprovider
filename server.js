@@ -36,7 +36,16 @@ app.use(express.static(DIST_DIR, {
 }));
 
 app.get('*', (req, res) => {
-  res.sendFile(path.join(DIST_DIR, 'index.html'));
+  const preRenderedPath = path.join(DIST_DIR, req.path === '/' ? 'index.html' : `${req.path}.html`);
+  const preRenderedDir = path.join(DIST_DIR, req.path.slice(1), 'index.html');
+  
+  if (req.path !== '/' && fs.existsSync(preRenderedDir)) {
+    res.sendFile(preRenderedDir);
+  } else if (fs.existsSync(preRenderedPath)) {
+    res.sendFile(preRenderedPath);
+  } else {
+    res.sendFile(path.join(DIST_DIR, 'index.html'));
+  }
 });
 
 app.listen(PORT, '0.0.0.0', () => {

@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, Building2, Hammer, HardHat, Wrench } from "lu
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import { SectionTitle } from "../components/ui/SectionTitle";
+import { SEO } from "../components/SEO";
 import { ServiceCard } from "../components/ui/ServiceCard";
 import { ProjectCard } from "../components/ui/ProjectCard";
 import { Testimonial } from "../components/ui/Testimonial";
@@ -87,6 +88,11 @@ const faqs = [
 export function Home() {
   return (
     <div className="flex flex-col min-h-screen">
+      <SEO
+        title="TNA Provider | Commercial Fitouts, Shopfitting & Joinery Sydney"
+        description="Sydney-based commercial construction and joinery company. Custom joinery, shopfitting, and fitout services for retail, hospitality, and office spaces across NSW and Australia."
+        canonical="https://tnaprovider.com.au/"
+      />
       {/* Hero Section */}
       <section className="relative h-screen min-h-[600px] flex items-center pt-20 overflow-hidden">
         <div className="absolute inset-0 z-0">

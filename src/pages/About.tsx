@@ -1,3 +1,4 @@
+import { SEO } from "../components/SEO";
 import { motion } from "motion/react";
 import { SectionTitle } from "../components/ui/SectionTitle";
 import { Target, Shield, Clock } from "lucide-react";
@@ -5,6 +6,7 @@ import { Target, Shield, Clock } from "lucide-react";
 export function About() {
   return (
     <div className="flex flex-col min-h-screen pt-24">
+      <SEO title="About TNA Provider | Commercial Construction & Joinery Sydney" description="Learn about TNA Provider — a Sydney-based commercial construction and joinery company handling fitouts, custom joinery, and construction across Australia." canonical="https://tnaprovider.com.au/about" ogImage="https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=1200&h=630&fit=crop" />
       {/* Hero */}
       <section className="bg-brand-darker text-white py-24 md:py-32 relative overflow-hidden">
         <div className="absolute inset-0 z-0 opacity-20">
@@ -24,6 +26,7 @@ export function About() {
             className="max-w-3xl"
           >
             <SectionTitle 
+              as="h1"
               subtitle="About TNA Provider"
               title="Commercial Construction and Joinery"
               light

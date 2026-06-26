@@ -7,9 +7,11 @@ interface SectionTitleProps {
   align?: "left" | "center";
   className?: string;
   light?: boolean;
+  as?: "h1" | "h2" | "h3";
 }
 
-export function SectionTitle({ title, subtitle, align = "left", className, light = false }: SectionTitleProps) {
+export function SectionTitle({ title, subtitle, align = "left", className, light = false, as = "h2" }: SectionTitleProps) {
+  const Tag = as;
   return (
     <div className={cn("flex flex-col gap-3", align === "center" && "items-center text-center", className)}>
       {subtitle && (
@@ -25,18 +27,19 @@ export function SectionTitle({ title, subtitle, align = "left", className, light
           {subtitle}
         </motion.span>
       )}
-      <motion.h2 
+      <motion.div
         initial={{ opacity: 0, y: 10 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ delay: 0.1 }}
-        className={cn(
+      >
+        <Tag className={cn(
           "text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight",
           light ? "text-white" : "text-brand-dark dark:text-white"
-        )}
-      >
-        {title}
-      </motion.h2>
+        )}>
+          {title}
+        </Tag>
+      </motion.div>
     </div>
   );
 }

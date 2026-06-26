@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { SEO } from "../components/SEO";
 import { Link } from "react-router-dom";
 import { SectionTitle } from "../components/ui/SectionTitle";
 import { Button } from "../components/ui/Button";
@@ -137,11 +138,13 @@ export function Contact() {
 
   return (
     <div className="flex flex-col min-h-screen pt-24">
+      <SEO title="Contact TNA Provider | Get a Quote for Your Commercial Project" description="Contact TNA Provider for a quote on your commercial fitout, joinery, or construction project. Sydney-based team serving all of Australia." canonical="https://tnaprovider.com.au/contact" ogImage="https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=1200&h=630&fit=crop" />
       {/* Hero */}
       <section className="bg-brand-darker text-white py-24 md:py-32 relative overflow-hidden">
         <div className="container relative z-10 mx-auto px-4 md:px-8">
           <div className="max-w-3xl">
             <SectionTitle 
+              as="h1"
               subtitle="Get a Quote"
               title="Tell Us About Your Project"
               light

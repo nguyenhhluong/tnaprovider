@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SEO } from "../components/SEO";
 import { motion, AnimatePresence } from "motion/react";
 import { SectionTitle } from "../components/ui/SectionTitle";
 import { ProjectCard } from "../components/ui/ProjectCard";
@@ -18,6 +19,7 @@ export function Projects() {
 
   return (
     <div className="flex flex-col min-h-screen pt-20">
+      <SEO title="Our Projects | Commercial Fitouts & Joinery Portfolio | TNA Provider" description="View TNA Provider's portfolio of commercial fitouts, custom joinery, and construction projects across retail, hospitality, office, and residential sectors." canonical="https://tnaprovider.com.au/projects" />
       {/* Luxury Showcase Hero */}
       <LuxuryShowcase projects={projects.slice(0, 4)} />
 
@@ -31,6 +33,7 @@ export function Projects() {
             transition={{ duration: 0.7 }}
             className="mb-12"
           >
+            <h1 className="sr-only">Our Projects Portfolio</h1>
             <h2 className="text-3xl md:text-4xl font-display font-light text-brand-dark dark:text-white mb-4">
               All Projects
             </h2>

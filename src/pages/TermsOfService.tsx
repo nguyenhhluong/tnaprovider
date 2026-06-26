@@ -1,9 +1,13 @@
+import { SEO } from "../components/SEO";
 import LegalLayout, { LegalSection } from "../components/legal/LegalLayout";
 import { COMPANY } from "../lib/company";
 
 export function TermsOfServicePage() {
   return (
-    <LegalLayout
+    <>
+      <SEO title="Terms of Service | TNA Provider" description="TNA Provider's terms and conditions for website use and service engagement. Read our terms of service before using our website or services." canonical="https://tnaprovider.com.au/terms-of-service" />
+      <meta name="robots" content="noindex, follow" />
+      <LegalLayout
       title="Terms of Service"
       companyName={COMPANY.name}
       abn={COMPANY.abn}
@@ -181,5 +185,6 @@ export function TermsOfServicePage() {
         </p>
       </LegalSection>
     </LegalLayout>
+    </>
   );
 }
