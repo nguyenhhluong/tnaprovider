@@ -93,6 +93,7 @@ const router = createBrowserRouter([
       { path: "materials", element: <Materials /> },
       { path: "project-map", element: <ProjectMapPage /> },
       { path: "leads", element: <Leads /> },
+      { path: "timesheets", element: <Timesheets /> },
       { path: "users", element: <ProtectedRoute roles={["owner", "admin"]}><PlatformUsers /></ProtectedRoute> },
       { path: "security", element: <ProtectedRoute roles={["owner", "admin"]}><Security /></ProtectedRoute> },
       { path: "audit", element: <ProtectedRoute roles={["owner", "admin"]}><Audit /></ProtectedRoute> },
