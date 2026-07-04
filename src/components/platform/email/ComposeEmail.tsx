@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import type { EmailMessage, EmailAddress, ComposeEmailPayload } from "../../../types/email";
 import { isValidEmail, formatEmailAddress, sanitizeEmailHtml } from "../../../utils/emailFormat";
-import { X, Paperclip, Send, Loader2, AlertTriangle } from "lucide-react";
+import { X, Paperclip, Send, Loader2, AlertTriangle, ArrowLeft } from "lucide-react";
 
 interface ComposeEmailProps {
   replyTo?: EmailMessage | null;
@@ -104,8 +104,8 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
 
   if (sent) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-        <div className="bg-white dark:bg-brand-darker rounded-xl p-8 shadow-2xl max-w-sm mx-4 text-center">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="bg-white dark:bg-brand-darker rounded-xl p-8 shadow-2xl max-w-sm w-full mx-4 text-center">
           <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
             <Send className="w-6 h-6 text-green-600" />
           </div>
@@ -113,7 +113,7 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
           <p className="text-sm text-gray-500 mb-4">Your email has been sent successfully.</p>
           <button
             onClick={onDiscard}
-            className="px-4 py-2 bg-brand-accent text-white rounded-lg text-sm font-medium hover:bg-brand-accent-hover"
+            className="px-4 py-2 bg-brand-accent text-white rounded-lg text-sm font-medium hover:bg-brand-accent-hover min-h-[44px]"
           >
             Close
           </button>
@@ -123,16 +123,26 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-12 bg-black/40">
-      <div className="bg-white dark:bg-brand-darker rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[85vh]">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-800">
-          <h3 className="font-display font-bold">{replyTo ? "Reply" : "New Message"}</h3>
-          <button onClick={onDiscard} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/40">
+      <div className="flex-1 flex flex-col bg-white dark:bg-brand-darker w-full max-w-2xl mx-auto shadow-2xl lg:mt-12 lg:mb-8 lg:rounded-xl lg:max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onDiscard}
+              className="lg:hidden p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h3 className="font-display font-bold">{replyTo ? "Reply" : "New Message"}</h3>
+          </div>
+          <button onClick={onDiscard} className="hidden lg:flex p-2 min-h-[44px] min-w-[44px] items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
+        {/* Scrollable form */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
             <p className="text-sm px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
@@ -147,7 +157,7 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
               value={to}
               onChange={(e) => setTo(e.target.value)}
               placeholder="recipient@example.com"
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50"
+              className="w-full px-3 py-3 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50"
             />
           </div>
 
@@ -158,7 +168,7 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
               value={cc}
               onChange={(e) => setCc(e.target.value)}
               placeholder="cc@example.com"
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50"
+              className="w-full px-3 py-3 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50"
             />
           </div>
 
@@ -169,7 +179,7 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
               value={bcc}
               onChange={(e) => setBcc(e.target.value)}
               placeholder="bcc@example.com"
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50"
+              className="w-full px-3 py-3 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50"
             />
           </div>
 
@@ -180,7 +190,7 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Email subject"
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50"
+              className="w-full px-3 py-3 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50"
             />
           </div>
 
@@ -189,9 +199,9 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
             <textarea
               value={bodyHtml}
               onChange={(e) => setBodyHtml(e.target.value)}
-              rows={8}
+              rows={6}
               placeholder="Write your message..."
-              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50 resize-y font-sans"
+              className="w-full px-3 py-3 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50 resize-y font-sans min-h-[120px]"
             />
           </div>
 
@@ -199,13 +209,13 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
             <div className="space-y-1">
               <p className="text-xs font-medium text-gray-500">Attachments</p>
               {attachments.map((file, i) => (
-                <div key={i} className="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-900 px-3 py-1.5 rounded-lg">
+                <div key={i} className="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-900 px-3 py-2 rounded-lg">
                   <div className="flex items-center gap-2 min-w-0">
                     <Paperclip className="w-3 h-3 text-gray-400 shrink-0" />
                     <span className="truncate">{file.name}</span>
-                    <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(0)} KB)</span>
+                    <span className="text-xs text-gray-500 whitespace-nowrap">({(file.size / 1024).toFixed(0)} KB)</span>
                   </div>
-                  <button onClick={() => removeAttachment(i)} className="text-red-500 hover:text-red-700 ml-2">
+                  <button onClick={() => removeAttachment(i)} className="p-1 text-red-500 hover:text-red-700 ml-2">
                     <X className="w-3 h-3" />
                   </button>
                 </div>
@@ -221,28 +231,24 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
           )}
         </div>
 
-        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 dark:border-gray-800">
-          <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer hover:text-gray-700">
+        {/* Bottom bar — sticky */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-brand-darker shrink-0">
+          <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer hover:text-gray-700 min-h-[44px] px-2">
             <Paperclip className="w-4 h-4" />
             Attach
-            <input
-              type="file"
-              multiple
-              onChange={handleAttachmentChange}
-              className="hidden"
-            />
+            <input type="file" multiple onChange={handleAttachmentChange} className="hidden" />
           </label>
           <div className="flex items-center gap-2">
             <button
               onClick={onDiscard}
-              className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+              className="px-3 py-2 min-h-[44px] text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
             >
               Discard
             </button>
             <button
               onClick={handleSend}
               disabled={sending}
-              className="flex items-center gap-1.5 px-4 py-2 bg-brand-accent text-white rounded-lg text-sm font-medium hover:bg-brand-accent-hover disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] bg-brand-accent text-white rounded-lg text-sm font-medium hover:bg-brand-accent-hover disabled:opacity-50 transition-colors"
             >
               {sending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
