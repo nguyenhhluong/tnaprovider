@@ -9,9 +9,9 @@ services:
       - "25:25"
       - "587:587"
       - "993:993"
-      - "443:443"
       - "465:465"
       - "4190:4190"
+      - "8080:8080"      # HTTP admin/JMAP — Caddy reverse proxies this
     volumes:
       - stalwart-data:/opt/stalwart-data
       - ./config:/opt/stalwart-config:ro

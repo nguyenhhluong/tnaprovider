@@ -4,9 +4,10 @@
 Mailu is a Docker-based mail server suite. This is the fallback option if Stalwart deployment is blocked.
 
 ## When to Use Mailu
-- Vultr blocks port 25 outbound (Stalwart cannot relay)
-- Stalwart has a compatibility issue with the VPS environment
+- Stalwart has a compatibility or configuration issue with the VPS environment
 - You want a built-in webmail UI (Roundcube)
+
+**Note**: Mailu does NOT fix port 25 being blocked. Both Stalwart and Mailu require outbound port 25 for external email delivery. If port 25 is blocked by Vultr, neither server can relay to external addresses — a third-party SMTP relay is needed regardless of server choice.
 
 ## Differences from Stalwart
 - More services to manage (front, imap, smtp, antispam, webmail, admin)
@@ -25,18 +26,21 @@ If blocked, Mailu still works for local delivery but SMTP relay to external addr
 
 ### Step 2 — Open Firewall
 ```bash
+# Mail ports only. Port 443 is handled by Caddy.
 ufw allow 25/tcp
 ufw allow 587/tcp
 ufw allow 993/tcp
-ufw allow 443/tcp
 ufw allow 465/tcp
 ufw reload
 ```
 
-### Step 3 — Clone and Configure
+### Step 3 — Navigate to Existing Repo
 ```bash
-git clone https://github.com/nguyenhhluong/tnaprovider.git
-cd tnaprovider/infra/mail/mailu
+cd /root/tnaprovider
+git fetch origin --prune
+git checkout feature/phase-3-business-platform
+
+cd infra/mail/mailu
 cp .env.example .env
 nano .env
 ```
@@ -55,13 +59,20 @@ docker compose up -d
 docker compose logs -f
 ```
 
-### Step 5 — Create Mailboxes
-Browse to `https://mail.tnaprovider.com.au/admin` (or `http://VPS_IP:8080`) and log in with the admin account. Create mailboxes:
+### Step 5 — TLS and Caddy
+Same architecture as Stalwart: Caddy terminates HTTPS for `mail.tnaprovider.com.au` and reverse proxies to Mailu's internal HTTP port. Mailu's `front` service exposes port 80 internally — configure Caddy to proxy to `127.0.0.1:80` (or Mailu's nginx container IP on the Docker network).
+
+Mailu's `docker-compose.yml` binds port 443 directly — for same-VPS deployment with Caddy, either:
+- Remove the `443:443` mapping from `front` service (Caddy handles HTTPS), or
+- Change Mailu to use a different internal port
+
+### Step 6 — Create Mailboxes
+Browse to `https://mail.tnaprovider.com.au/admin` (or internally via `http://127.0.0.1:8080`) and log in with the admin account. Create mailboxes:
 - `info@tnaprovider.com.au`
 - `projects@tnaprovider.com.au`
 - `accounts@tnaprovider.com.au`
 
-### Step 6 — DNS Records
+### Step 7 — DNS Records
 Same as Stalwart — see `docs/email-dns-checklist.md`:
 | Type | Name | Value | Proxy |
 |------|------|-------|-------|
@@ -71,7 +82,7 @@ Same as Stalwart — see `docs/email-dns-checklist.md`:
 | TXT | `_dmarc` | DMARC | — |
 | TXT | DKIM selector | From Mailu admin UI | — |
 
-### Step 7 — Update Platform .env
+### Step 8 — Update Platform .env
 Same as Stalwart — set `MAIL_PROVIDER=imap-smtp` with the Mailu IMAP/SMTP credentials.
 
 ## Backup

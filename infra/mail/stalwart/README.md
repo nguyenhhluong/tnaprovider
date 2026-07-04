@@ -22,24 +22,31 @@ Before anything, verify the VPS provider allows port 25:
 ssh root@139.180.175.60
 nc -v smtp.gmail.com 25
 # If connection succeeds → port 25 open, proceed
-# If timeout/fail → port 25 blocked by Vultr → STOP, use Mailu as fallback or contact Vultr
+# If timeout/fail → port 25 blocked by Vultr → STOP.
+# Stalwart and Mailu both cannot relay externally if port 25 is blocked.
+# Fix requires Vultr port 25 unblock or third-party SMTP relay.
 ```
 
 ## Step 2 — Open Firewall
 ```bash
+# Mail ports only. Port 443 is handled by Caddy (already open for the website).
 ufw allow 25/tcp
 ufw allow 587/tcp
 ufw allow 993/tcp
-ufw allow 443/tcp
 ufw allow 465/tcp
 ufw allow 4190/tcp
 ufw reload
 ```
 
-## Step 3 — Clone and Configure
+## Step 3 — Navigate to Existing Repo
+The repo is already deployed on the VPS by Dev 1's integration branch work.
 ```bash
-git clone https://github.com/nguyenhhluong/tnaprovider.git
-cd tnaprovider/infra/mail/stalwart
+cd /root/tnaprovider
+git fetch origin --prune
+git checkout feature/phase-3-business-platform
+
+# Then configure Stalwart
+cd infra/mail/stalwart
 cp .env.example .env
 nano .env
 ```
@@ -58,15 +65,32 @@ docker compose logs -f
 # Wait for "listening on port 25" messages
 ```
 
-## Step 5 — Provision TLS (Let's Encrypt)
-```bash
-# Install certbot on the host (not inside the container)
-apt install certbot
-certbot certonly --standalone -d mail.tnaprovider.com.au
+## Step 5 — TLS Architecture
 
-# Copy certs to Stalwart data volume
-docker cp /etc/letsencrypt/live/mail.tnaprovider.com.au/fullchain.pem stalwart-mail:/opt/stalwart-data/certs/
-docker cp /etc/letsencrypt/live/mail.tnaprovider.com.au/privkey.pem stalwart-mail:/opt/stalwart-data/certs/
+### HTTPS/web (Caddy handles this)
+The production VPS already runs Caddy on public ports 80/443. Caddy terminates TLS for all web traffic including `mail.tnaprovider.com.au`. Add this to the existing Caddyfile:
+
+```caddyfile
+mail.tnaprovider.com.au {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+Port 8080 is Stalwart's internal HTTP listener for the admin UI and JMAP API. Caddy handles TLS automatically via ACME. No standalone Certbot needed.
+
+### SMTP/IMAP TLS (Stalwart needs certs separately)
+Stalwart needs TLS certificates for STARTTLS on ports 25/587 and TLS on ports 993/465. Options:
+
+**Option A (recommended)**: Copy Caddy's managed certificate from Caddy's cert storage to a shared volume that Stalwart can read. Caddy auto-renews, and a cron job copies the renewed cert.
+
+**Option B**: Use Stalwart's built-in ACME client with DNS challenge (avoids port 80 conflict with Caddy).
+
+**Option C**: Obtain a cert manually via DNS challenge and mount it into the Stalwart container.
+
+Update `docker-compose.yml` TLS env vars to point at the chosen cert path:
+```
+STALWART_TLS_CERT=/opt/stalwart-data/certs/fullchain.pem
+STALWART_TLS_PRIVATE_KEY=/opt/stalwart-data/certs/privkey.pem
 ```
 
 ## Step 6 — Create Domain and Mailboxes
@@ -101,9 +125,11 @@ Add these records to the `tnaprovider.com.au` zone:
 |------|------|-------|-------|
 | A | `mail` | `139.180.175.60` | DNS-only (grey cloud) |
 | MX | `@` | `10 mail.tnaprovider.com.au` | — |
-| TXT | `@` | `v=spf1 mx a:mail.tnaprovider.com.au include:_spf.mail.tnaprovider.com.au ~all` | — |
+| TXT | `@` | `v=spf1 mx a ip4:139.180.175.60 ~all` | — |
 | TXT | `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@tnaprovider.com.au; pct=100` | — |
 | TXT | `default._domainkey` | (from step 7) | — |
+
+Note: `dmarc-reports@tnaprovider.com.au` must exist before enabling `rua` reports, or omit `rua` until the mailbox is ready.
 
 Critical: `mail.tnaprovider.com.au` must be **DNS-only** (grey cloud). Email ports do not work through Cloudflare proxy.
 
@@ -183,14 +209,27 @@ docker compose up -d
 ```
 
 ## Mailu Fallback
-If Stalwart deployment fails (port 25 blocked, compatibility issue, etc.), use Mailu:
+If Stalwart deployment fails due to compatibility or configuration issues, use Mailu:
 ```bash
-cd ../mailu
+cd /root/tnaprovider/infra/mail/mailu
 cp .env.example .env
 nano .env
 docker compose up -d
 ```
 DNS records are identical. Mailu provides Roundcube webmail at `https://mail.tnaprovider.com.au/webmail`.
+
+**Note**: Mailu does NOT fix port 25 being blocked. Both servers require outbound port 25 for external delivery.
+
+## Caddy Reverse Proxy (Quick Reference)
+Add to your existing Caddyfile (typically `/etc/caddy/Caddyfile` or managed via Caddy API):
+```caddyfile
+mail.tnaprovider.com.au {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+Then reload Caddy: `caddy reload` or `systemctl reload caddy`.
+
+Port `8080` is Stalwart's internal HTTP listener for the admin UI and JMAP API. It is not exposed publicly — only Caddy can reach it via loopback.
 
 ## Troubleshooting
 ```bash

@@ -16,7 +16,7 @@ tnaprovider.com.au   MX   10   mail.tnaprovider.com.au
 
 ### SPF Record (TXT)
 ```
-tnaprovider.com.au   TXT   "v=spf1 mx a:mail.tnaprovider.com.au include:_spf.mail.tnaprovider.com.au ~all"
+tnaprovider.com.au   TXT   "v=spf1 mx a ip4:139.180.175.60 ~all"
 ```
 
 ### DKIM Record (TXT)
@@ -27,8 +27,9 @@ default._domainkey.tnaprovider.com.au   TXT   "v=DKIM1; k=rsa; p=<PUBLIC_KEY>"
 
 ### DMARC Record (TXT)
 ```
-_dmarc.tnaprovider.com.au   TXT   "v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@tnaprovider.com.au; ruf=mailto:dmarc-failures@tnaprovider.com.au; pct=100"
+_dmarc.tnaprovider.com.au   TXT   "v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@tnaprovider.com.au; pct=100"
 ```
+- Note: `dmarc-reports@tnaprovider.com.au` must exist before enabling `rua` reports, or use a separate mailbox that already accepts mail.
 
 ### PTR/rDNS Record
 - Request from VPS provider
@@ -62,8 +63,9 @@ Allow inbound:
 - Port 25 (SMTP) - from any
 - Port 587 (Submission) - from any
 - Port 993 (IMAPS) - from any
-- Port 443 (HTTPS) - from any
 - Port 465 (SMTPS) - optional, from any
+
+Port 443 is handled by Caddy (already open for the website). Do not open a separate 443 rule for Stalwart.
 
 Allow outbound:
 - Port 25 (SMTP) - to any (must not be blocked by VPS provider)

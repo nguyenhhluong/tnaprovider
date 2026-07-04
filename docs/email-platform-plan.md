@@ -14,14 +14,15 @@
 See [email-dns-checklist.md](./email-dns-checklist.md) for full details.
 
 ### Required Ports
-| Port | Service | Purpose |
-|------|---------|---------|
-| 25 | SMTP | Server-to-server email relay |
-| 587 | SMTP Submission | Authenticated client submission |
-| 993 | IMAPS | Secure IMAP for mail clients |
-| 443 | HTTPS | Admin UI, JMAP API, Webmail |
-| 465 | SMTPS (optional) | Alternative SMTP submission |
-| 4190 | ManageSieve (optional) | Sieve filter management |
+| Port | Service | Purpose | Owner |
+|------|---------|---------|-------|
+| 25 | SMTP | Server-to-server email relay | Stalwart |
+| 587 | SMTP Submission | Authenticated client submission | Stalwart |
+| 993 | IMAPS | Secure IMAP for mail clients | Stalwart |
+| 80 | HTTP | Public web (redirect to HTTPS) | Caddy |
+| 443 | HTTPS | Website, mail admin UI, JMAP API | Caddy |
+| 465 | SMTPS (optional) | Alternative SMTP submission | Stalwart |
+| 4190 | ManageSieve (optional) | Sieve filter management | Stalwart |
 
 ### Required Server Resources
 - 1 vCPU (2 vCPU recommended)
@@ -33,6 +34,15 @@ See [email-dns-checklist.md](./email-dns-checklist.md) for full details.
 
 ### Architecture
 ```
+Public internet
+        |
+        | port 443 (HTTPS)
+        |
+[ Caddy — TLS termination ]
+        |
+        |--- reverse proxy mail.tnaprovider.com.au ----> [ Stalwart :8080 (HTTP) ]
+        |--- serves website on tnaprovider.com.au
+        |
 [tna-provider-react-frontend]
         |
         | HTTPS (REST API calls)
@@ -43,9 +53,10 @@ See [email-dns-checklist.md](./email-dns-checklist.md) for full details.
         |
 [stalwart-mail-server]
         |
-        | SMTP (port 25) ---> External mail servers
-        | IMAP (port 993)    Internal IMAP access (admin only)
-        | JMAP (port 443)   Internal JMAP API (from backend)
+        | port 25  (SMTP) ---> External mail servers
+        | port 587  (Submission) ---> Mail clients
+        | port 993  (IMAPS) ---> IMAP clients
+        | port 8080 (HTTP) <--- Caddy reverse proxy
 ```
 
 ### How Platform Connects to Mail Server
@@ -53,7 +64,7 @@ See [email-dns-checklist.md](./email-dns-checklist.md) for full details.
 2. React calls `src/utils/emailApi.ts` functions
 3. `emailApi.ts` makes REST calls to backend at `/api/email/*`
 4. Backend Express server authenticates the platform user
-5. Backend connects to Stalwart via JMAP API using admin credentials
+5. Backend connects to Stalwart via JMAP API (through Caddy reverse proxy) using admin credentials
 6. Backend maps platform user to mailbox, performs mail operations
 7. No mail credentials are ever exposed to the browser
 
@@ -100,7 +111,7 @@ See [email-dns-checklist.md](./email-dns-checklist.md) for full details.
 - Included IMAP/SMTP, webmail, admin UI, spam filtering
 - DKIM/SPF/DMARC support
 - REST API for management
-- Fallback if Stalwart deployment is blocked
+- Fallback if Stalwart deployment is blocked due to compatibility or config issues, not port 25 (same limitation)
 
 ## Deployment Readiness
 
@@ -109,10 +120,12 @@ See [email-dns-checklist.md](./email-dns-checklist.md) for full details.
 |------|------|-------|-------|
 | A | `mail` | `139.180.175.60` | DNS-only (grey cloud) |
 | MX | `@` | `10 mail.tnaprovider.com.au` | — |
-| TXT | `@` | `v=spf1 mx a:mail.tnaprovider.com.au include:_spf.mail.tnaprovider.com.au ~all` | — |
+| TXT | `@` | `v=spf1 mx a ip4:139.180.175.60 ~all` | — |
 | TXT | `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@tnaprovider.com.au; pct=100` | — |
 | TXT | `default._domainkey` | Generated after Stalwart deploy | — |
 | PTR | VPS IP | `mail.tnaprovider.com.au` | Via Vultr support |
+
+Note: `dmarc-reports@tnaprovider.com.au` must exist before enabling `rua` reports.
 
 ### Required Env Vars (platform `.env`)
 ```env
@@ -140,18 +153,29 @@ MAIL_ADMIN_PASSWORD=<strong-admin-password>
 ```
 
 ### Deployment Steps
-1. **Test port 25** on VPS: `nc -v smtp.gmail.com 25` — if blocked, stop.
-2. **Open firewall**: `ufw allow 25/tcp 587/tcp 993/tcp 443/tcp 465/tcp`
-3. **Clone repo on VPS**: `git clone https://github.com/nguyenhhluong/tnaprovider.git`
-4. **Configure Stalwart**: `cd infra/mail/stalwart && cp .env.example .env && nano .env`
+1. **Test port 25** on VPS: `ssh root@139.180.175.60 'nc -v smtp.gmail.com 25'` — if timeout/fail, port 25 is blocked. Stalwart and Mailu both cannot relay externally. Fix requires Vultr port 25 unblock or third-party SMTP relay.
+2. **Open firewall** (mail ports only — 443 is Caddy's domain):
+   `ufw allow 25/tcp 587/tcp 993/tcp 465/tcp`
+3. **Navigate to existing repo on VPS** (already deployed by Dev 1):
+   `cd /root/tnaprovider && git fetch origin --prune && git checkout feature/phase-3-business-platform`
+4. **Configure Stalwart**:
+   `cd infra/mail/stalwart && cp .env.example .env && nano .env`
 5. **Start Stalwart**: `docker compose up -d`
-6. **Provision TLS**: `certbot certonly --standalone -d mail.tnaprovider.com.au`, copy certs to Stalwart volume
-7. **Create domain + mailboxes** (info, projects, accounts, admin)
-8. **Generate DKIM key** in Stalwart CLI, add TXT record to Cloudflare
-9. **Add A, MX, SPF, DMARC records** in Cloudflare (mail subdomain DNS-only)
-10. **Request PTR record** from Vultr support
-11. **Update platform `.env`** with IMAP/SMTP credentials, set `MAIL_PROVIDER=imap-smtp`
-12. **Run Gmail send/receive tests**
+6. **Configure Caddy** — add to existing Caddyfile:
+   ```
+   mail.tnaprovider.com.au {
+       reverse_proxy 127.0.0.1:8080
+   }
+   ```
+   (Port 8080 is Stalwart's internal HTTP listener for admin UI and JMAP API.)
+7. **Provision TLS for Stalwart's SMTP/IMAP ports** (optional, for STARTTLS/IMAPS):
+   Let Caddy obtain the cert, then copy it to a shared volume, or use Stalwart's built-in ACME with DNS challenge. No standalone Certbot needed.
+8. **Create domain + mailboxes** (info, projects, accounts, admin)
+9. **Generate DKIM key** in Stalwart CLI, add TXT record to Cloudflare
+10. **Add A, MX, SPF, DMARC records** in Cloudflare (mail subdomain DNS-only)
+11. **Request PTR record** from Vultr support
+12. **Update platform `.env`** with IMAP/SMTP credentials, set `MAIL_PROVIDER=imap-smtp`
+13. **Run Gmail send/receive tests****
 
 ### Gmail Test Plan
 1. Send Gmail → `info@tnaprovider.com.au`, verify in platform UI inbox
@@ -181,8 +205,9 @@ docker compose up -d
 ```
 
 ### Blockers
-- Port 25 outbound status unknown on Vultr VPS
-- PTR/rDNS record not yet requested
-- Let's Encrypt TLS cert not provisioned
+- Port 25 outbound status unknown on Vultr VPS — if blocked, external delivery fails regardless of server choice
+- PTR/rDNS record not yet requested from Vultr
+- Caddy reverse proxy for `mail.tnaprovider.com.au` not yet configured in production Caddyfile
+- Stalwart TLS cert for SMTP/IMAP not yet provisioned (Caddy handles HTTPS, but Stalwart needs certs for STARTTLS/IMAPS separately)
 - Mailbox passwords not yet generated
 - Gmail send/receive not tested
