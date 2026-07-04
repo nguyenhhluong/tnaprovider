@@ -43,7 +43,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
     { name: "Quotes", path: appPath("/platform/quotes"), icon: DollarSign, roles: ["owner", "admin", "manager"] },
     { name: "Projects", path: appPath("/platform/projects"), icon: FolderKanban, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Tasks", path: appPath("/platform/tasks"), icon: CheckSquare, roles: ["owner", "admin", "manager", "worker"] },
-    { name: "Timesheets", path: appPath("/platform/timesheets"), icon: Clock, roles: ["owner", "admin", "manager", "worker"] },
+    { name: "My Timesheet", path: appPath("/platform/realtime-timesheet"), icon: Clock, roles: ["owner", "admin", "manager", "worker"] },
     { name: "Live Timesheet", path: appPath("/platform/realtime-timesheet"), icon: Play, roles: ["owner", "admin", "manager", "worker"] },
     { name: "Email", path: appPath("/platform/email"), icon: Mail, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Client Portal", path: appPath("/platform/client-portal"), icon: UserCircle, roles: ["owner", "admin", "manager", "client"] },

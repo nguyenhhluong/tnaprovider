@@ -1,35 +1,74 @@
+import { useState, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { PlatformHeader } from "../../components/platform/PlatformHeader";
 import { KpiCard } from "../../components/platform/KpiCard";
 import { RecentActivity } from "../../components/platform/RecentActivity";
-import { mockDashboardMetrics, mockActivities } from "../../data/platformMock";
-import { DollarSign, Users, TrendingUp, Clock, AlertTriangle, Wrench, FileText, BarChart3, CheckCircle } from "lucide-react";
+import { DollarSign, Users, TrendingUp, Clock, AlertTriangle, Wrench, FileText, BarChart3, CheckCircle, Loader2 } from "lucide-react";
 
 export function Dashboard() {
   const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
+  const [metrics, setMetrics] = useState<any>(null);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const cards = [
-    { title: "New Leads This Week", value: mockDashboardMetrics.newLeadsThisWeek, icon: Users, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30" },
-    { title: "Hot Leads", value: mockDashboardMetrics.hotLeads, icon: TrendingUp, color: "text-red-600", bg: "bg-red-100 dark:bg-red-900/30" },
-    { title: "Active Projects", value: mockDashboardMetrics.activeProjects, icon: FileText, color: "text-purple-600", bg: "bg-purple-100 dark:bg-purple-900/30" },
-    { title: "Pending Timesheets", value: mockDashboardMetrics.pendingTimesheets, icon: Clock, color: "text-amber-600", bg: "bg-amber-100 dark:bg-amber-900/30" },
-    { title: "Pending Variations", value: mockDashboardMetrics.pendingVariations, icon: AlertTriangle, color: "text-orange-600", bg: "bg-orange-100 dark:bg-orange-900/30" },
-    { title: "Maintenance Requests", value: mockDashboardMetrics.maintenanceRequests, icon: Wrench, color: "text-teal-600", bg: "bg-teal-100 dark:bg-teal-900/30" },
-    { title: "Revenue Pipeline", value: `$${(mockDashboardMetrics.revenuePipeline / 1000).toFixed(0)}k`, icon: DollarSign, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30" },
-    { title: "Manufacturing Lead Time", value: `${mockDashboardMetrics.currentManufacturingLeadTime}d`, icon: BarChart3, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30" },
-    { title: "Approved Hours/Week", value: mockDashboardMetrics.approvedHoursThisWeek, icon: CheckCircle, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30" },
-  ];
+  const fetchDashboard = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/reports/dashboard", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setMetrics({
+          newLeadsThisWeek: data.leads?.total ?? 0,
+          hotLeads: (data.leads?.byStatus ?? []).reduce((s: number, st: any) => s + (st.status === 'hot' ? st.c : 0), 0),
+          activeProjects: (data.projects?.byStatus ?? []).reduce((s: number, st: any) => s + (st.status === 'active' ? st.c : 0), 0),
+          pendingTimesheets: 0,
+          pendingVariations: 0,
+          maintenanceRequests: (data.maintenance?.byStatus ?? []).reduce((s: number, st: any) => s + ((st.status === 'open' || st.status === 'in_progress') ? st.c : 0), 0),
+          revenuePipeline: data.quotes?.totalAcceptedValue ?? 0,
+          currentManufacturingLeadTime: 0,
+          approvedHoursThisWeek: 0,
+        });
+        setActivities(data.activity || []);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+
+  const cards = metrics ? [
+    { title: "New Leads", value: metrics.newLeadsThisWeek, icon: Users, color: "text-blue-600", bg: "bg-blue-100 dark:bg-blue-900/30" },
+    { title: "Hot Leads", value: metrics.hotLeads, icon: TrendingUp, color: "text-red-600", bg: "bg-red-100 dark:bg-red-900/30" },
+    { title: "Active Projects", value: metrics.activeProjects, icon: FileText, color: "text-purple-600", bg: "bg-purple-100 dark:bg-purple-900/30" },
+    { title: "Pending Timesheets", value: metrics.pendingTimesheets, icon: Clock, color: "text-amber-600", bg: "bg-amber-100 dark:bg-amber-900/30" },
+    { title: "Pending Variations", value: metrics.pendingVariations, icon: AlertTriangle, color: "text-orange-600", bg: "bg-orange-100 dark:bg-orange-900/30" },
+    { title: "Maintenance", value: metrics.maintenanceRequests, icon: Wrench, color: "text-teal-600", bg: "bg-teal-100 dark:bg-teal-900/30" },
+    { title: "Revenue Pipeline", value: `$${metrics.revenuePipeline.toLocaleString()}`, icon: DollarSign, color: "text-green-600", bg: "bg-green-100 dark:bg-green-900/30" },
+    { title: "Manufacturing Lead Time", value: `${metrics.currentManufacturingLeadTime}d`, icon: BarChart3, color: "text-indigo-600", bg: "bg-indigo-100 dark:bg-indigo-900/30" },
+    { title: "Approved Hours/Week", value: metrics.approvedHoursThisWeek, icon: CheckCircle, color: "text-emerald-600", bg: "bg-emerald-100 dark:bg-emerald-900/30" },
+  ] : [];
 
   return (
     <>
       <PlatformHeader title="Dashboard" onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-6 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {cards.map((card) => (
-            <KpiCard key={card.title} {...card} />
-          ))}
-        </div>
-        <RecentActivity activities={mockActivities} />
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-brand-accent" />
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {cards.map((card) => (
+                <KpiCard key={card.title} {...card} />
+              ))}
+            </div>
+            {activities.length > 0 && <RecentActivity activities={activities} />}
+          </>
+        )}
       </div>
     </>
   );

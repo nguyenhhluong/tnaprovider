@@ -1,81 +1,61 @@
-import { useState } from "react";
-import type { Lead, LeadSource, LeadTemperature } from "../../types/platform";
-import { mockLeads } from "../../data/platformMock";
+import { useState, useEffect } from "react";
+import type { Lead } from "../../types/platform";
 import { LeadCard } from "./LeadCard";
-import { Search } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export function LeadBoard() {
-  const [leads, setLeads] = useState<Lead[]>(mockLeads);
-  const [search, setSearch] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<LeadSource | "all">("all");
-  const [tempFilter, setTempFilter] = useState<LeadTemperature | "all">("all");
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
-  const handleStatusChange = (id: string, status: Lead["status"]) => {
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status, updatedAt: new Date().toISOString() } : l)));
+  const fetchLeads = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/platform/leads", { credentials: "include" });
+      if (res.ok) setLeads(await res.json());
+      else setError("Failed to load leads");
+    } catch {
+      setError("Failed to load leads");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filtered = leads.filter((lead) => {
-    const matchesSearch =
-      !search ||
-      lead.name.toLowerCase().includes(search.toLowerCase()) ||
-      (lead.company?.toLowerCase() || "").includes(search.toLowerCase()) ||
-      (lead.phone || "").includes(search);
+  useEffect(() => { fetchLeads(); }, []);
 
-    const matchesSource = sourceFilter === "all" || lead.source === sourceFilter;
-    const matchesTemp = tempFilter === "all" || lead.temperature === tempFilter;
-
-    return matchesSearch && matchesSource && matchesTemp;
+  const filtered = leads.filter((l) => {
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      if (!l.name?.toLowerCase().includes(q) && !l.company?.toLowerCase().includes(q) && !l.email?.toLowerCase().includes(q)) return false;
+    }
+    if (statusFilter && l.status !== statusFilter) return false;
+    return true;
   });
 
-  const sources: LeadSource[] = ["website", "referral", "phone", "social_media", "walk_in"];
-  const temperatures: LeadTemperature[] = ["hot", "warm", "cold"];
+  const statuses = [...new Set(leads.map((l) => l.status).filter(Boolean))];
+
+  if (loading) return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-brand-accent" /></div>;
+  if (error) return <p className="text-sm text-red-500 text-center py-8">{error}</p>;
+
+  if (filtered.length === 0) {
+    return <div><p className="text-sm text-gray-400 text-center py-8">{searchTerm || statusFilter ? "No leads match your filters." : "No leads yet."}</p></div>;
+  }
+
+  const handleStatusChange = async (id: string, status: string) => {
+    try {
+      const res = await fetch(`/api/platform/leads/${id}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      if (res.ok) setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status: status as any } : l)));
+    } catch { /* ignore */ }
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search leads..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/50"
-          />
-        </div>
-        <select
-          value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value as LeadSource | "all")}
-          className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/50"
-        >
-          <option value="all">All Sources</option>
-          {sources.map((s) => (
-            <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
-          ))}
-        </select>
-        <select
-          value={tempFilter}
-          onChange={(e) => setTempFilter(e.target.value as LeadTemperature | "all")}
-          className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/50"
-        >
-          <option value="all">All Temperatures</option>
-          {temperatures.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <p>No leads found matching your criteria.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} onStatusChange={handleStatusChange} />
-          ))}
-        </div>
-      )}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {filtered.map((lead) => (
+        <LeadCard key={lead.id} lead={lead} onStatusChange={handleStatusChange} />
+      ))}
     </div>
   );
 }
