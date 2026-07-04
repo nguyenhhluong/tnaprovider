@@ -13,7 +13,9 @@ const routes = [
   "/services",
   "/sectors",
   "/projects",
+  "/projects/1",
   "/contact",
+  "/faq",
   "/privacy-policy",
   "/terms-of-service",
 ];
