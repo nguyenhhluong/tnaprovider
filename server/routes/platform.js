@@ -463,6 +463,46 @@ router.patch("/maintenance/:id", requireRole("owner", "admin", "manager"), (req,
   res.json({ success: true });
 });
 
+// ── Client Access Management ──
+
+router.post("/projects/:id/client-access", requireRole("owner", "admin", "manager"), (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { clientId } = req.body;
+
+  if (!clientId) return res.status(400).json({ error: "clientId is required" });
+
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(id);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  const client = db.prepare("SELECT id FROM users WHERE id = ? AND role = 'client'").get(clientId);
+  if (!client) return res.status(404).json({ error: "Client not found" });
+
+  const existing = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(clientId, id);
+  if (existing) return res.status(409).json({ error: "Client already has access to this project" });
+
+  const accessId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  db.prepare("INSERT INTO client_project_access (id, client_id, project_id, created_by, created_at) VALUES (?, ?, ?, ?, ?)").run(accessId, clientId, id, req.user.userId, now);
+
+  audit(res, "client_project_access_granted", "client_project_access", accessId, { projectId: id, clientId });
+  res.status(201).json({ id: accessId });
+});
+
+router.delete("/projects/:id/client-access/:clientId", requireRole("owner", "admin", "manager"), (req, res) => {
+  const db = getDb();
+  const { id, clientId } = req.params;
+
+  const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(clientId, id);
+  if (!access) return res.status(404).json({ error: "Access record not found" });
+
+  db.prepare("DELETE FROM client_project_access WHERE id = ?").run(access.id);
+
+  audit(res, "client_project_access_removed", "client_project_access", access.id, { projectId: id, clientId });
+  res.json({ success: true });
+});
+
 // ── Audit Logs ──
 
 router.get("/audit", requireRole("owner", "admin"), (req, res) => {
