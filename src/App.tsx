@@ -118,6 +118,7 @@ const router = createBrowserRouter([
       { path: "capability", element: <MarketingRoute><Capability /></MarketingRoute> },
       { path: "materials", element: <MarketingRoute><Materials /></MarketingRoute> },
       { path: "project-map", element: <MarketingRoute><ProjectMapPage /></MarketingRoute> },
+      { path: "dashboard", element: <Dashboard /> },
       { path: "leads", element: <Leads /> },
       { path: "timesheets", element: <Timesheets /> },
       { path: "realtime-timesheet", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><RealtimeTimesheet /></ProtectedRoute> },
@@ -150,6 +151,7 @@ const router = createBrowserRouter([
     element: <ProtectedRoute><PlatformLayout /></ProtectedRoute>,
     children: [
       { index: true, element: <Dashboard /> },
+      { path: "dashboard", element: <Dashboard /> },
       { path: "leads", element: <Leads /> },
       { path: "projects", element: <PlatformProjects /> },
       { path: "timesheets", element: <Timesheets /> },

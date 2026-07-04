@@ -37,14 +37,14 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
   const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
 
   const sidebarLinks = [
-    { name: "Dashboard", path: appPath("/platform"), icon: LayoutDashboard, roles: ["owner", "admin", "manager", "worker", "client"] },
+    { name: "Dashboard", path: appPath("/platform/dashboard"), icon: LayoutDashboard, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Leads", path: appPath("/platform/leads"), icon: Users, roles: ["owner", "admin", "manager"] },
     { name: "Lead Automation", path: appPath("/platform/lead-automation"), icon: Phone, roles: ["owner", "admin", "manager"] },
     { name: "Quotes", path: appPath("/platform/quotes"), icon: DollarSign, roles: ["owner", "admin", "manager"] },
     { name: "Projects", path: appPath("/platform/projects"), icon: FolderKanban, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Tasks", path: appPath("/platform/tasks"), icon: CheckSquare, roles: ["owner", "admin", "manager", "worker"] },
     { name: "My Timesheet", path: appPath("/platform/realtime-timesheet"), icon: Clock, roles: ["owner", "admin", "manager", "worker"] },
-    { name: "Live Timesheet", path: appPath("/platform/realtime-timesheet"), icon: Play, roles: ["owner", "admin", "manager", "worker"] },
+    { name: "Live Timesheet", path: appPath("/platform/admin-realtime-timesheets"), icon: Play, roles: ["owner", "admin", "manager"] },
     { name: "Email", path: appPath("/platform/email"), icon: Mail, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Client Portal", path: appPath("/platform/client-portal"), icon: UserCircle, roles: ["owner", "admin", "manager", "client"] },
     { name: "Documents", path: appPath("/platform/documents"), icon: File, roles: ["owner", "admin", "manager"] },
@@ -59,7 +59,6 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
     { name: "Admin Tools", path: appPath("/platform/admin-tools"), icon: HardDrive, roles: ["owner", "admin"] },
     { name: "Audit Log", path: appPath("/platform/audit"), icon: FileText, roles: ["owner", "admin"] },
     { name: "Notifications", path: appPath("/platform/notifications"), icon: Bell, roles: ["owner", "admin", "manager", "worker", "client"] },
-    { name: "Timesheet Admin", path: appPath("/platform/admin-realtime-timesheets"), icon: Clock, roles: ["owner", "admin", "manager"] },
     { name: "Employee Rates", path: appPath("/platform/employee-rates"), icon: DollarSign, roles: ["owner", "admin"] },
     { name: "Site QR Codes", path: appPath("/platform/admin-site-qr"), icon: QrCode, roles: ["owner", "admin"] },
     { name: "Pay Rules", path: appPath("/platform/pay-rules"), icon: Scale, roles: ["owner", "admin"] },
