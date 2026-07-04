@@ -643,31 +643,58 @@ router.get("/pay-rules", requireRole("owner", "admin"), (req, res) => {
   res.json(rules);
 });
 
+// ── Pay Rules helpers ──
+
+function toPositiveNumber(value, label) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) throw new Error(`${label} must be greater than 0`);
+  return n;
+}
+
+function toOptionalPositiveNumber(value, label) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) throw new Error(`${label} must be greater than 0`);
+  return n;
+}
+
+function normalizeActive(db, ruleId, makeActive) {
+  if (!makeActive) return;
+  db.prepare("UPDATE company_pay_rules SET is_active = 0 WHERE id != ?").run(ruleId);
+  db.prepare("UPDATE company_pay_rules SET is_active = 1 WHERE id = ?").run(ruleId);
+}
+
 // ── Pay Rules: create ──
 
 router.post("/pay-rules", requireRole("owner", "admin"), (req, res) => {
   const db = getDb();
-  const { name, ordinary_hours_per_day, overtime_daily_after_hours, overtime_rate_multiplier, double_time_after_hours, double_time_multiplier } = req.body || {};
+  const body = req.body || {};
 
-  if (!name) return res.status(400).json({ error: "Name is required" });
+  try {
+    if (!body.name || !String(body.name).trim()) return res.status(400).json({ error: "Name is required" });
+    const ordinary = toPositiveNumber(body.ordinary_hours_per_day, "Ordinary hours per day");
+    const otAfter = toPositiveNumber(body.overtime_daily_after_hours, "Overtime after hours");
+    const otMult = toPositiveNumber(body.overtime_rate_multiplier, "Overtime multiplier");
+    const dtAfter = toOptionalPositiveNumber(body.double_time_after_hours, "Double time after");
+    const dtMult = toPositiveNumber(body.double_time_multiplier, "Double time multiplier");
+    if (dtAfter !== null && dtAfter <= otAfter) return res.status(400).json({ error: "Double Time After must be greater than Overtime After" });
 
-  const now = new Date().toISOString();
-  const result = db.prepare(`
-    INSERT INTO company_pay_rules (name, ordinary_hours_per_day, overtime_daily_after_hours, overtime_rate_multiplier, double_time_after_hours, double_time_multiplier, is_active, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
-  `).run(
-    name,
-    ordinary_hours_per_day || 7.6,
-    overtime_daily_after_hours || 7.6,
-    overtime_rate_multiplier || 1.5,
-    double_time_after_hours || null,
-    double_time_multiplier || 2.0,
-    now,
-    now,
-  );
+    const makeActive = body.is_active ? 1 : 0;
+    const now = new Date().toISOString();
 
-  const rule = db.prepare("SELECT * FROM company_pay_rules WHERE id = ?").get(result.lastInsertRowid);
-  res.status(201).json(rule);
+    const result = db.prepare(`
+      INSERT INTO company_pay_rules (name, ordinary_hours_per_day, overtime_daily_after_hours, overtime_rate_multiplier, double_time_after_hours, double_time_multiplier, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(String(body.name).trim(), ordinary, otAfter, otMult, dtAfter, dtMult, makeActive, now, now);
+
+    const ruleId = result.lastInsertRowid;
+    if (makeActive) normalizeActive(db, ruleId, true);
+
+    const rule = db.prepare("SELECT * FROM company_pay_rules WHERE id = ?").get(ruleId);
+    res.status(201).json(rule);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 });
 
 // ── Pay Rules: update ──
@@ -676,27 +703,39 @@ router.put("/pay-rules/:ruleId", requireRole("owner", "admin"), (req, res) => {
   const db = getDb();
   const { ruleId } = req.params;
 
-  const existing = db.prepare("SELECT id FROM company_pay_rules WHERE id = ?").get(ruleId);
+  const existing = db.prepare("SELECT * FROM company_pay_rules WHERE id = ?").get(ruleId);
   if (!existing) return res.status(404).json({ error: "Pay rule not found" });
 
-  const { name, ordinary_hours_per_day, overtime_daily_after_hours, overtime_rate_multiplier, double_time_after_hours, double_time_multiplier, is_active } = req.body || {};
+  const body = req.body || {};
 
-  db.prepare(`
-    UPDATE company_pay_rules SET name = COALESCE(?, name), ordinary_hours_per_day = COALESCE(?, ordinary_hours_per_day), overtime_daily_after_hours = COALESCE(?, overtime_daily_after_hours), overtime_rate_multiplier = COALESCE(?, overtime_rate_multiplier), double_time_after_hours = COALESCE(?, double_time_after_hours), double_time_multiplier = COALESCE(?, double_time_multiplier), is_active = COALESCE(?, is_active), updated_at = datetime('now')
-    WHERE id = ?
-  `).run(
-    name || null,
-    ordinary_hours_per_day ?? null,
-    overtime_daily_after_hours ?? null,
-    overtime_rate_multiplier ?? null,
-    double_time_after_hours ?? null,
-    double_time_multiplier ?? null,
-    is_active ?? null,
-    ruleId,
-  );
+  try {
+    const next = {
+      name: body.name !== undefined ? String(body.name).trim() : existing.name,
+      ordinary_hours_per_day: body.ordinary_hours_per_day !== undefined ? toPositiveNumber(body.ordinary_hours_per_day, "Ordinary hours per day") : existing.ordinary_hours_per_day,
+      overtime_daily_after_hours: body.overtime_daily_after_hours !== undefined ? toPositiveNumber(body.overtime_daily_after_hours, "Overtime after hours") : existing.overtime_daily_after_hours,
+      overtime_rate_multiplier: body.overtime_rate_multiplier !== undefined ? toPositiveNumber(body.overtime_rate_multiplier, "Overtime multiplier") : existing.overtime_rate_multiplier,
+      double_time_after_hours: Object.prototype.hasOwnProperty.call(body, "double_time_after_hours") ? toOptionalPositiveNumber(body.double_time_after_hours, "Double time after") : existing.double_time_after_hours,
+      double_time_multiplier: body.double_time_multiplier !== undefined ? toPositiveNumber(body.double_time_multiplier, "Double time multiplier") : existing.double_time_multiplier,
+      is_active: body.is_active !== undefined ? Number(body.is_active ? 1 : 0) : existing.is_active,
+    };
 
-  const rule = db.prepare("SELECT * FROM company_pay_rules WHERE id = ?").get(ruleId);
-  res.json(rule);
+    if (!next.name || !next.name.trim()) return res.status(400).json({ error: "Name is required" });
+    if (next.double_time_after_hours !== null && next.double_time_after_hours <= next.overtime_daily_after_hours) {
+      return res.status(400).json({ error: "Double Time After must be greater than Overtime After" });
+    }
+
+    db.prepare(`
+      UPDATE company_pay_rules SET name = ?, ordinary_hours_per_day = ?, overtime_daily_after_hours = ?, overtime_rate_multiplier = ?, double_time_after_hours = ?, double_time_multiplier = ?, is_active = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(next.name, next.ordinary_hours_per_day, next.overtime_daily_after_hours, next.overtime_rate_multiplier, next.double_time_after_hours, next.double_time_multiplier, next.is_active, ruleId);
+
+    if (next.is_active) normalizeActive(db, ruleId, true);
+
+    const rule = db.prepare("SELECT * FROM company_pay_rules WHERE id = ?").get(ruleId);
+    res.json(rule);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 });
 
 // ── Pay Rules: delete ──
