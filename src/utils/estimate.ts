@@ -72,9 +72,14 @@ export function calculateEstimate(input: EstimateInput): EstimateResult {
 
   const timelineHint = getTimelineHint(input.projectType as ProjectType, input.complexity as Complexity);
 
+  const nameParts = input.name.trim().split(/\s+/);
+  const firstName = nameParts[0] || "";
+  const lastName = nameParts.slice(1).join(" ");
+
   const leadScoreResult = scoreLead({
     source: "cost-estimator",
-    firstName: input.name,
+    firstName,
+    lastName,
     email: input.email,
     phone: input.phone,
     projectType: input.projectType,
