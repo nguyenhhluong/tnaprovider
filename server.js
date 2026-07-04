@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import * as mailConnector from './server/email/mailConnector.js';
 import { migrate } from './server/db/migrate.js';
 import { requireAuth as requireSessionAuth } from './server/middleware/auth.js';
+import { requirePasswordChanged } from './server/middleware/passwordChange.js';
 import authRoutes from './server/routes/auth.js';
 import platformRoutes from './server/routes/platform.js';
 
@@ -83,7 +84,7 @@ app.get("/api/email/status", (req, res) => {
 });
 
 // GET /api/email/messages?folder=inbox
-app.get("/api/email/messages", requireSessionAuth, attachMailbox, async (req, res) => {
+app.get("/api/email/messages", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
   try {
     const { folder } = req.query;
     const messages = await mailConnector.listMessages({
@@ -98,7 +99,7 @@ app.get("/api/email/messages", requireSessionAuth, attachMailbox, async (req, re
 });
 
 // GET /api/email/messages/:id
-app.get("/api/email/messages/:id", requireSessionAuth, attachMailbox, async (req, res) => {
+app.get("/api/email/messages/:id", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
   try {
     const msg = await mailConnector.getMessage({
       mailbox: req.mailbox,
@@ -112,7 +113,7 @@ app.get("/api/email/messages/:id", requireSessionAuth, attachMailbox, async (req
 });
 
 // POST /api/email/send
-app.post("/api/email/send", requireSessionAuth, attachMailbox, async (req, res) => {
+app.post("/api/email/send", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
   try {
     const result = await mailConnector.sendMessage({
       mailbox: req.mailbox,
@@ -126,7 +127,7 @@ app.post("/api/email/send", requireSessionAuth, attachMailbox, async (req, res) 
 });
 
 // POST /api/email/messages/:id/read
-app.post("/api/email/messages/:id/read", requireSessionAuth, attachMailbox, async (req, res) => {
+app.post("/api/email/messages/:id/read", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
   try {
     const result = await mailConnector.markMessageRead({
       mailbox: req.mailbox,
@@ -141,7 +142,7 @@ app.post("/api/email/messages/:id/read", requireSessionAuth, attachMailbox, asyn
 });
 
 // POST /api/email/messages/:id/move
-app.post("/api/email/messages/:id/move", requireSessionAuth, attachMailbox, async (req, res) => {
+app.post("/api/email/messages/:id/move", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
   try {
     const result = await mailConnector.moveMessage({
       mailbox: req.mailbox,
@@ -156,7 +157,7 @@ app.post("/api/email/messages/:id/move", requireSessionAuth, attachMailbox, asyn
 });
 
 // DELETE /api/email/messages/:id
-app.delete("/api/email/messages/:id", requireSessionAuth, attachMailbox, async (req, res) => {
+app.delete("/api/email/messages/:id", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
   try {
     const result = await mailConnector.deleteMessage({
       mailbox: req.mailbox,

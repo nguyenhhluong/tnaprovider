@@ -267,6 +267,11 @@ router.post("/resend-invite", requireAuth, requireRole("owner", "admin"), valida
     return res.status(404).json({ error: "No pending invite found for this email" });
   }
 
+  // Only owner can resend admin invites
+  if (existing.role === "admin" && req.user.role !== "owner") {
+    return res.status(403).json({ error: "Only owner can resend admin invites" });
+  }
+
   const rawToken = generateToken();
   const tokenHash = hashToken(rawToken);
   const now = new Date().toISOString();
@@ -334,7 +339,7 @@ router.delete("/sessions/:id", requireAuth, (req, res) => {
 router.delete("/sessions", requireAuth, (req, res) => {
   const db = getDb();
   const currentSession = req.cookies?.[COOKIE_NAME];
-  const currentSessionHash = currentSession ? require("crypto").createHash("sha256").update(currentSession).digest("hex") : null;
+  const currentSessionHash = currentSession ? crypto.createHash("sha256").update(currentSession).digest("hex") : null;
 
   // Revoke all sessions except current
   if (currentSessionHash) {

@@ -2,6 +2,7 @@ import { Router } from "express";
 import crypto from "crypto";
 import { getDb } from "../db/database.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requirePasswordChanged } from "../middleware/passwordChange.js";
 import { requireRole } from "../middleware/roles.js";
 import { createAuditLog } from "../middleware/audit.js";
 import { validate, schemas } from "../middleware/validate.js";
@@ -12,6 +13,7 @@ import { revokeAllUserSessions } from "../auth/session.js";
 const router = Router();
 
 router.use(requireAuth);
+router.use(requirePasswordChanged);
 
 function audit(res, action, entityType, entityId, metadata) {
   createAuditLog({
@@ -106,9 +108,9 @@ router.post("/users/invite", requireRole("owner", "admin"), validate(schemas.inv
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(id, normalizedEmail, role, name, tokenHash, expiresAt, req.user.userId, now, req.ip);
 
-  // If user exists but is disabled, mark as invited
-  if (existing && existing.status === "disabled") {
-    db.prepare("UPDATE users SET status = 'active', invited_at = ?, updated_at = ? WHERE id = ?").run(now, now, existing.id);
+  // If user exists, mark as invited to prevent login until accepted
+  if (existing) {
+    db.prepare("UPDATE users SET status = 'invited', invited_at = ?, updated_at = ? WHERE id = ?").run(now, now, existing.id);
   }
 
   createAuditLog({

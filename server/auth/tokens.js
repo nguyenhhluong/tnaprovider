@@ -9,17 +9,19 @@ export function hashToken(token) {
 }
 
 export function createResetToken() {
+  const token = generateToken();
   return {
-    token: generateToken(),
-    hash: hashToken,
-    expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 min
+    token,
+    hash: hashToken(token),
+    expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
   };
 }
 
 export function createInviteToken() {
+  const token = generateToken();
   return {
-    token: generateToken(),
-    hash: hashToken,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+    token,
+    hash: hashToken(token),
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   };
 }

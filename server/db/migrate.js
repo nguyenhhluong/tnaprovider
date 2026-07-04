@@ -10,19 +10,64 @@ function addColumnIfMissing(db, table, column, definition) {
 export function migrate() {
   const db = getDb();
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('owner','admin','manager','worker','client')),
-      password_hash TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','disabled')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      last_login_at TEXT
-    );
+  // ── Users table with safe migration for CHECK constraint changes ──
 
+  const usersExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
+
+  if (usersExists) {
+    const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get().sql;
+    if (!sql.includes("'invited'")) {
+      // Upgrade CHECK constraint: recreate table with support for 'invited' status
+      db.exec(`
+        CREATE TABLE users_new (
+          id TEXT PRIMARY KEY,
+          email TEXT UNIQUE NOT NULL,
+          name TEXT NOT NULL,
+          role TEXT NOT NULL CHECK(role IN ('owner','admin','manager','worker','client')),
+          password_hash TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','disabled','invited')),
+          must_change_password INTEGER DEFAULT 0,
+          invited_at TEXT,
+          disabled_at TEXT,
+          disabled_by TEXT,
+          password_changed_at TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          last_login_at TEXT
+        );
+        INSERT INTO users_new SELECT id, email, name, role, password_hash,
+          CASE WHEN status = 'active' THEN 'active' ELSE 'disabled' END,
+          COALESCE(must_change_password, 0), invited_at, disabled_at, disabled_by, password_changed_at,
+          created_at, updated_at, last_login_at FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_new RENAME TO users;
+      `);
+      console.log("Migrated users table to support 'invited' status");
+    }
+  } else {
+    db.exec(`
+      CREATE TABLE users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('owner','admin','manager','worker','client')),
+        password_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','disabled','invited')),
+        must_change_password INTEGER DEFAULT 0,
+        invited_at TEXT,
+        disabled_at TEXT,
+        disabled_by TEXT,
+        password_changed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        last_login_at TEXT
+      );
+    `);
+  }
+
+  // ── Other tables (safe CREATE IF NOT EXISTS) ──
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -120,12 +165,15 @@ export function migrate() {
     CREATE INDEX IF NOT EXISTS idx_maintenance_client ON maintenance_tickets(client_id);
   `);
 
-  // Phase 5A: Add columns safely for existing tables
+  // ── Safe column additions for existing tables ──
+
   addColumnIfMissing(db, 'users', 'must_change_password', 'INTEGER DEFAULT 0');
   addColumnIfMissing(db, 'users', 'invited_at', 'TEXT');
   addColumnIfMissing(db, 'users', 'disabled_at', 'TEXT');
   addColumnIfMissing(db, 'users', 'disabled_by', 'TEXT REFERENCES users(id)');
   addColumnIfMissing(db, 'users', 'password_changed_at', 'TEXT');
+
+  // ── Phase 5A new tables ──
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
