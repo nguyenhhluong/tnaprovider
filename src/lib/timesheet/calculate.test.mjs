@@ -8,6 +8,7 @@ import {
   formatMoney,
   calculateLiveEarning,
   getAdjustedNow,
+  calculatePayBreakdown,
 } from "./calculate.ts"
 
 let passed = 0
@@ -112,6 +113,51 @@ assert(formatDurationShort(1800) === "30m", "1800s = 30m")
 console.log("\nformatMoney")
 assert(formatMoney(308) === "$308.00", "$308.00")
 assert(formatMoney(288.75) === "$288.75", "$288.75")
+
+console.log("\ncalculatePayBreakdown")
+const payRule = {
+  ordinary_hours_per_day: 7.6,
+  overtime_daily_after_hours: 7.6,
+  overtime_rate_multiplier: 1.5,
+  double_time_after_hours: null,
+  double_time_multiplier: 2.0,
+}
+
+const fullDay = calculatePayBreakdown(27360, 38.5, payRule) // 7.6h at 38.5
+assert(fullDay.baseSeconds === 27360, "7.6h shift — all base")
+assert(fullDay.overtimeSeconds === 0, "7.6h shift — no overtime")
+assertCloseTo(fullDay.basePay, 292.60, 0.01, "7.6h shift — base pay $292.60")
+assertCloseTo(fullDay.totalPay, 292.60, 0.01, "7.6h shift — total $292.60")
+
+const overShift = calculatePayBreakdown(36000, 38.5, payRule) // 10h at 38.5
+assert(overShift.baseSeconds === 27360, "10h shift — base = 7.6h")
+assert(overShift.overtimeSeconds === 8640, "10h shift — overtime = 2.4h")
+assert(overShift.doubleTimeSeconds === 0, "10h shift — no double time")
+assertCloseTo(overShift.basePay, 292.60, 0.01, "10h shift — base pay $292.60")
+assertCloseTo(overShift.overtimePay, 138.60, 0.01, "10h shift — OT pay 2.4h×1.5×$38.50 = $138.60")
+assertCloseTo(overShift.totalPay, 431.20, 0.01, "10h shift — total $431.20")
+
+const doubleTimeRule = {
+  ordinary_hours_per_day: 7.6,
+  overtime_daily_after_hours: 7.6,
+  overtime_rate_multiplier: 1.5,
+  double_time_after_hours: 12,
+  double_time_multiplier: 2.0,
+}
+
+const dtShift = calculatePayBreakdown(46800, 38.5, doubleTimeRule) // 13h at 38.5
+assert(dtShift.baseSeconds === 27360, "13h shift — base = 7.6h")
+assert(dtShift.overtimeSeconds === 15840, "13h shift — overtime = 4.4h")
+assert(dtShift.doubleTimeSeconds === 3600, "13h shift — double time = 1h")
+assertCloseTo(dtShift.basePay, 292.60, 0.01, "13h shift — base $292.60")
+assertCloseTo(dtShift.overtimePay, 254.10, 0.01, "13h shift — OT 4.4h×1.5×$38.50")
+assertCloseTo(dtShift.doubleTimePay, 77.0, 0.01, "13h shift — DT 1h×2×$38.50")
+assertCloseTo(dtShift.totalPay, 623.70, 0.01, "13h shift — total $623.70")
+
+const zeroShift = calculatePayBreakdown(0, 38.5, payRule)
+assert(zeroShift.baseSeconds === 0, "0h shift — base = 0")
+assert(zeroShift.overtimeSeconds === 0, "0h shift — overtime = 0")
+assertCloseTo(zeroShift.totalPay, 0, 0.01, "0h shift — total $0")
 
 console.log(`\n${"=".repeat(40)}`)
 console.log(`Results: ${passed} passed, ${failed} failed`)

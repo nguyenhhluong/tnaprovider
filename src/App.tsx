@@ -42,6 +42,10 @@ import { AdminTools } from "./pages/platform/AdminTools";
 import { RealtimeTimesheet } from "./pages/platform/RealtimeTimesheet";
 import { AdminRealtimeTimesheets } from "./pages/platform/AdminRealtimeTimesheets";
 import { EmployeeRates } from "./pages/platform/EmployeeRates";
+import { AdminSiteQR } from "./pages/platform/AdminSiteQR";
+import { PayRules } from "./pages/platform/PayRules";
+import { PayrollSummary } from "./pages/platform/PayrollSummary";
+import { QRSiteCheckIn } from "./pages/platform/QRSiteCheckIn";
 import { isAppHost } from "./utils/host";
 
 function AppIndex() {
@@ -100,6 +104,10 @@ const router = createBrowserRouter([
       { path: "realtime-timesheet", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><RealtimeTimesheet /></ProtectedRoute> },
       { path: "admin-realtime-timesheets", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><AdminRealtimeTimesheets /></ProtectedRoute> },
       { path: "employee-rates", element: <ProtectedRoute roles={["owner", "admin"]}><EmployeeRates /></ProtectedRoute> },
+      { path: "admin-site-qr", element: <ProtectedRoute roles={["owner", "admin"]}><AdminSiteQR /></ProtectedRoute> },
+      { path: "pay-rules", element: <ProtectedRoute roles={["owner", "admin"]}><PayRules /></ProtectedRoute> },
+      { path: "payroll-summary", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><PayrollSummary /></ProtectedRoute> },
+      { path: "qr-check-in/:qrToken", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><QRSiteCheckIn /></ProtectedRoute> },
       { path: "users", element: <ProtectedRoute roles={["owner", "admin"]}><PlatformUsers /></ProtectedRoute> },
       { path: "security", element: <ProtectedRoute roles={["owner", "admin"]}><Security /></ProtectedRoute> },
       { path: "audit", element: <ProtectedRoute roles={["owner", "admin"]}><Audit /></ProtectedRoute> },
@@ -123,6 +131,10 @@ const router = createBrowserRouter([
       { path: "realtime-timesheet", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><RealtimeTimesheet /></ProtectedRoute> },
       { path: "admin-realtime-timesheets", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><AdminRealtimeTimesheets /></ProtectedRoute> },
       { path: "employee-rates", element: <ProtectedRoute roles={["owner", "admin"]}><EmployeeRates /></ProtectedRoute> },
+      { path: "admin-site-qr", element: <ProtectedRoute roles={["owner", "admin"]}><AdminSiteQR /></ProtectedRoute> },
+      { path: "pay-rules", element: <ProtectedRoute roles={["owner", "admin"]}><PayRules /></ProtectedRoute> },
+      { path: "payroll-summary", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><PayrollSummary /></ProtectedRoute> },
+      { path: "qr-check-in/:qrToken", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><QRSiteCheckIn /></ProtectedRoute> },
       { path: "client-portal", element: <ClientPortal /> },
       { path: "maintenance", element: <Maintenance /> },
       { path: "analytics", element: <Analytics /> },

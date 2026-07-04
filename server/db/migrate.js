@@ -355,7 +355,76 @@ export function migrate() {
     CREATE INDEX IF NOT EXISTS idx_shift_events_session ON shift_events(shift_session_id);
     CREATE INDEX IF NOT EXISTS idx_shift_events_employee ON shift_events(employee_id);
     CREATE INDEX IF NOT EXISTS idx_adjustment_requests_session ON timesheet_adjustment_requests(shift_session_id);
+
+    -- Realtime Timesheet Phase 2: QR + Overtime + Payroll tables
+    CREATE TABLE IF NOT EXISTS company_pay_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL DEFAULT 'Default',
+      ordinary_hours_per_day REAL DEFAULT 7.6,
+      ordinary_hours_per_week REAL DEFAULT 38,
+      overtime_daily_after_hours REAL DEFAULT 7.6,
+      overtime_weekly_after_hours REAL DEFAULT 38,
+      overtime_rate_multiplier REAL DEFAULT 1.5,
+      double_time_after_hours REAL,
+      double_time_multiplier REAL DEFAULT 2,
+      unpaid_break_minutes_default INTEGER DEFAULT 30,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS shift_allowances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_session_id TEXT NOT NULL REFERENCES shift_sessions(id) ON DELETE CASCADE,
+      employee_id TEXT NOT NULL REFERENCES users(id),
+      allowance_type TEXT NOT NULL CHECK(allowance_type IN ('travel','meal','parking','site','other')),
+      description TEXT,
+      amount REAL NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS payroll_export_batches (
+      id TEXT PRIMARY KEY,
+      week_start TEXT NOT NULL,
+      week_end TEXT NOT NULL,
+      exported_by TEXT REFERENCES users(id),
+      exported_at TEXT NOT NULL,
+      format TEXT NOT NULL DEFAULT 'csv',
+      total_shifts INTEGER DEFAULT 0,
+      total_gross REAL DEFAULT 0,
+      file_name TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_shift_allowances_session ON shift_allowances(shift_session_id);
+    CREATE INDEX IF NOT EXISTS idx_payroll_batches_week ON payroll_export_batches(week_start, week_end);
   `);
+
+  // Add columns to existing tables
+  addColumnIfMissing(db, 'work_sites', 'qr_token', 'TEXT');
+  addColumnIfMissing(db, 'work_sites', 'qr_enabled', 'INTEGER DEFAULT 1');
+  addColumnIfMissing(db, 'work_sites', 'default_allowance_cents', 'INTEGER DEFAULT 0');
+
+  // Add unique index for qr_token (SQLite can't ADD COLUMN with UNIQUE)
+  const existingIndexes = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_work_sites_qr_token'").get();
+  if (!existingIndexes) {
+    try {
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_work_sites_qr_token ON work_sites(qr_token)");
+    } catch (e) {
+      // index may fail if there are NULL values; that's ok for existing data
+    }
+  }
+
+  addColumnIfMissing(db, 'shift_sessions', 'base_seconds', 'INTEGER DEFAULT 0');
+  addColumnIfMissing(db, 'shift_sessions', 'overtime_seconds', 'INTEGER DEFAULT 0');
+  addColumnIfMissing(db, 'shift_sessions', 'double_time_seconds', 'INTEGER DEFAULT 0');
+  addColumnIfMissing(db, 'shift_sessions', 'base_pay', 'REAL DEFAULT 0');
+  addColumnIfMissing(db, 'shift_sessions', 'overtime_pay', 'REAL DEFAULT 0');
+  addColumnIfMissing(db, 'shift_sessions', 'double_time_pay', 'REAL DEFAULT 0');
+  addColumnIfMissing(db, 'shift_sessions', 'allowance_pay', 'REAL DEFAULT 0');
+  addColumnIfMissing(db, 'shift_sessions', 'payroll_exported_at', 'TEXT');
+  addColumnIfMissing(db, 'shift_sessions', 'payroll_export_batch_id', 'TEXT');
 
   console.log("Database migrated successfully");
 }

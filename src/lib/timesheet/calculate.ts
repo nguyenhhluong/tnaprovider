@@ -58,6 +58,66 @@ export function calculateGrossPay(payableSeconds: number, hourlyRate: number): n
   return payableSeconds / 3600 * hourlyRate
 }
 
+export interface PayRule {
+  ordinary_hours_per_day: number
+  overtime_daily_after_hours: number
+  overtime_rate_multiplier: number
+  double_time_after_hours: number | null
+  double_time_multiplier: number
+}
+
+export interface PayBreakdown {
+  totalSeconds: number
+  baseSeconds: number
+  overtimeSeconds: number
+  doubleTimeSeconds: number
+  basePay: number
+  overtimePay: number
+  doubleTimePay: number
+  totalPay: number
+  hourlyRateSnapshot: number
+}
+
+export function calculatePayBreakdown(
+  payableSeconds: number,
+  hourlyRate: number,
+  payRule: PayRule
+): PayBreakdown {
+  const overtimeAfterSecs = payRule.overtime_daily_after_hours * 3600
+
+  const baseSeconds = Math.min(payableSeconds, overtimeAfterSecs)
+  const remaining = Math.max(0, payableSeconds - overtimeAfterSecs)
+
+  let overtimeSeconds: number
+  let doubleTimeSeconds: number
+
+  if (payRule.double_time_after_hours != null && payRule.double_time_after_hours > 0) {
+    const dtAfterSecs = payRule.double_time_after_hours * 3600
+    const otCap = Math.max(0, dtAfterSecs - overtimeAfterSecs)
+    overtimeSeconds = Math.min(remaining, otCap)
+    doubleTimeSeconds = Math.max(0, remaining - otCap)
+  } else {
+    overtimeSeconds = remaining
+    doubleTimeSeconds = 0
+  }
+
+  const basePay = baseSeconds / 3600 * hourlyRate
+  const overtimePay = overtimeSeconds / 3600 * hourlyRate * payRule.overtime_rate_multiplier
+  const doubleTimePay = doubleTimeSeconds / 3600 * hourlyRate * payRule.double_time_multiplier
+
+  return {
+    totalSeconds: payableSeconds,
+    baseSeconds,
+    overtimeSeconds,
+    doubleTimeSeconds,
+    basePay,
+    overtimePay,
+    doubleTimePay,
+    totalPay: basePay + overtimePay + doubleTimePay,
+    hourlyRateSnapshot: hourlyRate,
+  }
+}
+
 export interface LiveShiftSnapshot {
   status: string
   shiftDateLabel: string

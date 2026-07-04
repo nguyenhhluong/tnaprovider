@@ -23,7 +23,6 @@ export function seed() {
   const id = crypto.randomUUID();
   const password_hash = bcrypt.hashSync(password, 12);
   const now = new Date().toISOString();
-
   const hourlyRate = parseFloat(process.env.SEED_OWNER_HOURLY_RATE || "38.5");
 
   db.prepare(`
@@ -37,13 +36,21 @@ export function seed() {
   const existingSite = db.prepare("SELECT id FROM work_sites LIMIT 1").get();
   if (!existingSite) {
     const siteId = crypto.randomUUID();
-    const now = new Date().toISOString();
+    const qrToken = "site_tna_workshop_" + crypto.randomBytes(6).toString("hex");
     db.prepare(`
-      INSERT INTO work_sites (id, name, address, timezone, created_at, updated_at)
-      VALUES (?, ?, ?, 'Australia/Sydney', ?, ?)
-    `).run(siteId, "TNA Provider Workshop", "Unit 6, 7-9 Gibbon St, Wetherill Park NSW 2164", now, now);
-    console.log("Seeded default work site: TNA Provider Workshop");
+      INSERT INTO work_sites (id, name, address, timezone, qr_token, qr_enabled, created_at, updated_at)
+      VALUES (?, ?, ?, 'Australia/Sydney', ?, 1, ?, ?)
+    `).run(siteId, "TNA Provider Workshop", "Unit 6, 7-9 Gibbon St, Wetherill Park NSW 2164", qrToken, now, now);
+    console.log(`Seeded default work site: TNA Provider Workshop (QR: ${qrToken})`);
   }
 
-  console.log(`Seeded owner user: ${email}`);
+  // Seed default pay rules
+  const existingRules = db.prepare("SELECT id FROM company_pay_rules LIMIT 1").get();
+  if (!existingRules) {
+    db.prepare(`
+      INSERT INTO company_pay_rules (name, ordinary_hours_per_day, ordinary_hours_per_week, overtime_daily_after_hours, overtime_weekly_after_hours, overtime_rate_multiplier, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `).run("Default", 7.6, 38, 7.6, 38, 1.5, now, now);
+    console.log("Seeded default pay rules (7.6h/day, 1.5x overtime)");
+  }
 }

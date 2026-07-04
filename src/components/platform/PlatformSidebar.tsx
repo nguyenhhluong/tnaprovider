@@ -17,6 +17,8 @@ import {
   HardDrive,
   Play,
   DollarSign,
+  QrCode,
+  Scale,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { useAuth } from "../../context/AuthContext";
@@ -48,6 +50,9 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
     { name: "Audit Log", path: appPath("/platform/audit"), icon: FileText, roles: ["owner", "admin"] },
     { name: "Timesheet Admin", path: appPath("/platform/admin-realtime-timesheets"), icon: Clock, roles: ["owner", "admin", "manager"] },
     { name: "Employee Rates", path: appPath("/platform/employee-rates"), icon: DollarSign, roles: ["owner", "admin"] },
+    { name: "Site QR Codes", path: appPath("/platform/admin-site-qr"), icon: QrCode, roles: ["owner", "admin"] },
+    { name: "Pay Rules", path: appPath("/platform/pay-rules"), icon: Scale, roles: ["owner", "admin"] },
+    { name: "Payroll Summary", path: appPath("/platform/payroll-summary"), icon: FileText, roles: ["owner", "admin", "manager"] },
     { name: "Settings", path: appPath("/platform/settings"), icon: Settings, roles: ["owner", "admin"] },
   ];
 
