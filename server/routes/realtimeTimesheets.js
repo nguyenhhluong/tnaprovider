@@ -28,7 +28,7 @@ function getActivePayRule(db) {
   return db.prepare("SELECT * FROM company_pay_rules WHERE is_active = 1 ORDER BY id ASC LIMIT 1").get();
 }
 
-function calculatePayBreakdownServer(payableSeconds, hourlyRate, payRule) {
+export function calculatePayBreakdownServer(payableSeconds, hourlyRate, payRule) {
   const overtimeAfterSecs = (payRule?.overtime_daily_after_hours || 7.6) * 3600;
 
   const baseSeconds = Math.min(payableSeconds, overtimeAfterSecs);
