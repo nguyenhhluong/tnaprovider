@@ -14,6 +14,7 @@ import {
   FileText,
   LogOut,
   ChevronRight,
+  HardDrive,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { useAuth } from "../../context/AuthContext";
@@ -38,6 +39,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
   const adminLinks = [
     { name: "Users", path: "/platform/users", icon: Users, roles: ["owner", "admin"] },
     { name: "Security", path: "/platform/security", icon: Shield, roles: ["owner", "admin"] },
+    { name: "Admin Tools", path: "/platform/admin-tools", icon: HardDrive, roles: ["owner", "admin"] },
     { name: "Audit Log", path: "/platform/audit", icon: FileText, roles: ["owner", "admin"] },
     { name: "Settings", path: "/platform/settings", icon: Settings, roles: ["owner", "admin"] },
   ];

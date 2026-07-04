@@ -10,6 +10,7 @@ import { requireAuth as requireSessionAuth } from './server/middleware/auth.js';
 import { requirePasswordChanged } from './server/middleware/passwordChange.js';
 import authRoutes from './server/routes/auth.js';
 import platformRoutes from './server/routes/platform.js';
+import adminToolsRoutes from './server/routes/adminTools.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,7 @@ if (process.env.APP_ENV !== 'test') {
 // Auth & Platform API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/platform', platformRoutes);
+app.use('/api/admin-tools', adminToolsRoutes);
 
 app.post('/api/contact', (req, res) => {
   const submission = {
