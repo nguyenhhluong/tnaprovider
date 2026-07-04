@@ -52,6 +52,11 @@ function AppIndex() {
   return <Home />;
 }
 
+function AppProjects() {
+  if (isAppHost()) return <PlatformProjects />;
+  return <Projects />;
+}
+
 function RootLayout() {
   if (isAppHost()) return <ProtectedRoute><PlatformLayout /></ProtectedRoute>;
   return <Layout />;
@@ -86,7 +91,7 @@ const router = createBrowserRouter([
       { path: "about", element: <About /> },
       { path: "services", element: <Services /> },
       { path: "sectors", element: <Sectors /> },
-      { path: "projects", element: <Projects /> },
+      { path: "projects", element: <AppProjects /> },
       { path: "projects/:id", element: <ProjectDetail /> },
       { path: "contact", element: <Contact /> },
       { path: "faq", element: <FAQ /> },
