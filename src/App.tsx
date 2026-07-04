@@ -45,13 +45,44 @@ import Tasks from "./pages/platform/Tasks";
 import Documents from "./pages/platform/Documents";
 import Notifications from "./pages/platform/Notifications";
 import Reports from "./pages/platform/Reports";
+import { isAppHost } from "./utils/host";
+
+function AppIndex() {
+  if (isAppHost()) return <Dashboard />;
+  return <Home />;
+}
+
+function RootLayout() {
+  if (isAppHost()) return <ProtectedRoute><PlatformLayout /></ProtectedRoute>;
+  return <Layout />;
+}
+
+function AppLogin() {
+  return <Login />;
+}
+
+function AppForgotPassword() {
+  return <ForgotPassword />;
+}
+
+function AppResetPassword() {
+  return <ResetPassword />;
+}
+
+function AppAcceptInvite() {
+  return <AcceptInvite />;
+}
+
+function AppForcePasswordChange() {
+  return <ForcePasswordChange />;
+}
 
 const router = createBrowserRouter([
   {
     path: "/",
-    element: <Layout />,
+    element: <RootLayout />,
     children: [
-      { index: true, element: <Home /> },
+      { index: true, element: <AppIndex /> },
       { path: "about", element: <About /> },
       { path: "services", element: <Services /> },
       { path: "sectors", element: <Sectors /> },
@@ -67,27 +98,24 @@ const router = createBrowserRouter([
       { path: "capability", element: <Capability /> },
       { path: "materials", element: <Materials /> },
       { path: "project-map", element: <ProjectMapPage /> },
+      { path: "leads", element: <Leads /> },
+      { path: "users", element: <ProtectedRoute roles={["owner", "admin"]}><PlatformUsers /></ProtectedRoute> },
+      { path: "security", element: <ProtectedRoute roles={["owner", "admin"]}><Security /></ProtectedRoute> },
+      { path: "audit", element: <ProtectedRoute roles={["owner", "admin"]}><Audit /></ProtectedRoute> },
+      { path: "settings", element: <ProtectedRoute roles={["owner", "admin"]}><Settings /></ProtectedRoute> },
+      { path: "client-portal", element: <ClientPortal /> },
+      { path: "maintenance", element: <Maintenance /> },
+      { path: "analytics", element: <Analytics /> },
+      { path: "email", element: <Email /> },
+      { path: "admin-tools", element: <ProtectedRoute roles={["owner", "admin"]}><AdminTools /></ProtectedRoute> },
+      { path: "lead-automation", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><LeadAutomation /></ProtectedRoute> },
+      { path: "quotes", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Quotes /></ProtectedRoute> },
+      { path: "tasks", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><Tasks /></ProtectedRoute> },
+      { path: "documents", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Documents /></ProtectedRoute> },
+      { path: "notifications", element: <ProtectedRoute><Notifications /></ProtectedRoute> },
+      { path: "reports", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Reports /></ProtectedRoute> },
+      { path: "profile", element: <Profile /> },
     ],
-  },
-  {
-    path: "/login",
-    element: <Login />,
-  },
-  {
-    path: "/forgot-password",
-    element: <ForgotPassword />,
-  },
-  {
-    path: "/reset-password",
-    element: <ResetPassword />,
-  },
-  {
-    path: "/accept-invite",
-    element: <AcceptInvite />,
-  },
-  {
-    path: "/force-password-change",
-    element: <ForcePasswordChange />,
   },
   {
     path: "/platform",
@@ -115,6 +143,11 @@ const router = createBrowserRouter([
       { path: "profile", element: <Profile /> },
     ],
   },
+  { path: "/login", element: <AppLogin /> },
+  { path: "/forgot-password", element: <AppForgotPassword /> },
+  { path: "/reset-password", element: <AppResetPassword /> },
+  { path: "/accept-invite", element: <AppAcceptInvite /> },
+  { path: "/force-password-change", element: <AppForcePasswordChange /> },
 ]);
 
 export default function App() {

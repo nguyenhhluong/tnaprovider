@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { useAuth } from "../../context/AuthContext";
+import { appPath } from "../../utils/host";
 
 export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation();
@@ -32,28 +33,28 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
   const isOwnerOrAdmin = user?.role === "owner" || user?.role === "admin";
 
   const sidebarLinks = [
-    { name: "Dashboard", path: "/platform", icon: LayoutDashboard, roles: ["owner", "admin", "manager", "worker", "client"] },
-    { name: "Leads", path: "/platform/leads", icon: Users, roles: ["owner", "admin", "manager"] },
-    { name: "Lead Automation", path: "/platform/lead-automation", icon: Phone, roles: ["owner", "admin", "manager"] },
-    { name: "Quotes", path: "/platform/quotes", icon: DollarSign, roles: ["owner", "admin", "manager"] },
-    { name: "Projects", path: "/platform/projects", icon: FolderKanban, roles: ["owner", "admin", "manager", "worker", "client"] },
-    { name: "Tasks", path: "/platform/tasks", icon: CheckSquare, roles: ["owner", "admin", "manager", "worker"] },
-    { name: "Timesheets", path: "/platform/timesheets", icon: Clock, roles: ["owner", "admin", "manager", "worker"] },
-    { name: "Email", path: "/platform/email", icon: Mail, roles: ["owner", "admin", "manager", "worker", "client"] },
-    { name: "Client Portal", path: "/platform/client-portal", icon: UserCircle, roles: ["owner", "admin", "manager", "client"] },
-    { name: "Documents", path: "/platform/documents", icon: File, roles: ["owner", "admin", "manager"] },
-    { name: "Maintenance", path: "/platform/maintenance", icon: Wrench, roles: ["owner", "admin", "manager", "client"] },
-    { name: "Analytics", path: "/platform/analytics", icon: BarChart3, roles: ["owner", "admin", "manager"] },
+    { name: "Dashboard", path: appPath("/platform"), icon: LayoutDashboard, roles: ["owner", "admin", "manager", "worker", "client"] },
+    { name: "Leads", path: appPath("/platform/leads"), icon: Users, roles: ["owner", "admin", "manager"] },
+    { name: "Lead Automation", path: appPath("/platform/lead-automation"), icon: Phone, roles: ["owner", "admin", "manager"] },
+    { name: "Quotes", path: appPath("/platform/quotes"), icon: DollarSign, roles: ["owner", "admin", "manager"] },
+    { name: "Projects", path: appPath("/platform/projects"), icon: FolderKanban, roles: ["owner", "admin", "manager", "worker", "client"] },
+    { name: "Tasks", path: appPath("/platform/tasks"), icon: CheckSquare, roles: ["owner", "admin", "manager", "worker"] },
+    { name: "Timesheets", path: appPath("/platform/timesheets"), icon: Clock, roles: ["owner", "admin", "manager", "worker"] },
+    { name: "Email", path: appPath("/platform/email"), icon: Mail, roles: ["owner", "admin", "manager", "worker", "client"] },
+    { name: "Client Portal", path: appPath("/platform/client-portal"), icon: UserCircle, roles: ["owner", "admin", "manager", "client"] },
+    { name: "Documents", path: appPath("/platform/documents"), icon: File, roles: ["owner", "admin", "manager"] },
+    { name: "Maintenance", path: appPath("/platform/maintenance"), icon: Wrench, roles: ["owner", "admin", "manager", "client"] },
+    { name: "Analytics", path: appPath("/platform/analytics"), icon: BarChart3, roles: ["owner", "admin", "manager"] },
   ];
 
   const adminLinks = [
-    { name: "Users", path: "/platform/users", icon: Users, roles: ["owner", "admin"] },
-    { name: "Security", path: "/platform/security", icon: Shield, roles: ["owner", "admin"] },
-    { name: "Reports", path: "/platform/reports", icon: BarChart, roles: ["owner", "admin", "manager"] },
-    { name: "Admin Tools", path: "/platform/admin-tools", icon: HardDrive, roles: ["owner", "admin"] },
-    { name: "Audit Log", path: "/platform/audit", icon: FileText, roles: ["owner", "admin"] },
-    { name: "Notifications", path: "/platform/notifications", icon: Bell, roles: ["owner", "admin", "manager", "worker", "client"] },
-    { name: "Settings", path: "/platform/settings", icon: Settings, roles: ["owner", "admin"] },
+    { name: "Users", path: appPath("/platform/users"), icon: Users, roles: ["owner", "admin"] },
+    { name: "Security", path: appPath("/platform/security"), icon: Shield, roles: ["owner", "admin"] },
+    { name: "Reports", path: appPath("/platform/reports"), icon: BarChart, roles: ["owner", "admin", "manager"] },
+    { name: "Admin Tools", path: appPath("/platform/admin-tools"), icon: HardDrive, roles: ["owner", "admin"] },
+    { name: "Audit Log", path: appPath("/platform/audit"), icon: FileText, roles: ["owner", "admin"] },
+    { name: "Notifications", path: appPath("/platform/notifications"), icon: Bell, roles: ["owner", "admin", "manager", "worker", "client"] },
+    { name: "Settings", path: appPath("/platform/settings"), icon: Settings, roles: ["owner", "admin"] },
   ];
 
   const visibleLinks = sidebarLinks.filter((l) => l.roles.includes(user?.role || ""));
@@ -71,7 +72,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
         )}
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
-          <Link to="/platform" className="flex items-center gap-2" onClick={onClose}>
+          <Link to={appPath("/platform")} className="flex items-center gap-2" onClick={onClose}>
             <div className="w-8 h-8 bg-brand-accent rounded flex items-center justify-center">
               <span className="text-white font-bold text-sm">TNA</span>
             </div>
@@ -135,7 +136,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
 
         <div className="border-t border-gray-200 dark:border-gray-800 p-4 space-y-2">
           <Link
-            to="/platform/profile"
+            to={appPath("/platform/profile")}
             onClick={onClose}
             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
           >
