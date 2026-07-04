@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import { Layout } from "./components/layout/Layout";
 import { Home } from "./pages/Home";
@@ -16,6 +11,8 @@ import { FAQ } from "./pages/FAQ";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicy";
 import { TermsOfServicePage } from "./pages/TermsOfService";
 import { ThemeProvider } from "./components/ThemeProvider";
+import { AuthProvider } from "./context/AuthContext";
+import { ProtectedRoute } from "./components/platform/ProtectedRoute";
 import { CostEstimator } from "./pages/tools/CostEstimator";
 import { TenderUpload } from "./pages/tools/TenderUpload";
 import { TimelinePredictor } from "./pages/tools/TimelinePredictor";
@@ -31,6 +28,11 @@ import { ClientPortal } from "./pages/platform/ClientPortal";
 import { Maintenance } from "./pages/platform/Maintenance";
 import { Analytics } from "./pages/platform/Analytics";
 import { Email } from "./pages/platform/Email";
+import { Login } from "./pages/Login";
+import { Settings } from "./pages/platform/Settings";
+import { Users as PlatformUsers } from "./pages/platform/Users";
+import { Audit } from "./pages/platform/Audit";
+import { Profile } from "./pages/platform/Profile";
 
 const router = createBrowserRouter([
   {
@@ -56,8 +58,12 @@ const router = createBrowserRouter([
     ],
   },
   {
+    path: "/login",
+    element: <Login />,
+  },
+  {
     path: "/platform",
-    element: <PlatformLayout />,
+    element: <ProtectedRoute><PlatformLayout /></ProtectedRoute>,
     children: [
       { index: true, element: <Dashboard /> },
       { path: "leads", element: <Leads /> },
@@ -67,6 +73,10 @@ const router = createBrowserRouter([
       { path: "maintenance", element: <Maintenance /> },
       { path: "analytics", element: <Analytics /> },
       { path: "email", element: <Email /> },
+      { path: "settings", element: <Settings /> },
+      { path: "users", element: <ProtectedRoute roles={["owner", "admin"]}><PlatformUsers /></ProtectedRoute> },
+      { path: "audit", element: <ProtectedRoute roles={["owner", "admin"]}><Audit /></ProtectedRoute> },
+      { path: "profile", element: <Profile /> },
     ],
   },
 ]);
@@ -74,7 +84,9 @@ const router = createBrowserRouter([
 export default function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="tna-theme">
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </ThemeProvider>
   );
 }

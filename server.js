@@ -3,7 +3,11 @@ import express from 'express';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import cookieParser from 'cookie-parser';
 import * as mailConnector from './server/email/mailConnector.js';
+import { migrate } from './server/db/migrate.js';
+import authRoutes from './server/routes/auth.js';
+import platformRoutes from './server/routes/platform.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +17,16 @@ const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(__dirname, 'dist');
 
 app.use(express.json());
+app.use(cookieParser());
+
+// Auto-migrate database on startup
+if (process.env.APP_ENV !== 'test') {
+  try { migrate(); } catch (err) { console.error('Migration failed:', err.message); }
+}
+
+// Auth & Platform API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/platform', platformRoutes);
 
 app.post('/api/contact', (req, res) => {
   const submission = {
