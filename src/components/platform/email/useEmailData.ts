@@ -64,29 +64,36 @@ export function useEmailData(folder: EmailFolder) {
   }, []);
 
   const moveMessage = useCallback(async (id: string, targetFolder: EmailFolder) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
+    let previousMessages: EmailMessage[] = [];
+    setMessages((prev) => {
+      previousMessages = prev;
+      return prev.filter((m) => m.id !== id);
+    });
     if (MOCK_MODE) {
       removeMockEmail(id);
     } else {
       try {
         await moveEmail(id, targetFolder);
       } catch (err) {
-        // Revert the optimistic removal by re-fetching
-        setMessages((prev) => [...prev]);
+        setMessages(previousMessages);
         throw err;
       }
     }
   }, []);
 
   const deleteMsg = useCallback(async (id: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== id));
+    let previousMessages: EmailMessage[] = [];
+    setMessages((prev) => {
+      previousMessages = prev;
+      return prev.filter((m) => m.id !== id);
+    });
     if (MOCK_MODE) {
       removeMockEmail(id);
     } else {
       try {
         await deleteEmail(id);
       } catch (err) {
-        setMessages((prev) => [...prev]);
+        setMessages(previousMessages);
         throw err;
       }
     }

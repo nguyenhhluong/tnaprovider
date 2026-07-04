@@ -78,7 +78,7 @@ function convertMessage(src, folder) {
     bodyHtml: htmlPart || undefined,
     receivedAt: src.internalDate?.toISOString?.() || new Date().toISOString(),
     sentAt: envelope.date ? new Date(envelope.date).toISOString() : undefined,
-    isRead: !src.flags?.includes?.("\\Seen"),
+    isRead: !!src.flags?.includes?.("\\Seen"),
     isStarred: !!src.flags?.includes?.("\\Flagged"),
     hasAttachments: (src.attachments || []).length > 0,
     attachments: (src.attachments || []).map((att) => ({
