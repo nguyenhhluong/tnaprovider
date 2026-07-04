@@ -9,4 +9,12 @@ coverage/
 .wrangler/
 nohup.out
 /data/
+data/test-*
+data/test-*.db
+data/test-*.sqlite
+playwright-report/
+test-results/
+*.trace.zip
+screenshots/
+videos/
 backups/

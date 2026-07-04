@@ -16,7 +16,12 @@
     "lint": "tsc --noEmit",
     "db:migrate": "node --input-type=module -e \"import {migrate} from './server/db/migrate.js'; migrate();\"",
     "db:seed": "node --input-type=module -e \"import {seed} from './server/db/seed.js'; seed();\"",
-    "db:reset": "node --input-type=module -e \"import fs from 'fs'; import {migrate} from './server/db/migrate.js'; import {seed} from './server/db/seed.js'; try{fs.unlinkSync(process.env.DATABASE_URL||'data/tna.db');console.log('Database deleted');}catch(e){} migrate(); seed();\""
+    "db:reset": "node --input-type=module -e \"import fs from 'fs'; import {migrate} from './server/db/migrate.js'; import {seed} from './server/db/seed.js'; try{fs.unlinkSync(process.env.DATABASE_URL||'data/tna.db');console.log('Database deleted');}catch(e){} migrate(); seed();\"",
+    "test:routes": "node scripts/qa/routes-smoke.mjs",
+    "test:api": "node scripts/qa/api-contracts.mjs",
+    "test:roles": "node scripts/qa/role-access.mjs",
+    "test:payroll": "node scripts/qa/payroll-rules.mjs",
+    "test:phase7h": "npm run test:routes && npm run test:api && npm run test:roles && npm run test:payroll"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
