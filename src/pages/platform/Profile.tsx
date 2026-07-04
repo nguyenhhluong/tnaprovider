@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useOutletContext } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { SEO } from "../../components/SEO";
+import { PlatformHeader } from "../../components/platform/PlatformHeader";
 import { changePassword } from "../../utils/authApi";
 import { Button } from "../../components/ui/Button";
 import { User, Mail, Shield, Calendar, Lock, Eye, EyeOff, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
@@ -27,6 +29,7 @@ function validatePassword(password: string): string | null {
 }
 
 export function Profile() {
+  const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const { user, logout } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -63,9 +66,11 @@ export function Profile() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-2xl">
+    <>
       <SEO title="Profile | TNA Provider Platform" description="Your profile." canonical="https://tnaprovider.com.au/platform/profile" />
-      <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-8">Profile</h1>
+      <PlatformHeader title="Profile" onMenuClick={() => setSidebarOpen(true)} />
+      <div className="p-4 md:p-8 max-w-2xl">
+      <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-8 sr-only">Profile</h1>
 
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 md:p-8">
         {/* Header */}
@@ -164,5 +169,6 @@ export function Profile() {
         </div>
       </div>
     </div>
+    </>
   );
 }

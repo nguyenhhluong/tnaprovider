@@ -117,11 +117,6 @@ export function PayRules() {
       return
     }
 
-    if (errs.length > 0) {
-      setErrors(errs)
-      return
-    }
-
     const ordinary = Number(form.ordinary_hours_per_day)
     const otAfter = Number(form.overtime_daily_after_hours)
     const otMult = Number(form.overtime_rate_multiplier)
