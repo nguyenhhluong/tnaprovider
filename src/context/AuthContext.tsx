@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 
-interface User {
+export interface User {
   id: string;
   email: string;
   name: string;
@@ -10,9 +10,11 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  mustChangePassword: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -20,6 +22,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -27,11 +30,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
+        setMustChangePassword(
+          data.mustChangePassword === true ||
+          data.must_change_password === true ||
+          data.user?.mustChangePassword === true ||
+          data.user?.must_change_password === true
+        );
       } else {
         setUser(null);
+        setMustChangePassword(false);
       }
     } catch {
       setUser(null);
+      setMustChangePassword(false);
     } finally {
       setLoading(false);
     }
@@ -55,15 +66,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setUser(data.user);
+    setMustChangePassword(
+      data.mustChangePassword === true ||
+      data.must_change_password === true ||
+      data.user?.mustChangePassword === true ||
+      data.user?.must_change_password === true
+    );
   };
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
+    setMustChangePassword(false);
+  };
+
+  const updateUser = (updates: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...updates } : null));
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, loading, mustChangePassword, login, logout, checkAuth, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

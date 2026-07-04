@@ -8,7 +8,7 @@ interface Props {
 }
 
 export function ProtectedRoute({ children, roles }: Props) {
-  const { user, loading } = useAuth();
+  const { user, loading, mustChangePassword } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -24,6 +24,11 @@ export function ProtectedRoute({ children, roles }: Props) {
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Force password change redirect
+  if (mustChangePassword && location.pathname !== "/force-password-change") {
+    return <Navigate to="/force-password-change" replace />;
   }
 
   if (roles && roles.length > 0 && !roles.includes(user.role)) {
