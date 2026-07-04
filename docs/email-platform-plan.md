@@ -101,3 +101,88 @@ See [email-dns-checklist.md](./email-dns-checklist.md) for full details.
 - DKIM/SPF/DMARC support
 - REST API for management
 - Fallback if Stalwart deployment is blocked
+
+## Deployment Readiness
+
+### Required DNS Records (Cloudflare)
+| Type | Name | Value | Proxy |
+|------|------|-------|-------|
+| A | `mail` | `139.180.175.60` | DNS-only (grey cloud) |
+| MX | `@` | `10 mail.tnaprovider.com.au` | — |
+| TXT | `@` | `v=spf1 mx a:mail.tnaprovider.com.au include:_spf.mail.tnaprovider.com.au ~all` | — |
+| TXT | `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:dmarc-reports@tnaprovider.com.au; pct=100` | — |
+| TXT | `default._domainkey` | Generated after Stalwart deploy | — |
+| PTR | VPS IP | `mail.tnaprovider.com.au` | Via Vultr support |
+
+### Required Env Vars (platform `.env`)
+```env
+MAIL_PROVIDER=imap-smtp
+MAIL_IMAP_HOST=mail.tnaprovider.com.au
+MAIL_IMAP_PORT=993
+MAIL_IMAP_SECURE=true
+MAIL_IMAP_USER=info@tnaprovider.com.au
+MAIL_IMAP_PASS=<mailbox-password>
+MAIL_SMTP_HOST=mail.tnaprovider.com.au
+MAIL_SMTP_PORT=587
+MAIL_SMTP_USER=info@tnaprovider.com.au
+MAIL_SMTP_PASS=<mailbox-password>
+MAIL_DEFAULT_MAILBOX=info@tnaprovider.com.au
+MAIL_ALLOWED_MAILBOXES=info@tnaprovider.com.au,projects@tnaprovider.com.au,accounts@tnaprovider.com.au
+MAIL_ALLOW_HEADER_MAILBOX=false
+```
+
+### Required Env Vars (Stalwart `.env`)
+```env
+MAIL_DOMAIN=tnaprovider.com.au
+MAIL_HOSTNAME=mail.tnaprovider.com.au
+MAIL_ADMIN_EMAIL=admin@tnaprovider.com.au
+MAIL_ADMIN_PASSWORD=<strong-admin-password>
+```
+
+### Deployment Steps
+1. **Test port 25** on VPS: `nc -v smtp.gmail.com 25` — if blocked, stop.
+2. **Open firewall**: `ufw allow 25/tcp 587/tcp 993/tcp 443/tcp 465/tcp`
+3. **Clone repo on VPS**: `git clone https://github.com/nguyenhhluong/tnaprovider.git`
+4. **Configure Stalwart**: `cd infra/mail/stalwart && cp .env.example .env && nano .env`
+5. **Start Stalwart**: `docker compose up -d`
+6. **Provision TLS**: `certbot certonly --standalone -d mail.tnaprovider.com.au`, copy certs to Stalwart volume
+7. **Create domain + mailboxes** (info, projects, accounts, admin)
+8. **Generate DKIM key** in Stalwart CLI, add TXT record to Cloudflare
+9. **Add A, MX, SPF, DMARC records** in Cloudflare (mail subdomain DNS-only)
+10. **Request PTR record** from Vultr support
+11. **Update platform `.env`** with IMAP/SMTP credentials, set `MAIL_PROVIDER=imap-smtp`
+12. **Run Gmail send/receive tests**
+
+### Gmail Test Plan
+1. Send Gmail → `info@tnaprovider.com.au`, verify in platform UI inbox
+2. Open message, check subject/body display
+3. Mark read/unread, verify state persists
+4. Move to archive/trash, verify folder change
+5. Reply from platform UI → `your@gmail.com`, verify Gmail receives
+6. Check sent folder in portal shows sent message
+7. In Gmail original message view: verify SPF=pass, DKIM=pass
+
+### Security Checks
+- `.env` files never committed (gitignored)
+- No mail credentials in frontend code
+- `MAIL_ALLOW_HEADER_MAILBOX=false` in production
+- Auth middleware uses server-side `MAIL_DEFAULT_MAILBOX`
+- HTML emails sanitized before rendering (DOMPurify)
+- All mail operations logged via audit system
+
+### Rollback Plan
+```bash
+cd tnaprovider/infra/mail/stalwart
+docker compose down
+# Restore from backup:
+tar -xzf /backups/mail-YYYYMMDD.tar.gz -C /opt/stalwart-data
+docker compose up -d
+# Verify: docker compose logs -f, test IMAP
+```
+
+### Blockers
+- Port 25 outbound status unknown on Vultr VPS
+- PTR/rDNS record not yet requested
+- Let's Encrypt TLS cert not provisioned
+- Mailbox passwords not yet generated
+- Gmail send/receive not tested

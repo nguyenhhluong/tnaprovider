@@ -3,13 +3,10 @@
 ## Overview
 Mailu is a Docker-based mail server suite. This is the fallback option if Stalwart deployment is blocked.
 
-## Usage
-```bash
-cd infra/mail/mailu
-cp .env.example .env
-# Edit .env with real values
-docker compose up -d
-```
+## When to Use Mailu
+- Vultr blocks port 25 outbound (Stalwart cannot relay)
+- Stalwart has a compatibility issue with the VPS environment
+- You want a built-in webmail UI (Roundcube)
 
 ## Differences from Stalwart
 - More services to manage (front, imap, smtp, antispam, webmail, admin)
@@ -17,5 +14,91 @@ docker compose up -d
 - REST admin API on port 8080
 - Higher resource usage than Stalwart
 
-## DNS
-Same requirements as Stalwart — see `docs/email-dns-checklist.md`.
+## Deployment Steps
+
+### Step 1 — Port 25 Check
+```bash
+ssh root@139.180.175.60
+nc -v smtp.gmail.com 25
+```
+If blocked, Mailu still works for local delivery but SMTP relay to external addresses will fail.
+
+### Step 2 — Open Firewall
+```bash
+ufw allow 25/tcp
+ufw allow 587/tcp
+ufw allow 993/tcp
+ufw allow 443/tcp
+ufw allow 465/tcp
+ufw reload
+```
+
+### Step 3 — Clone and Configure
+```bash
+git clone https://github.com/nguyenhhluong/tnaprovider.git
+cd tnaprovider/infra/mail/mailu
+cp .env.example .env
+nano .env
+```
+Required `.env` values:
+```env
+DOMAIN=tnaprovider.com.au
+HOSTNAME=mail.tnaprovider.com.au
+ADMIN_EMAIL=admin@tnaprovider.com.au
+ADMIN_PASSWORD=<strong-password>
+TLS_FLAVOR=cert
+```
+
+### Step 4 — Start Mailu
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+### Step 5 — Create Mailboxes
+Browse to `https://mail.tnaprovider.com.au/admin` (or `http://VPS_IP:8080`) and log in with the admin account. Create mailboxes:
+- `info@tnaprovider.com.au`
+- `projects@tnaprovider.com.au`
+- `accounts@tnaprovider.com.au`
+
+### Step 6 — DNS Records
+Same as Stalwart — see `docs/email-dns-checklist.md`:
+| Type | Name | Value | Proxy |
+|------|------|-------|-------|
+| A | `mail` | `139.180.175.60` | DNS-only |
+| MX | `@` | `10 mail.tnaprovider.com.au` | — |
+| TXT | `@` | SPF | — |
+| TXT | `_dmarc` | DMARC | — |
+| TXT | DKIM selector | From Mailu admin UI | — |
+
+### Step 7 — Update Platform .env
+Same as Stalwart — set `MAIL_PROVIDER=imap-smtp` with the Mailu IMAP/SMTP credentials.
+
+## Backup
+```bash
+# Mailu stores everything under the docker volume mailu-data
+docker run --rm -v mailu-data:/data -v /backups:/backups alpine tar -czf /backups/mailu-$(date +%Y%m%d).tar.gz -C /data .
+```
+
+## Rollback to Stalwart
+If you start with Mailu and later want Stalwart:
+1. Export all mailboxes (IMAP sync)
+2. Deploy Stalwart (see `../stalwart/README.md`)
+3. Import mailboxes
+4. Update platform `.env` to point at Stalwart
+5. DNS records stay the same
+
+## Troubleshooting
+```bash
+# Check all service logs
+docker compose logs -f
+
+# Test SMTP
+nc -v mail.tnaprovider.com.au 25
+
+# Access admin UI
+curl http://localhost:8080
+
+# Access webmail
+curl https://mail.tnaprovider.com.au/webmail
+```
