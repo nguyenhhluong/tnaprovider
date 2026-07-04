@@ -22,6 +22,15 @@ import { TimelinePredictor } from "./pages/tools/TimelinePredictor";
 import { Capability } from "./pages/capability/Capability";
 import { Materials } from "./pages/Materials";
 import { ProjectMapPage } from "./pages/ProjectMap";
+import { PlatformLayout } from "./pages/platform/PlatformLayout";
+import { Dashboard } from "./pages/platform/Dashboard";
+import { Leads } from "./pages/platform/Leads";
+import { PlatformProjects } from "./pages/platform/PlatformProjects";
+import { Timesheets } from "./pages/platform/Timesheets";
+import { ClientPortal } from "./pages/platform/ClientPortal";
+import { Maintenance } from "./pages/platform/Maintenance";
+import { Analytics } from "./pages/platform/Analytics";
+import { Email } from "./pages/platform/Email";
 
 const router = createBrowserRouter([
   {
@@ -44,6 +53,20 @@ const router = createBrowserRouter([
       { path: "capability", element: <Capability /> },
       { path: "materials", element: <Materials /> },
       { path: "project-map", element: <ProjectMapPage /> },
+    ],
+  },
+  {
+    path: "/platform",
+    element: <PlatformLayout />,
+    children: [
+      { index: true, element: <Dashboard /> },
+      { path: "leads", element: <Leads /> },
+      { path: "projects", element: <PlatformProjects /> },
+      { path: "timesheets", element: <Timesheets /> },
+      { path: "client-portal", element: <ClientPortal /> },
+      { path: "maintenance", element: <Maintenance /> },
+      { path: "analytics", element: <Analytics /> },
+      { path: "email", element: <Email /> },
     ],
   },
 ]);

@@ -1,0 +1,40 @@
+version: "3.8"
+
+services:
+  stalwart:
+    image: stalwartlabs/mail-server:latest
+    container_name: stalwart-mail
+    restart: unless-stopped
+    ports:
+      - "25:25"
+      - "587:587"
+      - "993:993"
+      - "443:443"
+      - "465:465"
+      - "4190:4190"
+    volumes:
+      - stalwart-data:/opt/stalwart-data
+      - ./config:/opt/stalwart-config:ro
+    environment:
+      - STALWART_ACCOUNT_NAME=${MAIL_ADMIN_EMAIL}
+      - STALWART_SECRET_KEY=${MAIL_ADMIN_PASSWORD}
+      - STALWART_DOMAIN=${MAIL_DOMAIN}
+      - STALWART_HOSTNAME=${MAIL_HOSTNAME}
+      - STALWART_TLS_CERT=/opt/stalwart-data/certs/fullchain.pem
+      - STALWART_TLS_PRIVATE_KEY=/opt/stalwart-data/certs/privkey.pem
+    env_file:
+      - .env
+    networks:
+      - mail-network
+    healthcheck:
+      test: ["CMD", "stalwart-cli", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  stalwart-data:
+
+networks:
+  mail-network:
+    driver: bridge

@@ -1,0 +1,79 @@
+version: "3.8"
+
+services:
+  front:
+    image: ghcr.io/mailu/nginx:latest
+    container_name: mailu-front
+    restart: unless-stopped
+    ports:
+      - "25:25"
+      - "587:587"
+      - "465:465"
+      - "993:993"
+      - "443:443"
+      - "80:80"
+    volumes:
+      - mailu-data:/data
+    networks:
+      - mailu-network
+
+  resolver:
+    image: ghcr.io/mailu/unbound:latest
+    container_name: mailu-resolver
+    restart: unless-stopped
+    networks:
+      - mailu-network
+
+  imap:
+    image: ghcr.io/mailu/dovecot:latest
+    container_name: mailu-imap
+    restart: unless-stopped
+    volumes:
+      - mailu-data:/data
+    networks:
+      - mailu-network
+
+  smtp:
+    image: ghcr.io/mailu/postfix:latest
+    container_name: mailu-smtp
+    restart: unless-stopped
+    volumes:
+      - mailu-data:/data
+    networks:
+      - mailu-network
+
+  antispam:
+    image: ghcr.io/mailu/rspamd:latest
+    container_name: mailu-antispam
+    restart: unless-stopped
+    volumes:
+      - mailu-data:/data
+    networks:
+      - mailu-network
+
+  webmail:
+    image: ghcr.io/mailu/roundcube:latest
+    container_name: mailu-webmail
+    restart: unless-stopped
+    volumes:
+      - mailu-data:/data
+    networks:
+      - mailu-network
+
+  admin:
+    image: ghcr.io/mailu/admin:latest
+    container_name: mailu-admin
+    restart: unless-stopped
+    volumes:
+      - mailu-data:/data
+    ports:
+      - "8080:80"
+    networks:
+      - mailu-network
+
+volumes:
+  mailu-data:
+
+networks:
+  mailu-network:
+    driver: bridge
