@@ -112,7 +112,13 @@ export function Login() {
               </button>
             </form>
 
-            <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
+            <div className="mt-4 text-center">
+              <Link to="/forgot-password" className="text-sm text-gray-500 hover:text-brand-accent transition-colors">
+                Forgot password?
+              </Link>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 text-center flex flex-col gap-2">
               <Link to="/" className="text-sm text-brand-accent hover:underline">
                 Back to public site
               </Link>

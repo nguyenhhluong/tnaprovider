@@ -1,17 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { SEO } from "../../components/SEO";
 import { Button } from "../../components/ui/Button";
-import { Save, AlertCircle, CheckCircle2 } from "lucide-react";
+import { getSessions, changePassword } from "../../utils/authApi";
+import { Save, AlertCircle, CheckCircle2, Shield, Monitor, Eye, EyeOff, Loader2 } from "lucide-react";
+
+function passwordStrength(password: string): { label: string; color: string; score: number } {
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (password.length >= 12) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+  if (score <= 2) return { label: "Weak", color: "bg-red-500", score };
+  if (score <= 4) return { label: "Fair", color: "bg-amber-500", score };
+  return { label: "Strong", color: "bg-green-500", score };
+}
 
 export function Settings() {
   const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sessionCount, setSessionCount] = useState(0);
+  const strength = passwordStrength(newPassword);
+
+  useEffect(() => {
+    getSessions().then((s) => setSessionCount(s.length)).catch(() => {});
+  }, []);
 
   if (user?.role !== "owner" && user?.role !== "admin") {
     return (
@@ -30,26 +51,14 @@ export function Settings() {
       setError("New password must be at least 8 characters");
       return;
     }
-
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match");
       return;
     }
 
     setLoading(true);
-
     try {
-      const res = await fetch("/api/auth/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to change password");
-      }
-
+      await changePassword(currentPassword, newPassword);
       setSuccess(true);
       setCurrentPassword("");
       setNewPassword("");
@@ -62,47 +71,75 @@ export function Settings() {
   };
 
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-4 md:p-8 max-w-2xl">
       <SEO title="Settings | TNA Provider Platform" description="Platform settings." canonical="https://tnaprovider.com.au/platform/settings" />
-      <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-2">
-        Settings
-      </h1>
-      <p className="text-gray-500 dark:text-gray-400 mb-8">
-        Manage your account and platform settings.
-      </p>
+      <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-2">Settings</h1>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Manage your account and platform settings.</p>
+
+      {/* Security summary */}
+      <div className="mb-8 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+        <h2 className="text-lg font-display font-bold text-brand-dark dark:text-white mb-4 flex items-center gap-2">
+          <Shield className="w-5 h-5 text-brand-accent" />
+          Security Summary
+        </h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-brand-accent/5 rounded-xl p-4">
+            <p className="text-2xl font-bold text-brand-accent">{sessionCount}</p>
+            <p className="text-xs text-gray-500 mt-1">Active Sessions</p>
+          </div>
+          <div className="bg-green-50 dark:bg-green-900/10 rounded-xl p-4">
+            <p className="text-2xl font-bold text-green-600">{user?.role}</p>
+            <p className="text-xs text-gray-500 mt-1">Your Role</p>
+          </div>
+        </div>
+      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+          <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
           <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
         </div>
       )}
 
       {success && (
         <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex items-start gap-3">
-          <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-green-700 dark:text-green-300">Password changed successfully. Please log in again.</p>
+          <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+          <p className="text-sm text-green-700 dark:text-green-300">Password changed successfully.</p>
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-8">
-        <h2 className="text-xl font-display font-bold text-brand-dark dark:text-white mb-6">
-          Change Password
-        </h2>
-        <form onSubmit={handleChangePassword} className="flex flex-col gap-5 max-w-md">
-          <div className="flex flex-col gap-2">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+        <h2 className="text-lg font-display font-bold text-brand-dark dark:text-white mb-6">Change Password</h2>
+        <form onSubmit={handleChangePassword} className="flex flex-col gap-4 max-w-md">
+          <div>
             <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Current Password</label>
-            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required className="h-12 px-4 rounded-lg border border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors w-full" />
+            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required className="mt-1 h-12 px-4 rounded-lg border border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors w-full" />
           </div>
-          <div className="flex flex-col gap-2">
+          <div>
             <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">New Password</label>
-            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} className="h-12 px-4 rounded-lg border border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors w-full" />
+            <div className="relative mt-1">
+              <input type={showPassword ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} className="h-12 pl-4 pr-12 rounded-lg border border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors w-full" />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            {newPassword && (
+              <div className="mt-2">
+                <div className="flex gap-1 mb-1">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className={`h-1 flex-1 rounded-full ${i <= Math.ceil(strength.score / 2) ? strength.color : "bg-gray-200 dark:bg-gray-700"}`} />
+                  ))}
+                </div>
+                <p className={`text-xs ${strength.score <= 2 ? "text-red-500" : strength.score <= 4 ? "text-amber-500" : "text-green-500"}`}>{strength.label}</p>
+              </div>
+            )}
           </div>
-          <div className="flex flex-col gap-2">
+          <div>
             <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Confirm New Password</label>
-            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="h-12 px-4 rounded-lg border border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors w-full" />
+            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="mt-1 h-12 px-4 rounded-lg border border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors w-full" />
           </div>
-          <Button type="submit" size="lg" disabled={loading} className="self-start">
+          <Button type="submit" size="lg" disabled={loading} className="self-start min-h-[44px]">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             {loading ? "Saving..." : "Change Password"}
           </Button>
         </form>

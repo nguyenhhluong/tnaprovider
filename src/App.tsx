@@ -29,10 +29,15 @@ import { Maintenance } from "./pages/platform/Maintenance";
 import { Analytics } from "./pages/platform/Analytics";
 import { Email } from "./pages/platform/Email";
 import { Login } from "./pages/Login";
+import { ForgotPassword } from "./pages/ForgotPassword";
+import { ResetPassword } from "./pages/ResetPassword";
+import { AcceptInvite } from "./pages/AcceptInvite";
+import { ForcePasswordChange } from "./pages/ForcePasswordChange";
 import { Settings } from "./pages/platform/Settings";
 import { Users as PlatformUsers } from "./pages/platform/Users";
 import { Audit } from "./pages/platform/Audit";
 import { Profile } from "./pages/platform/Profile";
+import { Security } from "./pages/platform/Security";
 
 const router = createBrowserRouter([
   {
@@ -62,6 +67,22 @@ const router = createBrowserRouter([
     element: <Login />,
   },
   {
+    path: "/forgot-password",
+    element: <ForgotPassword />,
+  },
+  {
+    path: "/reset-password",
+    element: <ResetPassword />,
+  },
+  {
+    path: "/accept-invite",
+    element: <AcceptInvite />,
+  },
+  {
+    path: "/force-password-change",
+    element: <ForcePasswordChange />,
+  },
+  {
     path: "/platform",
     element: <ProtectedRoute><PlatformLayout /></ProtectedRoute>,
     children: [
@@ -73,6 +94,7 @@ const router = createBrowserRouter([
       { path: "maintenance", element: <Maintenance /> },
       { path: "analytics", element: <Analytics /> },
       { path: "email", element: <Email /> },
+      { path: "security", element: <ProtectedRoute roles={["owner", "admin"]}><Security /></ProtectedRoute> },
       { path: "settings", element: <ProtectedRoute roles={["owner", "admin"]}><Settings /></ProtectedRoute> },
       { path: "users", element: <ProtectedRoute roles={["owner", "admin"]}><PlatformUsers /></ProtectedRoute> },
       { path: "audit", element: <ProtectedRoute roles={["owner", "admin"]}><Audit /></ProtectedRoute> },
