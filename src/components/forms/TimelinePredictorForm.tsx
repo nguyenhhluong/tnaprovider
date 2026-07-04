@@ -43,6 +43,19 @@ export function TimelinePredictorForm() {
     if (!formData.projectSize) newErrors.projectSize = "Required";
     if (!formData.materialGrade) newErrors.materialGrade = "Required";
     if (!formData.siteAccessDifficulty) newErrors.siteAccessDifficulty = "Required";
+
+    if (formData.desiredCompletionDate) {
+      const selected = new Date(`${formData.desiredCompletionDate}T00:00:00`);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (Number.isNaN(selected.getTime())) {
+        newErrors.desiredCompletionDate = "Invalid date";
+      } else if (selected <= today) {
+        newErrors.desiredCompletionDate = "Please select a future completion date";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -130,6 +143,7 @@ export function TimelinePredictorForm() {
               Desired Completion Date
             </label>
             <input type="date" name="desiredCompletionDate" value={formData.desiredCompletionDate} onChange={handleChange} className={inputClass("desiredCompletionDate")} />
+            {errors.desiredCompletionDate && <span className="text-xs text-red-500">{errors.desiredCompletionDate}</span>}
           </div>
           <div className="flex flex-col gap-2">
             <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
