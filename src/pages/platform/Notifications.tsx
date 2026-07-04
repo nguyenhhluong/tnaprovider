@@ -212,16 +212,15 @@ export function Notifications() {
   };
 
   const handleToggleRule = async (rule: ReminderRule) => {
-    setReminderRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, enabled: !r.enabled } : r)));
     try {
       const res = await fetch(`/api/notifications/reminder-rules/${rule.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: !rule.enabled }),
       });
-      if (!res.ok) throw new Error();
+      if (res.ok) await fetchReminderRules();
     } catch {
-      setReminderRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, enabled: rule.enabled } : r)));
+      // ignore
     }
   };
 
@@ -247,8 +246,7 @@ export function Notifications() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to create rule");
       }
-      const { id } = await res.json();
-      setReminderRules((prev) => [...prev, { ...ruleForm, id, enabled: true } as ReminderRule]);
+      await fetchReminderRules();
       setShowCreateRule(false);
       setRuleForm({ name: "", type: "lead_followup", offset_hours: 24 });
     } catch (err) {
@@ -281,7 +279,7 @@ export function Notifications() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to update rule");
       }
-      setReminderRules((prev) => prev.map((r) => (r.id === editingRuleId ? { ...r, ...ruleForm } : r)));
+      await fetchReminderRules();
       setEditingRuleId(null);
     } catch (err) {
       setRuleFormError(err instanceof Error ? err.message : "Failed to update rule");

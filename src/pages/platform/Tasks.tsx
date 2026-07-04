@@ -208,13 +208,16 @@ export default function Tasks() {
 
   const handleStatusUpdate = async (taskId: string, status: TaskStatus) => {
     try {
-      const updated = await apiFetch<Task>(`/api/tasks/${taskId}/status`, {
+      await apiFetch(`/api/tasks/${taskId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
-      if (selectedTask?.id === taskId) setSelectedTask(updated);
+      await fetchTasks();
+      if (selectedTask?.id === taskId) {
+        const taskRes = await fetch(`/api/tasks/${taskId}`, { credentials: "include" });
+        if (taskRes.ok) setSelectedTask(await taskRes.json());
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update status");
     }
@@ -222,13 +225,16 @@ export default function Tasks() {
 
   const handleAssign = async (taskId: string, assignedTo: string) => {
     try {
-      const updated = await apiFetch<Task>(`/api/tasks/${taskId}`, {
+      await apiFetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assigned_to: assignedTo || null }),
       });
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
-      if (selectedTask?.id === taskId) setSelectedTask(updated);
+      await fetchTasks();
+      if (selectedTask?.id === taskId) {
+        const taskRes = await fetch(`/api/tasks/${taskId}`, { credentials: "include" });
+        if (taskRes.ok) setSelectedTask(await taskRes.json());
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to assign user");
     }
@@ -239,13 +245,17 @@ export default function Tasks() {
     if (!newComment.trim() || !selectedTask) return;
     setPostingComment(true);
     try {
-      const comment = await apiFetch<Comment>(`/api/tasks/${selectedTask.id}/comments`, {
+      const res = await fetch(`/api/tasks/${selectedTask.id}/comments`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: newComment }),
       });
-      setComments((prev) => [...prev, comment]);
-      setNewComment("");
+      if (res.ok) {
+        const commentsRes = await fetch(`/api/tasks/${selectedTask.id}/comments`, { credentials: "include" });
+        if (commentsRes.ok) setComments(await commentsRes.json());
+        setNewComment("");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to post comment");
     } finally {
