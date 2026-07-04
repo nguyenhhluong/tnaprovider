@@ -39,6 +39,12 @@ import { Audit } from "./pages/platform/Audit";
 import { Profile } from "./pages/platform/Profile";
 import { Security } from "./pages/platform/Security";
 import { AdminTools } from "./pages/platform/AdminTools";
+import LeadAutomation from "./pages/platform/LeadAutomation";
+import Quotes from "./pages/platform/Quotes";
+import Tasks from "./pages/platform/Tasks";
+import Documents from "./pages/platform/Documents";
+import Notifications from "./pages/platform/Notifications";
+import Reports from "./pages/platform/Reports";
 
 const router = createBrowserRouter([
   {
@@ -100,6 +106,12 @@ const router = createBrowserRouter([
       { path: "users", element: <ProtectedRoute roles={["owner", "admin"]}><PlatformUsers /></ProtectedRoute> },
       { path: "audit", element: <ProtectedRoute roles={["owner", "admin"]}><Audit /></ProtectedRoute> },
       { path: "admin-tools", element: <ProtectedRoute roles={["owner", "admin"]}><AdminTools /></ProtectedRoute> },
+      { path: "lead-automation", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><LeadAutomation /></ProtectedRoute> },
+      { path: "quotes", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Quotes /></ProtectedRoute> },
+      { path: "tasks", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><Tasks /></ProtectedRoute> },
+      { path: "documents", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Documents /></ProtectedRoute> },
+      { path: "notifications", element: <ProtectedRoute><Notifications /></ProtectedRoute> },
+      { path: "reports", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Reports /></ProtectedRoute> },
       { path: "profile", element: <Profile /> },
     ],
   },

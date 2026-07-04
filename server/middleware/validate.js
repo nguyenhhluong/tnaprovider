@@ -61,6 +61,16 @@ export function validate(schema) {
   };
 }
 
+const VALID_LEAD_ACTIVITY_TYPES = ["note", "call", "email", "meeting", "site_visit", "status_change"];
+const VALID_FOLLOWUP_STATUSES = ["pending", "done", "cancelled", "overdue"];
+const VALID_QUOTE_REQUEST_STATUSES = ["draft", "submitted", "reviewing", "quoted", "converted", "cancelled"];
+const VALID_QUOTE_STATUSES = ["draft", "sent", "accepted", "rejected", "expired", "converted"];
+const VALID_TASK_STATUSES = ["todo", "in_progress", "blocked", "done", "cancelled"];
+const VALID_TASK_PRIORITIES = ["low", "medium", "high", "urgent"];
+const VALID_DOC_VISIBILITY = ["internal", "client"];
+const VALID_DOC_ENTITY_TYPES = ["lead", "project", "quote", "client", "general"];
+const VALID_REMINDER_TYPES = ["lead_followup", "quote_expiry", "task_due", "project_due", "maintenance_pending"];
+
 export const schemas = {
   login: {
     email: { required: true, type: "email", label: "Email" },
@@ -111,5 +121,51 @@ export const schemas = {
   createMaintenance: {
     title: { required: true, minLength: 2, label: "Title" },
     priority: { required: true, enum: VALID_PRIORITIES, label: "Priority" },
+  },
+
+  // Phase 6 schemas
+  createLeadActivity: {
+    type: { required: true, enum: VALID_LEAD_ACTIVITY_TYPES, label: "Type" },
+    title: { required: true, minLength: 2, label: "Title" },
+  },
+  createLeadFollowup: {
+    title: { required: true, minLength: 2, label: "Title" },
+    due_at: { required: true, label: "Due date" },
+  },
+  createQuoteRequest: {
+    title: { required: true, minLength: 2, label: "Title" },
+  },
+  createQuote: {
+    title: { required: true, minLength: 2, label: "Title" },
+  },
+  createQuoteItem: {
+    description: { required: true, minLength: 1, label: "Description" },
+    unit_price: { required: true, label: "Unit price" },
+  },
+  createTask: {
+    project_id: { required: true, label: "Project" },
+    title: { required: true, minLength: 2, label: "Title" },
+  },
+  createTaskComment: {
+    message: { required: true, minLength: 1, label: "Message" },
+  },
+  createDocument: {
+    title: { required: true, minLength: 2, label: "Title" },
+    entity_type: { required: true, label: "Entity type" },
+  },
+  createDocumentFolder: {
+    name: { required: true, minLength: 2, label: "Folder name" },
+    entity_type: { required: true, enum: VALID_DOC_ENTITY_TYPES, label: "Entity type" },
+  },
+  createProposalTemplate: {
+    name: { required: true, minLength: 2, label: "Name" },
+  },
+  createProposalVersion: {
+    quote_id: { required: true, label: "Quote" },
+    title: { required: true, minLength: 2, label: "Title" },
+  },
+  createReminderRule: {
+    name: { required: true, minLength: 2, label: "Name" },
+    type: { required: true, enum: VALID_REMINDER_TYPES, label: "Type" },
   },
 };

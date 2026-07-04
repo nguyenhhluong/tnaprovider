@@ -15,6 +15,12 @@ import {
   LogOut,
   ChevronRight,
   HardDrive,
+  Phone,
+  DollarSign,
+  CheckSquare,
+  File,
+  Bell,
+  BarChart,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { useAuth } from "../../context/AuthContext";
@@ -28,10 +34,14 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
   const sidebarLinks = [
     { name: "Dashboard", path: "/platform", icon: LayoutDashboard, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Leads", path: "/platform/leads", icon: Users, roles: ["owner", "admin", "manager"] },
+    { name: "Lead Automation", path: "/platform/lead-automation", icon: Phone, roles: ["owner", "admin", "manager"] },
+    { name: "Quotes", path: "/platform/quotes", icon: DollarSign, roles: ["owner", "admin", "manager"] },
     { name: "Projects", path: "/platform/projects", icon: FolderKanban, roles: ["owner", "admin", "manager", "worker", "client"] },
+    { name: "Tasks", path: "/platform/tasks", icon: CheckSquare, roles: ["owner", "admin", "manager", "worker"] },
     { name: "Timesheets", path: "/platform/timesheets", icon: Clock, roles: ["owner", "admin", "manager", "worker"] },
     { name: "Email", path: "/platform/email", icon: Mail, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Client Portal", path: "/platform/client-portal", icon: UserCircle, roles: ["owner", "admin", "manager", "client"] },
+    { name: "Documents", path: "/platform/documents", icon: File, roles: ["owner", "admin", "manager"] },
     { name: "Maintenance", path: "/platform/maintenance", icon: Wrench, roles: ["owner", "admin", "manager", "client"] },
     { name: "Analytics", path: "/platform/analytics", icon: BarChart3, roles: ["owner", "admin", "manager"] },
   ];
@@ -39,8 +49,10 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
   const adminLinks = [
     { name: "Users", path: "/platform/users", icon: Users, roles: ["owner", "admin"] },
     { name: "Security", path: "/platform/security", icon: Shield, roles: ["owner", "admin"] },
+    { name: "Reports", path: "/platform/reports", icon: BarChart, roles: ["owner", "admin", "manager"] },
     { name: "Admin Tools", path: "/platform/admin-tools", icon: HardDrive, roles: ["owner", "admin"] },
     { name: "Audit Log", path: "/platform/audit", icon: FileText, roles: ["owner", "admin"] },
+    { name: "Notifications", path: "/platform/notifications", icon: Bell, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Settings", path: "/platform/settings", icon: Settings, roles: ["owner", "admin"] },
   ];
 
