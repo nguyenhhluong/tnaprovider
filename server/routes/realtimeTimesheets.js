@@ -14,9 +14,9 @@ function getEmployee(db, userId) {
   return user;
 }
 
-function getDefaultHourlyRate(db, userId) {
-  const rate = db.prepare("SELECT hourly_rate FROM employee_rates WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").get(userId);
-  return rate ? rate.hourly_rate : 38.5;
+function getEmployeeRate(db, userId) {
+  const user = db.prepare("SELECT hourly_rate FROM users WHERE id = ?").get(userId);
+  return user?.hourly_rate ?? null;
 }
 
 function recalculateShift(db, shiftId) {
@@ -139,7 +139,10 @@ router.post("/check-in", (req, res) => {
     });
   }
 
-  const hourlyRate = getDefaultHourlyRate(db, req.user.userId);
+  const hourlyRate = getEmployeeRate(db, req.user.userId);
+  if (hourlyRate === null || hourlyRate === undefined || typeof hourlyRate !== "number" || hourlyRate <= 0) {
+    return res.status(400).json({ error: "Hourly rate is not configured. Please contact admin before checking in." });
+  }
   const now = new Date().toISOString();
   const shiftId = crypto.randomUUID();
   const eventId = crypto.randomUUID();
@@ -418,6 +421,34 @@ router.post("/:shiftId/adjustment-request", (req, res) => {
   `).run(id, shiftId, req.user.userId, requestedCheckedInAt || null, requestedCheckedOutAt || null, requestedBreakSeconds || null, reason, now, now);
 
   res.status(201).json({ id, status: "pending" });
+});
+
+// ── Admin: Set employee hourly rate ──
+
+router.put("/admin/employees/:userId/rate", requireRole("owner", "admin"), (req, res) => {
+  const db = getDb();
+  const { userId } = req.params;
+  const { hourlyRate } = req.body || {};
+
+  if (hourlyRate === undefined || hourlyRate === null || typeof hourlyRate !== "number" || hourlyRate <= 0) {
+    return res.status(400).json({ error: "Hourly rate must be a positive number" });
+  }
+
+  const user = db.prepare("SELECT id, name, role FROM users WHERE id = ?").get(userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const roundedRate = Math.round(hourlyRate * 100) / 100;
+  db.prepare("UPDATE users SET hourly_rate = ?, updated_at = datetime('now') WHERE id = ?").run(roundedRate, userId);
+
+  res.json({ success: true, userId, hourlyRate: roundedRate });
+});
+
+// ── Admin: Get users with rates ──
+
+router.get("/admin/employees", requireRole("owner", "admin", "manager"), (req, res) => {
+  const db = getDb();
+  const employees = db.prepare("SELECT id, email, name, role, hourly_rate, status FROM users ORDER BY name ASC").all();
+  res.json(employees);
 });
 
 // ── Work sites ──

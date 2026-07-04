@@ -27,6 +27,7 @@ export function migrate() {
     addColumnIfMissing(db, 'users', 'disabled_at', 'TEXT');
     addColumnIfMissing(db, 'users', 'disabled_by', 'TEXT REFERENCES users(id)');
     addColumnIfMissing(db, 'users', 'password_changed_at', 'TEXT');
+    addColumnIfMissing(db, 'users', 'hourly_rate', 'REAL');
     const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get().sql;
     if (!sql.includes("'invited'")) {
       const cols = getColumnNames(db, 'users');
@@ -54,6 +55,7 @@ export function migrate() {
           disabled_at TEXT,
           disabled_by TEXT,
           password_changed_at TEXT,
+          hourly_rate REAL,
           created_at TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at TEXT NOT NULL DEFAULT (datetime('now')),
           last_login_at TEXT
@@ -92,6 +94,7 @@ export function migrate() {
         disabled_at TEXT,
         disabled_by TEXT,
         password_changed_at TEXT,
+        hourly_rate REAL,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
         last_login_at TEXT

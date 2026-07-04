@@ -16,6 +16,7 @@ import {
   ChevronRight,
   HardDrive,
   Play,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { useAuth } from "../../context/AuthContext";
@@ -46,6 +47,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
     { name: "Admin Tools", path: appPath("/platform/admin-tools"), icon: HardDrive, roles: ["owner", "admin"] },
     { name: "Audit Log", path: appPath("/platform/audit"), icon: FileText, roles: ["owner", "admin"] },
     { name: "Timesheet Admin", path: appPath("/platform/admin-realtime-timesheets"), icon: Clock, roles: ["owner", "admin", "manager"] },
+    { name: "Employee Rates", path: appPath("/platform/employee-rates"), icon: DollarSign, roles: ["owner", "admin"] },
     { name: "Settings", path: appPath("/platform/settings"), icon: Settings, roles: ["owner", "admin"] },
   ];
 

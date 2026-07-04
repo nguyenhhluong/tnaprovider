@@ -24,10 +24,14 @@ export function seed() {
   const password_hash = bcrypt.hashSync(password, 12);
   const now = new Date().toISOString();
 
+  const hourlyRate = parseFloat(process.env.SEED_OWNER_HOURLY_RATE || "38.5");
+
   db.prepare(`
-    INSERT INTO users (id, email, name, role, password_hash, status, created_at, updated_at)
-    VALUES (?, ?, ?, 'owner', ?, 'active', ?, ?)
-  `).run(id, email, name, password_hash, now, now);
+    INSERT INTO users (id, email, name, role, password_hash, hourly_rate, status, created_at, updated_at)
+    VALUES (?, ?, ?, 'owner', ?, ?, 'active', ?, ?)
+  `).run(id, email, name, password_hash, hourlyRate, now, now);
+
+  console.log(`Seeded owner user: ${email} (hourly rate: $${hourlyRate.toFixed(2)})`);
 
   // Seed default work site
   const existingSite = db.prepare("SELECT id FROM work_sites LIMIT 1").get();

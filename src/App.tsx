@@ -41,6 +41,7 @@ import { Security } from "./pages/platform/Security";
 import { AdminTools } from "./pages/platform/AdminTools";
 import { RealtimeTimesheet } from "./pages/platform/RealtimeTimesheet";
 import { AdminRealtimeTimesheets } from "./pages/platform/AdminRealtimeTimesheets";
+import { EmployeeRates } from "./pages/platform/EmployeeRates";
 import { isAppHost } from "./utils/host";
 
 function AppIndex() {
@@ -98,6 +99,7 @@ const router = createBrowserRouter([
       { path: "timesheets", element: <Timesheets /> },
       { path: "realtime-timesheet", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><RealtimeTimesheet /></ProtectedRoute> },
       { path: "admin-realtime-timesheets", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><AdminRealtimeTimesheets /></ProtectedRoute> },
+      { path: "employee-rates", element: <ProtectedRoute roles={["owner", "admin"]}><EmployeeRates /></ProtectedRoute> },
       { path: "users", element: <ProtectedRoute roles={["owner", "admin"]}><PlatformUsers /></ProtectedRoute> },
       { path: "security", element: <ProtectedRoute roles={["owner", "admin"]}><Security /></ProtectedRoute> },
       { path: "audit", element: <ProtectedRoute roles={["owner", "admin"]}><Audit /></ProtectedRoute> },
@@ -120,6 +122,7 @@ const router = createBrowserRouter([
       { path: "timesheets", element: <Timesheets /> },
       { path: "realtime-timesheet", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><RealtimeTimesheet /></ProtectedRoute> },
       { path: "admin-realtime-timesheets", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><AdminRealtimeTimesheets /></ProtectedRoute> },
+      { path: "employee-rates", element: <ProtectedRoute roles={["owner", "admin"]}><EmployeeRates /></ProtectedRoute> },
       { path: "client-portal", element: <ClientPortal /> },
       { path: "maintenance", element: <Maintenance /> },
       { path: "analytics", element: <Analytics /> },
