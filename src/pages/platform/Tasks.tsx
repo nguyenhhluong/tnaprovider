@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
+import { PlatformHeader } from "../../components/platform/PlatformHeader";
 import {
   Plus, X, Loader2, AlertCircle, MessageSquare, UserPlus,
   Calendar, ArrowRight, ChevronDown, List, Columns, LayoutTemplate,
@@ -85,6 +87,7 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export default function Tasks() {
+  const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -302,15 +305,20 @@ export default function Tasks() {
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-brand-accent" />
-      </div>
+      <>
+        <PlatformHeader title="Tasks" onMenuClick={() => setSidebarOpen(true)} />
+        <div className="p-8 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-brand-accent" />
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="p-4 md:p-8">
+    <>
       <SEO title="Tasks | TNA Provider Platform" description="Task management board." canonical="https://tnaprovider.com.au/platform/tasks" />
+      <PlatformHeader title="Tasks" onMenuClick={() => setSidebarOpen(true)} />
+      <div className="p-4 md:p-8">
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
@@ -757,5 +765,6 @@ export default function Tasks() {
         </div>
       )}
     </div>
+    </>
   );
 }

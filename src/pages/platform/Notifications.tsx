@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
+import { PlatformHeader } from "../../components/platform/PlatformHeader";
 import { useAuth } from "../../context/AuthContext";
 import {
   Bell,
@@ -69,6 +71,7 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
 };
 
 export function Notifications() {
+  const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const { user } = useAuth();
   const isOwnerAdmin = user?.role === "owner" || user?.role === "admin";
   const isOwnerAdminManager = isOwnerAdmin || user?.role === "manager";
@@ -341,8 +344,10 @@ export function Notifications() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl">
+    <>
       <SEO title="Notifications | TNA Provider Platform" description="Manage notifications, preferences, and reminder rules." canonical="https://tnaprovider.com.au/platform/notifications" />
+      <PlatformHeader title="Notifications" onMenuClick={() => setSidebarOpen(true)} />
+      <div className="p-4 md:p-8 max-w-4xl">
 
       <div className="mb-6">
         <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-1">Notifications</h1>
@@ -716,6 +721,7 @@ export function Notifications() {
         </div>
       )}
     </div>
+    </>
   );
 }
 

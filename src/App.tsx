@@ -52,7 +52,15 @@ import { AdminSiteQR } from "./pages/platform/AdminSiteQR";
 import { PayRules } from "./pages/platform/PayRules";
 import { PayrollSummary } from "./pages/platform/PayrollSummary";
 import { QRSiteCheckIn } from "./pages/platform/QRSiteCheckIn";
-import { isAppHost } from "./utils/host";
+import { isAppHost, isMainHost } from "./utils/host";
+
+function MarketingRoute({ children }: { children: React.ReactNode }) {
+  if (isAppHost()) {
+    window.location.href = `https://tnaprovider.com.au${window.location.pathname}${window.location.search}`;
+    return null;
+  }
+  return <>{children}</>;
+}
 
 function AppIndex() {
   if (isAppHost()) return <Dashboard />;
@@ -95,21 +103,21 @@ const router = createBrowserRouter([
     element: <RootLayout />,
     children: [
       { index: true, element: <AppIndex /> },
-      { path: "about", element: <About /> },
-      { path: "services", element: <Services /> },
-      { path: "sectors", element: <Sectors /> },
+      { path: "about", element: <MarketingRoute><About /></MarketingRoute> },
+      { path: "services", element: <MarketingRoute><Services /></MarketingRoute> },
+      { path: "sectors", element: <MarketingRoute><Sectors /></MarketingRoute> },
       { path: "projects", element: <AppProjects /> },
-      { path: "projects/:id", element: <ProjectDetail /> },
-      { path: "contact", element: <Contact /> },
-      { path: "faq", element: <FAQ /> },
-      { path: "privacy-policy", element: <PrivacyPolicyPage /> },
-      { path: "terms-of-service", element: <TermsOfServicePage /> },
-      { path: "tools/cost-estimator", element: <CostEstimator /> },
-      { path: "tools/tender-upload", element: <TenderUpload /> },
-      { path: "tools/timeline-predictor", element: <TimelinePredictor /> },
-      { path: "capability", element: <Capability /> },
-      { path: "materials", element: <Materials /> },
-      { path: "project-map", element: <ProjectMapPage /> },
+      { path: "projects/:id", element: <MarketingRoute><ProjectDetail /></MarketingRoute> },
+      { path: "contact", element: <MarketingRoute><Contact /></MarketingRoute> },
+      { path: "faq", element: <MarketingRoute><FAQ /></MarketingRoute> },
+      { path: "privacy-policy", element: <MarketingRoute><PrivacyPolicyPage /></MarketingRoute> },
+      { path: "terms-of-service", element: <MarketingRoute><TermsOfServicePage /></MarketingRoute> },
+      { path: "tools/cost-estimator", element: <MarketingRoute><CostEstimator /></MarketingRoute> },
+      { path: "tools/tender-upload", element: <MarketingRoute><TenderUpload /></MarketingRoute> },
+      { path: "tools/timeline-predictor", element: <MarketingRoute><TimelinePredictor /></MarketingRoute> },
+      { path: "capability", element: <MarketingRoute><Capability /></MarketingRoute> },
+      { path: "materials", element: <MarketingRoute><Materials /></MarketingRoute> },
+      { path: "project-map", element: <MarketingRoute><ProjectMapPage /></MarketingRoute> },
       { path: "leads", element: <Leads /> },
       { path: "timesheets", element: <Timesheets /> },
       { path: "realtime-timesheet", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><RealtimeTimesheet /></ProtectedRoute> },

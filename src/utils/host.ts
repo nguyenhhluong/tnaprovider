@@ -19,3 +19,7 @@ export function appPath(path: string) {
   const clean = path.replace(/^\/platform/, "") || "/";
   return isAppHost() ? clean : `/platform${clean === "/" ? "" : clean}`;
 }
+
+export function isMainHost(hostname = window.location.hostname) {
+  return hostname === "tnaprovider.com.au" || hostname === "www.tnaprovider.com.au" || (!isAppHost(hostname) && !hostname.startsWith("localhost") && !hostname.startsWith("127."));
+}
