@@ -1,4 +1,28 @@
-export const projects = [
+export interface Project {
+  id: string;
+  title: string;
+  sector: string;
+  scope: string;
+  description: string;
+  imageUrl: string;
+  tags: string[];
+  fullDescription: string;
+  client: string;
+  clientType?: string;
+  year: string;
+  location: string;
+  deliveryHighlights: string[];
+  gallery: string[];
+  timeline?: string;
+  challenge?: string;
+  solution?: string;
+  result?: string;
+  materialHighlights?: string[];
+  beforeImageUrl?: string;
+  afterImageUrl?: string;
+}
+
+export const projects: Project[] = [
   {
     id: "1",
     title: "Charcoal Entertainment Unit",
@@ -9,9 +33,17 @@ export const projects = [
     tags: ["Residential", "Joinery", "Living Room"],
     fullDescription: "Designed as the ultimate focal point for a modern residential space, this bespoke entertainment unit perfectly balances form and function. The sophisticated charcoal finish creates a striking contrast against the integrated LED backlighting, drawing the eye to the custom glass display cabinet and textured slatted wood paneling. Meticulously crafted to integrate seamlessly with the home's architecture, it provides elegant storage while elevating the entire living experience.",
     client: "Private Client",
+    clientType: "Residential Homeowner",
     year: "2023",
     location: "Sydney, NSW",
+    timeline: "6 weeks",
+    challenge: "The client wanted a custom entertainment unit that would serve as a focal point for their living room, but the space had an irregular wall alcove with non-standard dimensions and existing power points that needed to be worked around.",
+    solution: "We laser-measured the alcove and designed a modular unit that perfectly fit the irregular space. Integrated LED backlighting was custom-wired to highlight the glass display cabinet, and the charcoal finish was matched to existing interior elements.",
+    result: "A seamless entertainment unit that looks built-in, with hidden cable management and ambient lighting that transforms the room atmosphere. The client reported the space now feels complete and upscale.",
+    materialHighlights: ["Charcoal laminate finish", "Tempered glass shelving", "LED strip lighting", "Soft-close Blum hardware"],
     deliveryHighlights: ["Custom LED Integration", "4-Week Turnaround"],
+    beforeImageUrl: "https://images.unsplash.com/photo-1586105251261-72a756497a11?auto=format&fit=crop&q=80&w=800",
+    afterImageUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800",
     gallery: [
       "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&q=80&w=800",
@@ -119,9 +151,17 @@ export const projects = [
     tags: ["Hospitality", "Joinery"],
     fullDescription: "Tasked with bringing a modern and welcoming brand identity to life, the Lumina Cafe Flagship project is a triumph of hospitality design. The space is anchored by a breathtaking custom curved timber counter that naturally guides customer flow while serving as a stunning focal point. Bespoke banquette seating maximizes both capacity and comfort, and expertly integrated architectural lighting highlights the intricate joinery, creating an inviting ambiance that keeps customers returning.",
     client: "Lumina Hospitality Group",
+    clientType: "Cafe Chain",
     year: "2024",
     location: "Sydney CBD, NSW",
+    timeline: "10 weeks",
+    challenge: "The site was a former retail space with no existing kitchen infrastructure, limited floor space, and strict council noise restrictions. The client needed the cafe operational within 10 weeks for a scheduled brand launch.",
+    solution: "We designed a compact kitchen layout with commercial-grade ventilation, fabricated the signature curved timber counter in our workshop, and scheduled all noisy works after hours to comply with council conditions.",
+    result: "The flagship cafe opened on schedule and received positive press for its design. The curved counter became a signature brand element replicated in subsequent locations.",
+    materialHighlights: ["Curved timber veneer", "Commercial-grade laminate", "Stainless steel benchtop", "Acoustic ceiling panels"],
     deliveryHighlights: ["After-Hours Work", "High-End Finishes"],
+    beforeImageUrl: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&q=80&w=800",
+    afterImageUrl: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800",
     gallery: [
       "https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800",
@@ -163,9 +203,17 @@ export const projects = [
     tags: ["Retail", "Shopfitting"],
     fullDescription: "Crafted to perfectly mirror the luxury of its high-end fashion offerings, the Aura Boutique fitout is a masterclass in sophisticated retail design. We delivered an exquisite space featuring bespoke brass display racks that elevate the presentation of every garment. Elegant marble counters provide a premium point-of-sale experience, while rich veneer paneling adds incredible warmth and texture to the environment. Our meticulous attention to detail in every aspect of the shopfitting and joinery guarantees a truly unforgettable shopping experience.",
     client: "Aura Fashion",
+    clientType: "Retail Brand",
     year: "2024",
     location: "Melbourne CBD, VIC",
+    timeline: "8 weeks",
+    challenge: "The heritage-listed building had strict conservation requirements — no modifications to walls, ceilings, or existing fixtures. The client needed a luxury retail environment that felt permanent but was entirely freestanding.",
+    solution: "We designed a modular shopfitting system that sits independently of the heritage fabric. Bespoke brass display racks and marble counters were prefabricated off-site, then assembled in sections within the space. All fixings were reversible.",
+    result: "A stunning luxury retail environment that respects the heritage listing. The client received approval from the heritage council and the store exceeded first-month sales targets.",
+    materialHighlights: ["Brass display fittings", "Marble countertops", "Premium veneer paneling", "Velvet display surfaces"],
     deliveryHighlights: ["Heritage Compliance", "Bespoke Metalwork"],
+    beforeImageUrl: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&q=80&w=800",
+    afterImageUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=800",
     gallery: [
       "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=800",
       "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800",

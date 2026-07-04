@@ -1,6 +1,7 @@
 import { SEO } from "../components/SEO";
 import { motion } from "motion/react";
 import { SectionTitle } from "../components/ui/SectionTitle";
+import { SupplierLogos } from "../components/sections/SupplierLogos";
 import { Hammer, Building2, HardHat, Wrench, Ruler, Clock, MoonStar, ShieldCheck } from "lucide-react";
 
 const services = [
@@ -150,6 +151,9 @@ export function Services() {
           </div>
         </div>
       </section>
+
+      {/* Supplier/Material Brand Strip */}
+      <SupplierLogos />
 
       {/* After-hours Work Section */}
       <section className="py-24 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">

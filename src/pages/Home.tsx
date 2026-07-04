@@ -8,6 +8,9 @@ import { ServiceCard } from "../components/ui/ServiceCard";
 import { ProjectCard } from "../components/ui/ProjectCard";
 import { Testimonial } from "../components/ui/Testimonial";
 import { FAQAccordion } from "../components/ui/Accordion";
+import { ProcessMap } from "../components/sections/ProcessMap";
+import { BookingCTA } from "../components/sections/BookingCTA";
+import { SupplierLogos } from "../components/sections/SupplierLogos";
 import { projects } from "../data/projects";
 
 const services = [
@@ -273,55 +276,8 @@ export function Home() {
         </div>
       </section>
 
-      {/* Process Section */}
-      <section className="py-24 bg-brand-darker text-white overflow-hidden relative">
-        <div className="absolute inset-0 z-0 opacity-10">
-          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=2000')] bg-cover bg-center mix-blend-luminosity" />
-        </div>
-        <div className="container relative z-10 mx-auto px-4 md:px-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.7 }}
-            className="text-center mb-16"
-          >
-            <SectionTitle 
-              subtitle="How We Work"
-              title="Our Proven Delivery Process"
-              align="center"
-              light
-            />
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-8 relative">
-            <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-white/10 -translate-y-1/2 z-0" />
-            
-            {[
-              { step: "01", title: "Consult", desc: "Understanding your vision, budget, and operational requirements." },
-              { step: "02", title: "Design", desc: "Detailed CAD drawings, 3D models, and material selection." },
-              { step: "03", title: "Manufacture", desc: "In-house fabrication of bespoke joinery and metalwork." },
-              { step: "04", title: "Install", desc: "Coordinated on-site construction and fitout execution." },
-              { step: "05", title: "Handover", desc: "Final defect checks, deep clean, and project handover." }
-            ].map((item, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-100px" }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="relative z-10 flex flex-col items-center text-center"
-              >
-                <div className="w-16 h-16 rounded-full bg-brand-dark border-4 border-brand-darker shadow-[0_0_0_2px_rgba(255,255,255,0.1)] flex items-center justify-center text-brand-accent font-display font-bold text-xl mb-6">
-                  {item.step}
-                </div>
-                <h4 className="text-xl font-bold mb-3">{item.title}</h4>
-                <p className="text-sm text-gray-400 leading-relaxed">{item.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Process Section - Interactive Process Map */}
+      <ProcessMap />
 
       {/* Featured Projects */}
       <section className="py-24 bg-white dark:bg-brand-darker overflow-hidden">
@@ -368,6 +324,9 @@ export function Home() {
         </div>
       </section>
 
+      {/* Supplier/ Material Brand Strip */}
+      <SupplierLogos />
+
       {/* Testimonials */}
       <section className="py-24 bg-brand-gray dark:bg-gray-900 overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
@@ -405,8 +364,15 @@ export function Home() {
         </div>
       </section>
 
-      {/* FAQ */}
+      {/* Booking CTA */}
       <section className="py-24 bg-white dark:bg-brand-darker overflow-hidden">
+        <div className="container mx-auto px-4 md:px-8 max-w-3xl">
+          <BookingCTA />
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="py-24 bg-brand-gray dark:bg-gray-900 overflow-hidden">
         <div className="container mx-auto px-4 md:px-8">
           <motion.div
             initial={{ opacity: 0, y: 40 }}

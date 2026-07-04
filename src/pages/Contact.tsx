@@ -1,11 +1,18 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { SEO } from "../components/SEO";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { SectionTitle } from "../components/ui/SectionTitle";
 import { Button } from "../components/ui/Button";
-import { MapPin, Phone, Mail, Clock, CheckCircle2 } from "lucide-react";
+import { BookingCTA } from "../components/sections/BookingCTA";
+import { projects } from "../data/projects";
+import { MapPin, Phone, Mail, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 
 export function Contact() {
+  const [searchParams] = useSearchParams();
+  const projectId = searchParams.get("project");
+  const source = searchParams.get("source");
+  const prefillProject = projects.find((p) => p.id === projectId);
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -22,7 +29,18 @@ export function Contact() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (prefillProject) {
+      setFormData((prev) => ({
+        ...prev,
+        message: `I am interested in a similar project to: ${prefillProject.title}.`,
+      }));
+    }
+  }, [prefillProject]);
 
   const validateField = (name: string, value: string | boolean) => {
     let error = "";
@@ -78,26 +96,26 @@ export function Contact() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const val = type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
-    
-    setFormData(prev => ({ ...prev, [name]: val }));
-    
+
+    setFormData((prev) => ({ ...prev, [name]: val }));
+
     const error = validateField(name, val);
-    setErrors(prev => ({ ...prev, [name]: error }));
+    setErrors((prev) => ({ ...prev, [name]: error }));
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const val = type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
     const error = validateField(name, val);
-    setErrors(prev => ({ ...prev, [name]: error }));
+    setErrors((prev) => ({ ...prev, [name]: error }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate all fields
+    setSubmitError(null);
+
     const newErrors: Record<string, string> = {};
-    Object.keys(formData).forEach(key => {
+    Object.keys(formData).forEach((key) => {
       const error = validateField(key, formData[key as keyof typeof formData]);
       if (error) newErrors[key] = error;
     });
@@ -109,41 +127,56 @@ export function Contact() {
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length === 0) {
+      setIsSubmitting(true);
       try {
-        await fetch("/api/contact", {
+        const response = await fetch("/api/contact", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({ ...formData, projectId: projectId || null, source: source || null }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Server returned an error");
+        }
+
+        setIsSubmitted(true);
+        setFormData({
+          firstName: "",
+          lastName: "",
+          email: "",
+          phone: "",
+          service: "",
+          location: "",
+          budget: "",
+          targetDate: "",
+          message: "",
+          requestCallback: false,
+          callbackTime: "",
+          privacyConsent: false,
         });
       } catch {
-        // Submission failed silently — server may be offline
+        setSubmitError(
+          "We couldn't send your message right now. Please call us on 0406 409 668 or email info@tnaprovider.com.au and we'll help you directly."
+        );
+      } finally {
+        setIsSubmitting(false);
       }
-      setIsSubmitted(true);
-      setFormData({
-        firstName: "",
-        lastName: "",
-        email: "",
-        phone: "",
-        service: "",
-        location: "",
-        budget: "",
-        targetDate: "",
-        message: "",
-        requestCallback: false,
-        callbackTime: "",
-        privacyConsent: false,
-      });
     }
   };
 
   return (
     <div className="flex flex-col min-h-screen pt-24">
-      <SEO title="Contact TNA Provider | Get a Quote for Your Commercial Project" description="Contact TNA Provider for a quote on your commercial fitout, joinery, or construction project. Sydney-based team serving all of Australia." canonical="https://tnaprovider.com.au/contact" ogImage="https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=1200&h=630&fit=crop" />
+      <SEO
+        title="Contact TNA Provider | Get a Quote for Your Commercial Project"
+        description="Contact TNA Provider for a quote on your commercial fitout, joinery, or construction project. Sydney-based team serving all of Australia."
+        canonical="https://tnaprovider.com.au/contact"
+        ogImage="https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&q=80&w=1200&h=630&fit=crop"
+      />
       {/* Hero */}
       <section className="bg-brand-darker text-white py-24 md:py-32 relative overflow-hidden">
         <div className="container relative z-10 mx-auto px-4 md:px-8">
           <div className="max-w-3xl">
-            <SectionTitle 
+            <SectionTitle
               as="h1"
               subtitle="Get a Quote"
               title="Tell Us About Your Project"
@@ -160,7 +193,6 @@ export function Contact() {
       <section className="py-24 bg-brand-gray dark:bg-brand-darker">
         <div className="container mx-auto px-4 md:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
-            
             {/* Contact Form */}
             <div className="bg-white dark:bg-gray-900 p-8 md:p-12 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
               {isSubmitted ? (
@@ -168,22 +200,48 @@ export function Contact() {
                   <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mb-6">
                     <CheckCircle2 className="w-8 h-8" />
                   </div>
-                  <h3 className="text-3xl font-display font-bold text-brand-dark dark:text-white mb-4">Request Received</h3>
+                  <h3 className="text-3xl font-display font-bold text-brand-dark dark:text-white mb-4">
+                    Request Received
+                  </h3>
                   <p className="text-gray-600 dark:text-gray-400 mb-8">
-                    Thank you for reaching out. Our team will review your project details and get back to you shortly.
+                    Thank you for reaching out. Our team will review your project details and get
+                    back to you shortly.
                   </p>
                   <Button onClick={() => setIsSubmitted(false)}>Send Another Message</Button>
                 </div>
               ) : (
                 <>
-                  <h3 className="text-3xl font-display font-bold text-brand-dark dark:text-white mb-8">Request a Quote</h3>
+                  <h3 className="text-3xl font-display font-bold text-brand-dark dark:text-white mb-8">
+                    Request a Quote
+                  </h3>
+
+                  {submitError && (
+                    <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-amber-800 dark:text-amber-200">
+                        {submitError}
+                      </div>
+                    </div>
+                  )}
+
+                  {prefillProject && (
+                    <div className="mb-6 p-4 bg-brand-accent/5 border border-brand-accent/20 rounded-lg">
+                      <p className="text-sm text-brand-dark dark:text-gray-200">
+                        You are inquiring about a project similar to:{" "}
+                        <strong>{prefillProject.title}</strong>
+                      </p>
+                    </div>
+                  )}
+
                   <form onSubmit={handleSubmit} className="flex flex-col gap-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="flex flex-col gap-2">
-                        <label htmlFor="firstName" className="text-sm font-semibold text-gray-700 dark:text-gray-300">First Name <span className="text-red-500">*</span></label>
-                        <input 
-                          type="text" 
-                          id="firstName" 
+                        <label htmlFor="firstName" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          First Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          id="firstName"
                           name="firstName"
                           value={formData.firstName}
                           onChange={handleChange}
@@ -191,16 +249,26 @@ export function Contact() {
                           aria-required="true"
                           aria-invalid={!!errors.firstName}
                           aria-describedby={errors.firstName ? "firstName-error" : undefined}
-                          className={`h-12 px-4 rounded-lg border ${errors.firstName ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                          className={`h-12 px-4 rounded-lg border ${
+                            errors.firstName
+                              ? "border-red-500 focus:ring-red-500"
+                              : "border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent"
+                          } bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                           placeholder="John"
                         />
-                        {errors.firstName && <span id="firstName-error" className="text-xs text-red-500" role="alert">{errors.firstName}</span>}
+                        {errors.firstName && (
+                          <span id="firstName-error" className="text-xs text-red-500" role="alert">
+                            {errors.firstName}
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-col gap-2">
-                        <label htmlFor="lastName" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Last Name <span className="text-red-500">*</span></label>
-                        <input 
-                          type="text" 
-                          id="lastName" 
+                        <label htmlFor="lastName" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          Last Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          id="lastName"
                           name="lastName"
                           value={formData.lastName}
                           onChange={handleChange}
@@ -208,18 +276,28 @@ export function Contact() {
                           aria-required="true"
                           aria-invalid={!!errors.lastName}
                           aria-describedby={errors.lastName ? "lastName-error" : undefined}
-                          className={`h-12 px-4 rounded-lg border ${errors.lastName ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                          className={`h-12 px-4 rounded-lg border ${
+                            errors.lastName
+                              ? "border-red-500 focus:ring-red-500"
+                              : "border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent"
+                          } bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                           placeholder="Doe"
                         />
-                        {errors.lastName && <span id="lastName-error" className="text-xs text-red-500" role="alert">{errors.lastName}</span>}
+                        {errors.lastName && (
+                          <span id="lastName-error" className="text-xs text-red-500" role="alert">
+                            {errors.lastName}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    
+
                     <div className="flex flex-col gap-2">
-                      <label htmlFor="email" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Email Address <span className="text-red-500">*</span></label>
-                      <input 
-                        type="email" 
-                        id="email" 
+                      <label htmlFor="email" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        Email Address <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        id="email"
                         name="email"
                         value={formData.email}
                         onChange={handleChange}
@@ -227,17 +305,27 @@ export function Contact() {
                         aria-required="true"
                         aria-invalid={!!errors.email}
                         aria-describedby={errors.email ? "email-error" : undefined}
-                        className={`h-12 px-4 rounded-lg border ${errors.email ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                        className={`h-12 px-4 rounded-lg border ${
+                          errors.email
+                            ? "border-red-500 focus:ring-red-500"
+                            : "border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent"
+                        } bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                         placeholder="john@example.com"
                       />
-                      {errors.email && <span id="email-error" className="text-xs text-red-500" role="alert">{errors.email}</span>}
+                      {errors.email && (
+                        <span id="email-error" className="text-xs text-red-500" role="alert">
+                          {errors.email}
+                        </span>
+                      )}
                     </div>
-                    
+
                     <div className="flex flex-col gap-2">
-                      <label htmlFor="phone" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Phone Number <span className="text-red-500">*</span></label>
-                      <input 
-                        type="tel" 
-                        id="phone" 
+                      <label htmlFor="phone" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        Phone Number <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        id="phone"
                         name="phone"
                         value={formData.phone}
                         onChange={handleChange}
@@ -245,16 +333,26 @@ export function Contact() {
                         aria-required="true"
                         aria-invalid={!!errors.phone}
                         aria-describedby={errors.phone ? "phone-error" : undefined}
-                        className={`h-12 px-4 rounded-lg border ${errors.phone ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                        className={`h-12 px-4 rounded-lg border ${
+                          errors.phone
+                            ? "border-red-500 focus:ring-red-500"
+                            : "border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent"
+                        } bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                         placeholder="0406 409 668"
                       />
-                      {errors.phone && <span id="phone-error" className="text-xs text-red-500" role="alert">{errors.phone}</span>}
+                      {errors.phone && (
+                        <span id="phone-error" className="text-xs text-red-500" role="alert">
+                          {errors.phone}
+                        </span>
+                      )}
                     </div>
-                    
+
                     <div className="flex flex-col gap-2">
-                      <label htmlFor="service" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Project Type <span className="text-red-500">*</span></label>
-                      <select 
-                        id="service" 
+                      <label htmlFor="service" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        Project Type <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="service"
                         name="service"
                         value={formData.service}
                         onChange={handleChange}
@@ -262,7 +360,11 @@ export function Contact() {
                         aria-required="true"
                         aria-invalid={!!errors.service}
                         aria-describedby={errors.service ? "service-error" : undefined}
-                        className={`h-12 px-4 rounded-lg border ${errors.service ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                        className={`h-12 px-4 rounded-lg border ${
+                          errors.service
+                            ? "border-red-500 focus:ring-red-500"
+                            : "border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent"
+                        } bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                       >
                         <option value="">Select a service...</option>
                         <option value="joinery">Custom Joinery Manufacturing</option>
@@ -271,14 +373,20 @@ export function Contact() {
                         <option value="cabinet-making">Cabinet Making</option>
                         <option value="design">Design & Planning</option>
                       </select>
-                      {errors.service && <span id="service-error" className="text-xs text-red-500" role="alert">{errors.service}</span>}
+                      {errors.service && (
+                        <span id="service-error" className="text-xs text-red-500" role="alert">
+                          {errors.service}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <label htmlFor="location" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Project Location <span className="text-red-500">*</span></label>
-                      <input 
-                        type="text" 
-                        id="location" 
+                      <label htmlFor="location" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        Project Location <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        id="location"
                         name="location"
                         value={formData.location}
                         onChange={handleChange}
@@ -286,17 +394,27 @@ export function Contact() {
                         aria-required="true"
                         aria-invalid={!!errors.location}
                         aria-describedby={errors.location ? "location-error" : undefined}
-                        className={`h-12 px-4 rounded-lg border ${errors.location ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                        className={`h-12 px-4 rounded-lg border ${
+                          errors.location
+                            ? "border-red-500 focus:ring-red-500"
+                            : "border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent"
+                        } bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                         placeholder="e.g. Sydney CBD, NSW"
                       />
-                      {errors.location && <span id="location-error" className="text-xs text-red-500" role="alert">{errors.location}</span>}
+                      {errors.location && (
+                        <span id="location-error" className="text-xs text-red-500" role="alert">
+                          {errors.location}
+                        </span>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="flex flex-col gap-2">
-                        <label htmlFor="budget" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Budget Range <span className="text-red-500">*</span></label>
-                        <select 
-                          id="budget" 
+                        <label htmlFor="budget" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          Budget Range <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          id="budget"
                           name="budget"
                           value={formData.budget}
                           onChange={handleChange}
@@ -304,7 +422,11 @@ export function Contact() {
                           aria-required="true"
                           aria-invalid={!!errors.budget}
                           aria-describedby={errors.budget ? "budget-error" : undefined}
-                          className={`h-12 px-4 rounded-lg border ${errors.budget ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                          className={`h-12 px-4 rounded-lg border ${
+                            errors.budget
+                              ? "border-red-500 focus:ring-red-500"
+                              : "border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent"
+                          } bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                         >
                           <option value="">Select budget range...</option>
                           <option value="under50k">Under $50k</option>
@@ -313,13 +435,19 @@ export function Contact() {
                           <option value="250k-500k">$250k - $500k</option>
                           <option value="500k+">$500k+</option>
                         </select>
-                        {errors.budget && <span id="budget-error" className="text-xs text-red-500" role="alert">{errors.budget}</span>}
+                        {errors.budget && (
+                          <span id="budget-error" className="text-xs text-red-500" role="alert">
+                            {errors.budget}
+                          </span>
+                        )}
                       </div>
-                      
+
                       <div className="flex flex-col gap-2">
-                        <label htmlFor="targetDate" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Target Start Date <span className="text-red-500">*</span></label>
-                        <select 
-                          id="targetDate" 
+                        <label htmlFor="targetDate" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          Target Start Date <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          id="targetDate"
                           name="targetDate"
                           value={formData.targetDate}
                           onChange={handleChange}
@@ -327,7 +455,11 @@ export function Contact() {
                           aria-required="true"
                           aria-invalid={!!errors.targetDate}
                           aria-describedby={errors.targetDate ? "targetDate-error" : undefined}
-                          className={`h-12 px-4 rounded-lg border ${errors.targetDate ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                          className={`h-12 px-4 rounded-lg border ${
+                            errors.targetDate
+                              ? "border-red-500 focus:ring-red-500"
+                              : "border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent"
+                          } bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                         >
                           <option value="">Select target start...</option>
                           <option value="asap">ASAP</option>
@@ -335,14 +467,20 @@ export function Contact() {
                           <option value="3-6months">3-6 Months</option>
                           <option value="6months+">6+ Months</option>
                         </select>
-                        {errors.targetDate && <span id="targetDate-error" className="text-xs text-red-500" role="alert">{errors.targetDate}</span>}
+                        {errors.targetDate && (
+                          <span id="targetDate-error" className="text-xs text-red-500" role="alert">
+                            {errors.targetDate}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    
+
                     <div className="flex flex-col gap-2">
-                      <label htmlFor="message" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Project Details <span className="text-red-500">*</span></label>
-                      <textarea 
-                        id="message" 
+                      <label htmlFor="message" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        Project Details <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        id="message"
                         name="message"
                         value={formData.message}
                         onChange={handleChange}
@@ -351,17 +489,25 @@ export function Contact() {
                         aria-required="true"
                         aria-invalid={!!errors.message}
                         aria-describedby={errors.message ? "message-error" : undefined}
-                        className={`p-4 rounded-lg border ${errors.message ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors resize-none`}
+                        className={`p-4 rounded-lg border ${
+                          errors.message
+                            ? "border-red-500 focus:ring-red-500"
+                            : "border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent"
+                        } bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors resize-none`}
                         placeholder="Tell us about your project scope, timeline, and budget..."
-                      ></textarea>
-                      {errors.message && <span id="message-error" className="text-xs text-red-500" role="alert">{errors.message}</span>}
+                      />
+                      {errors.message && (
+                        <span id="message-error" className="text-xs text-red-500" role="alert">
+                          {errors.message}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex flex-col gap-4 p-4 bg-brand-gray dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-800">
                       <div className="flex items-center gap-3">
-                        <input 
-                          type="checkbox" 
-                          id="requestCallback" 
+                        <input
+                          type="checkbox"
+                          id="requestCallback"
                           name="requestCallback"
                           checked={formData.requestCallback}
                           onChange={handleChange}
@@ -372,12 +518,14 @@ export function Contact() {
                           Request a Callback
                         </label>
                       </div>
-                      
+
                       {formData.requestCallback && (
                         <div className="flex flex-col gap-2 pl-8">
-                          <label htmlFor="callbackTime" className="text-sm font-semibold text-gray-700 dark:text-gray-300">Preferred Time <span className="text-red-500">*</span></label>
-                          <select 
-                            id="callbackTime" 
+                          <label htmlFor="callbackTime" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            Preferred Time <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            id="callbackTime"
                             name="callbackTime"
                             value={formData.callbackTime}
                             onChange={handleChange}
@@ -385,18 +533,26 @@ export function Contact() {
                             aria-required="true"
                             aria-invalid={!!errors.callbackTime}
                             aria-describedby={errors.callbackTime ? "callbackTime-error" : undefined}
-                            className={`h-12 px-4 rounded-lg border ${errors.callbackTime ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent'} bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
+                            className={`h-12 px-4 rounded-lg border ${
+                              errors.callbackTime
+                                ? "border-red-500 focus:ring-red-500"
+                                : "border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent"
+                            } bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors`}
                           >
                             <option value="">Select preferred time...</option>
                             <option value="morning">Morning (8:00 AM - 12:00 PM)</option>
                             <option value="afternoon">Afternoon (12:00 PM - 5:00 PM)</option>
                             <option value="evening">Evening (After 5:00 PM)</option>
                           </select>
-                          {errors.callbackTime && <span id="callbackTime-error" className="text-xs text-red-500" role="alert">{errors.callbackTime}</span>}
+                          {errors.callbackTime && (
+                            <span id="callbackTime-error" className="text-xs text-red-500" role="alert">
+                              {errors.callbackTime}
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Privacy Consent */}
                     <div className="flex flex-row gap-3 items-start">
                       <input
@@ -410,78 +566,106 @@ export function Contact() {
                         className="mt-1 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-accent focus:ring-brand-accent"
                       />
                       <label htmlFor="privacyConsent" className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-                        I have read and agree to the <Link to="/privacy-policy" target="_blank" className="text-brand-accent hover:underline">Privacy Policy</Link> and <Link to="/terms-of-service" target="_blank" className="text-brand-accent hover:underline">Terms of Service</Link>.
+                        I have read and agree to the{" "}
+                        <Link to="/privacy-policy" target="_blank" className="text-brand-accent hover:underline">
+                          Privacy Policy
+                        </Link>{" "}
+                        and{" "}
+                        <Link to="/terms-of-service" target="_blank" className="text-brand-accent hover:underline">
+                          Terms of Service
+                        </Link>
+                        .
                       </label>
                     </div>
-                    {errors.privacyConsent && <span id="privacyConsent-error" className="text-xs text-red-500" role="alert">{errors.privacyConsent}</span>}
-                    
-                    <Button type="submit" size="lg" className="w-full mt-2">
-                      Submit Request
+                    {errors.privacyConsent && (
+                      <span id="privacyConsent-error" className="text-xs text-red-500" role="alert">
+                        {errors.privacyConsent}
+                      </span>
+                    )}
+
+                    <Button type="submit" size="lg" className="w-full mt-2" disabled={isSubmitting}>
+                      {isSubmitting ? "Sending..." : "Submit Request"}
                     </Button>
                   </form>
                 </>
               )}
             </div>
-            
+
             {/* Contact Details */}
             <div className="flex flex-col gap-12">
               <div className="flex flex-col gap-8">
-                <SectionTitle 
-                  subtitle="Contact Information"
-                  title="We're Here to Help"
-                />
+                <SectionTitle subtitle="Contact Information" title="We're Here to Help" />
                 <p className="text-lg text-gray-600 dark:text-gray-400 leading-relaxed">
-                  Our team is ready to discuss your next commercial project. Reach out via phone, email, or visit our office.
+                  Our team is ready to discuss your next commercial project. Reach out via phone,
+                  email, or visit our office.
                 </p>
               </div>
-              
+
               <div className="flex flex-col gap-8">
                 <div className="flex items-start gap-6">
                   <div className="w-14 h-14 rounded-full bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-center text-brand-accent flex-shrink-0">
                     <MapPin className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="text-xl font-bold text-brand-dark dark:text-white mb-2">Office & Manufacturing</h4>
-                    <a href="https://www.google.com/maps/dir/?api=1&destination=16%2F46+Wellington+Road+South+Granville+NSW+2142" target="_blank" rel="noopener noreferrer" className="text-gray-600 dark:text-gray-400 hover:text-brand-accent dark:hover:text-brand-accent transition-colors">
-                      16/46 Wellington Road<br />
+                    <h4 className="text-xl font-bold text-brand-dark dark:text-white mb-2">
+                      Office & Manufacturing
+                    </h4>
+                    <a
+                      href="https://www.google.com/maps/dir/?api=1&destination=16%2F46+Wellington+Road+South+Granville+NSW+2142"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-600 dark:text-gray-400 hover:text-brand-accent dark:hover:text-brand-accent transition-colors"
+                    >
+                      16/46 Wellington Road
+                      <br />
                       South Granville, NSW, 2142
                     </a>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-6">
                   <div className="w-14 h-14 rounded-full bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-center text-brand-accent flex-shrink-0">
                     <Phone className="w-6 h-6" />
                   </div>
                   <div>
                     <h4 className="text-xl font-bold text-brand-dark dark:text-white mb-2">Phone</h4>
-                    <a href="tel:0406409668" className="text-gray-600 dark:text-gray-400 hover:text-brand-accent dark:hover:text-brand-accent transition-colors text-lg">
+                    <a
+                      href="tel:0406409668"
+                      className="text-gray-600 dark:text-gray-400 hover:text-brand-accent dark:hover:text-brand-accent transition-colors text-lg"
+                    >
                       0406 409 668
                     </a>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-6">
                   <div className="w-14 h-14 rounded-full bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-center text-brand-accent flex-shrink-0">
                     <Mail className="w-6 h-6" />
                   </div>
                   <div>
                     <h4 className="text-xl font-bold text-brand-dark dark:text-white mb-2">Email</h4>
-                    <a href="mailto:info@tnaprovider.com.au" className="text-gray-600 dark:text-gray-400 hover:text-brand-accent dark:hover:text-brand-accent transition-colors text-lg">
+                    <a
+                      href="mailto:info@tnaprovider.com.au"
+                      className="text-gray-600 dark:text-gray-400 hover:text-brand-accent dark:hover:text-brand-accent transition-colors text-lg"
+                    >
                       info@tnaprovider.com.au
                     </a>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-6">
                   <div className="w-14 h-14 rounded-full bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-center text-brand-accent flex-shrink-0">
                     <Clock className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="text-xl font-bold text-brand-dark dark:text-white mb-2">Business Hours</h4>
+                    <h4 className="text-xl font-bold text-brand-dark dark:text-white mb-2">
+                      Business Hours
+                    </h4>
                     <p className="text-gray-600 dark:text-gray-400">
-                      Monday - Friday: 7:00 AM - 5:00 PM<br />
-                      Saturday: By Appointment<br />
+                      Monday - Friday: 7:00 AM - 5:00 PM
+                      <br />
+                      Saturday: By Appointment
+                      <br />
                       Sunday: Closed
                     </p>
                     <p className="text-sm text-brand-accent mt-2 font-medium">
@@ -495,15 +679,18 @@ export function Contact() {
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="text-xl font-bold text-brand-dark dark:text-white mb-2">Company Details</h4>
+                    <h4 className="text-xl font-bold text-brand-dark dark:text-white mb-2">
+                      Company Details
+                    </h4>
                     <p className="text-gray-600 dark:text-gray-400">
-                      TNA Provider Pty Ltd<br />
+                      TNA Provider Pty Ltd
+                      <br />
                       ABN: 80 664 454 924
                     </p>
                   </div>
                 </div>
               </div>
-              
+
               {/* Map */}
               <div className="w-full h-64 rounded-2xl overflow-hidden mt-4">
                 <iframe
@@ -517,8 +704,10 @@ export function Contact() {
                   title="TNA Provider Office Location"
                 />
               </div>
+
+              {/* Booking CTA */}
+              <BookingCTA />
             </div>
-            
           </div>
         </div>
       </section>
