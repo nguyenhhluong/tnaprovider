@@ -25,70 +25,73 @@ async function prerender() {
     res.sendFile(path.join(distDir, "index.html"));
   });
 
-  await new Promise((resolve) => {
-    const server = app.listen(4173, () => {
+  const server = await new Promise((resolve) => {
+    const s = app.listen(4173, () => {
       console.log("Prerender server running on http://localhost:4173");
-      resolve(server);
+      resolve(s);
     });
   });
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-  });
+  try {
+    const browser = await chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    });
 
-  for (const route of routes) {
-    const url = `http://localhost:4173${route}`;
-    console.log(`Prerendering ${url}...`);
+    for (const route of routes) {
+      const url = `http://localhost:4173${route}`;
+      console.log(`Prerendering ${url}...`);
 
-    try {
-      const context = await browser.newContext({
-        userAgent: "Mozilla/5.0 (compatible; PrerenderBot/1.0)",
-      });
-      const page = await context.newPage();
+      try {
+        const context = await browser.newContext({
+          userAgent: "Mozilla/5.0 (compatible; PrerenderBot/1.0)",
+        });
+        const page = await context.newPage();
 
-      await page.route("**/*", (route) => {
-        const url = route.request().url();
-        if (
-          ["image", "font", "stylesheet", "other"].includes(route.request().resourceType()) &&
-          !url.startsWith("http://localhost:4173")
-        ) {
-          route.abort();
+        await page.route("**/*", (route) => {
+          const url = route.request().url();
+          if (
+            ["image", "font", "stylesheet", "other"].includes(route.request().resourceType()) &&
+            !url.startsWith("http://localhost:4173")
+          ) {
+            route.abort();
+          } else {
+            route.continue();
+          }
+        });
+
+        await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
+        await page.waitForSelector("#root", { timeout: 15000 });
+        await page.waitForTimeout(2000);
+
+        let html = await page.content();
+
+        html = html.replace(/<title>[^<]*<\/title><title>/g, "<title>");
+        html = html.replace(/<meta name="description"[^>]*>\s*<meta name="description"/g, '<meta name="description"');
+
+        if (route === "/") {
+          fs.writeFileSync(path.join(distDir, "index.html"), html);
+          console.log("  -> dist/index.html");
         } else {
-          route.continue();
+          const dir = path.join(distDir, route.slice(1));
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, "index.html"), html);
+          console.log(`  -> dist${route}/index.html`);
         }
-      });
 
-      await page.goto(url, { waitUntil: "networkidle", timeout: 60000 });
-      await page.waitForSelector("#root", { timeout: 15000 });
-      await page.waitForTimeout(2000);
-
-      let html = await page.content();
-
-      html = html.replace(/<title>[^<]*<\/title><title>/g, "<title>");
-      html = html.replace(/<meta name="description"[^>]*>\s*<meta name="description"/g, '<meta name="description"');
-
-      if (route === "/") {
-        fs.writeFileSync(path.join(distDir, "index.html"), html);
-        console.log("  -> dist/index.html");
-      } else {
-        const dir = path.join(distDir, route.slice(1));
-        fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(path.join(dir, "index.html"), html);
-        console.log(`  -> dist${route}/index.html`);
+        await context.close();
+      } catch (err) {
+        console.error(`  Failed to prerender ${route}:`, err.message);
       }
-
-      await context.close();
-    } catch (err) {
-      console.error(`  Failed to prerender ${route}:`, err.message);
     }
-  }
 
-  await browser.close();
-  console.log("Prerendering complete!");
+    await browser.close();
+    console.log("Prerendering complete!");
+  } catch (err) {
+    console.error("Prerender skipped:", err.message);
+  } finally {
+    server.close();
+  }
 }
 
-prerender().catch((err) => {
-  console.error("Prerender failed:", err);
-  process.exit(1);
-});
+prerender();
