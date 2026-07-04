@@ -463,6 +463,14 @@ router.patch("/maintenance/:id", requireRole("owner", "admin", "manager"), (req,
   res.json({ success: true });
 });
 
+// ── Client User List ──
+
+router.get("/client-users", requireRole("owner", "admin", "manager"), (req, res) => {
+  const db = getDb();
+  const clients = db.prepare("SELECT id, name, email, role, status FROM users WHERE role = 'client' ORDER BY name ASC").all();
+  res.json(clients);
+});
+
 // ── Client Access Management ──
 
 router.post("/projects/:id/client-access", requireRole("owner", "admin", "manager"), (req, res) => {

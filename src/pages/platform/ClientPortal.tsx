@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { PlatformHeader } from "../../components/platform/PlatformHeader";
 import { useAuth } from "../../context/AuthContext";
-import { MessageSquare, Plus, Send, CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react";
+import { MessageSquare, Plus, Send, CheckCircle2, XCircle, Clock, AlertCircle, UserPlus, UserMinus, Users as UsersIcon } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 
 interface Project {
@@ -60,7 +60,22 @@ export function ClientPortal() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Client access management
+  const [clientUsers, setClientUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [accessMsg, setAccessMsg] = useState("");
+
   const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "manager";
+
+  // Load client users for admin access management
+  useEffect(() => {
+    if (isAdmin) {
+      fetch("/api/platform/client-users")
+        .then((r) => r.ok ? r.json() : [])
+        .then(setClientUsers)
+        .catch(() => {});
+    }
+  }, [isAdmin]);
 
   useEffect(() => {
     fetch("/api/client-portal/projects")
@@ -96,6 +111,30 @@ export function ClientPortal() {
         setNewMessage("");
       }
     } catch {}
+  };
+
+  const handleGrantAccess = async () => {
+    if (!selectedProject || !selectedClientId) return;
+    setAccessMsg("");
+    try {
+      const res = await fetch(`/api/platform/projects/${selectedProject}/client-access`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: selectedClientId }),
+      });
+      const data = await res.json();
+      setAccessMsg(res.ok ? "Access granted" : data.error || "Failed");
+    } catch { setAccessMsg("Failed to grant access"); }
+  };
+
+  const handleRevokeAccess = async (clientId: string) => {
+    if (!selectedProject) return;
+    setAccessMsg("");
+    try {
+      const res = await fetch(`/api/platform/projects/${selectedProject}/client-access/${clientId}`, { method: "DELETE" });
+      const data = await res.json();
+      setAccessMsg(res.ok ? "Access revoked" : data.error || "Failed");
+    } catch { setAccessMsg("Failed to revoke access"); }
   };
 
   const handleVariationAction = async (varId: string, action: "approve" | "reject") => {
@@ -173,6 +212,40 @@ export function ClientPortal() {
             <div className="lg:col-span-2 space-y-8">
               {selectedProject ? (
                 <>
+                  {/* Client Access Management (admin only) */}
+                  {isAdmin && (
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <UsersIcon className="w-5 h-5 text-brand-accent" />
+                        <h3 className="text-lg font-display font-bold text-brand-dark dark:text-white">Client Access</h3>
+                      </div>
+                      {accessMsg && (
+                        <p className={`text-sm mb-3 ${accessMsg.includes("denied") || accessMsg.includes("Failed") ? "text-red-500" : "text-green-600 dark:text-green-400"}`}>
+                          {accessMsg}
+                        </p>
+                      )}
+                      <div className="flex gap-2 mb-3">
+                        <select
+                          value={selectedClientId}
+                          onChange={(e) => setSelectedClientId(e.target.value)}
+                          className="flex-1 h-11 px-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-brand-dark dark:text-white text-sm focus:outline-none focus:ring-1 focus:border-brand-accent"
+                        >
+                          <option value="">Select client...</option>
+                          {clientUsers.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.email})</option>)}
+                        </select>
+                        <button onClick={handleGrantAccess} className="px-4 bg-brand-accent text-white rounded-xl hover:bg-brand-accent-hover transition-colors text-sm font-semibold">
+                          <UserPlus className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {/* Show current access list */}
+                      {(() => {
+                        const currentProject = projects.find((p) => p.id === selectedProject);
+                        if (!currentProject) return null;
+                        return null; // access info shown in project list panel
+                      })()}
+                    </div>
+                  )}
+
                   {/* Updates Timeline */}
                   <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
                     <h3 className="text-lg font-display font-bold text-brand-dark dark:text-white mb-4">Progress Updates</h3>

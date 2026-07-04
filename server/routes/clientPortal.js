@@ -8,8 +8,37 @@ import { createAuditLog } from "../middleware/audit.js";
 
 const router = Router();
 
+const STAFF_ROLES = new Set(["owner", "admin", "manager"]);
+
+function isStaff(user) {
+  return STAFF_ROLES.has(user?.role);
+}
+
+function isClient(user) {
+  return user?.role === "client";
+}
+
+// Gate: only owner/admin/manager/client allowed. Worker blocked.
+function requireClientPortalRole(req, res, next) {
+  if (isStaff(req.user) || isClient(req.user)) return next();
+  return res.status(403).json({ error: "Access denied" });
+}
+
+// Assert project access: staff can access any project; client must be assigned.
+function assertProjectAccess(db, req, projectId) {
+  if (isStaff(req.user)) return true;
+  if (isClient(req.user)) {
+    const access = db
+      .prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?")
+      .get(req.user.userId, projectId);
+    return Boolean(access);
+  }
+  return false;
+}
+
 router.use(requireAuth);
 router.use(requirePasswordChanged);
+router.use(requireClientPortalRole);
 
 function audit(res, action, entityType, entityId, metadata) {
   createAuditLog({
@@ -33,7 +62,7 @@ function getClientProjectIds(db, userId) {
 router.get("/projects", (req, res) => {
   const db = getDb();
 
-  if (req.user.role === "client") {
+  if (isClient(req.user)) {
     const projectIds = getClientProjectIds(db, req.user.userId);
     if (projectIds.length === 0) return res.json([]);
     const placeholders = projectIds.map(() => "?").join(",");
@@ -41,7 +70,6 @@ router.get("/projects", (req, res) => {
     return res.json(projects);
   }
 
-  // owner/admin/manager can see all projects with client access info
   const projects = db.prepare(`
     SELECT p.*, cpa.client_id as access_client_id
     FROM projects p
@@ -58,9 +86,8 @@ router.get("/projects/:id", (req, res) => {
   const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
   if (!project) return res.status(404).json({ error: "Project not found" });
 
-  if (req.user.role === "client") {
-    const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(req.user.userId, id);
-    if (!access) return res.status(403).json({ error: "Access denied" });
+  if (!assertProjectAccess(db, req, id)) {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   res.json(project);
@@ -72,9 +99,8 @@ router.get("/projects/:id/updates", (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
-  if (req.user.role === "client") {
-    const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(req.user.userId, id);
-    if (!access) return res.status(403).json({ error: "Access denied" });
+  if (!assertProjectAccess(db, req, id)) {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   const updates = db.prepare(`
@@ -93,6 +119,8 @@ router.post("/projects/:id/updates", requireRole("owner", "admin", "manager"), (
   const { id } = req.params;
   const { title, message, status, progressPercent, imageUrl } = req.body;
 
+  if (!title || !title.trim()) return res.status(400).json({ error: "Title is required" });
+
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(id);
   if (!project) return res.status(404).json({ error: "Project not found" });
 
@@ -102,7 +130,7 @@ router.post("/projects/:id/updates", requireRole("owner", "admin", "manager"), (
   db.prepare(`
     INSERT INTO project_updates (id, project_id, title, message, status, progress_percent, image_url, created_by, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(updateId, id, title, message || null, status || "in_progress", progressPercent || 0, imageUrl || null, req.user.userId, now, now);
+  `).run(updateId, id, title.trim(), message || null, status || "in_progress", progressPercent || 0, imageUrl || null, req.user.userId, now, now);
 
   audit(res, "project_update_created", "project_update", updateId, { projectId: id, title });
   res.status(201).json({ id: updateId, title });
@@ -117,9 +145,8 @@ router.get("/updates/:id/comments", (req, res) => {
   const update = db.prepare("SELECT * FROM project_updates WHERE id = ?").get(id);
   if (!update) return res.status(404).json({ error: "Update not found" });
 
-  if (req.user.role === "client") {
-    const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(req.user.userId, update.project_id);
-    if (!access) return res.status(403).json({ error: "Access denied" });
+  if (!assertProjectAccess(db, req, update.project_id)) {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   const comments = db.prepare(`
@@ -138,16 +165,13 @@ router.post("/updates/:id/comments", (req, res) => {
   const { id } = req.params;
   const { message } = req.body;
 
-  if (!message || !message.trim()) {
-    return res.status(400).json({ error: "Message is required" });
-  }
+  if (!message || !message.trim()) return res.status(400).json({ error: "Message is required" });
 
   const update = db.prepare("SELECT * FROM project_updates WHERE id = ?").get(id);
   if (!update) return res.status(404).json({ error: "Update not found" });
 
-  if (req.user.role === "client") {
-    const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(req.user.userId, update.project_id);
-    if (!access) return res.status(403).json({ error: "Access denied" });
+  if (!assertProjectAccess(db, req, update.project_id)) {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   const commentId = crypto.randomUUID();
@@ -168,9 +192,8 @@ router.get("/projects/:id/variations", (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
-  if (req.user.role === "client") {
-    const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(req.user.userId, id);
-    if (!access) return res.status(403).json({ error: "Access denied" });
+  if (!assertProjectAccess(db, req, id)) {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   const variations = db.prepare(`
@@ -195,18 +218,18 @@ router.post("/projects/:id/variations", (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(id);
   if (!project) return res.status(404).json({ error: "Project not found" });
 
-  if (req.user.role === "client") {
-    const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(req.user.userId, id);
-    if (!access) return res.status(403).json({ error: "Access denied" });
+  if (!assertProjectAccess(db, req, id)) {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   const varId = crypto.randomUUID();
   const now = new Date().toISOString();
+  const requestedBy = isClient(req.user) ? req.user.userId : (req.body.userId || req.user.userId);
 
   db.prepare(`
     INSERT INTO project_variations (id, project_id, title, description, amount, status, requested_by, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-  `).run(varId, id, title.trim(), description || null, amount || null, req.user.userId, now, now);
+  `).run(varId, id, title.trim(), description || null, amount || null, requestedBy, now, now);
 
   audit(res, "variation_created", "project_variation", varId, { projectId: id, title, amount });
   res.status(201).json({ id: varId, title });
@@ -218,17 +241,13 @@ router.patch("/variations/:id/approve", (req, res) => {
 
   const variation = db.prepare("SELECT * FROM project_variations WHERE id = ?").get(id);
   if (!variation) return res.status(404).json({ error: "Variation not found" });
-
   if (variation.status !== "pending") return res.status(400).json({ error: "Variation is already " + variation.status });
 
-  // Client can only approve their own project's variations
-  if (req.user.role === "client") {
-    const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(req.user.userId, variation.project_id);
-    if (!access) return res.status(403).json({ error: "Access denied" });
+  if (!assertProjectAccess(db, req, variation.project_id)) {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   db.prepare("UPDATE project_variations SET status = 'approved', decided_by = ?, decided_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(req.user.userId, id);
-
   audit(res, "variation_approved", "project_variation", id, { projectId: variation.project_id });
   res.json({ success: true });
 });
@@ -239,16 +258,13 @@ router.patch("/variations/:id/reject", (req, res) => {
 
   const variation = db.prepare("SELECT * FROM project_variations WHERE id = ?").get(id);
   if (!variation) return res.status(404).json({ error: "Variation not found" });
-
   if (variation.status !== "pending") return res.status(400).json({ error: "Variation is already " + variation.status });
 
-  if (req.user.role === "client") {
-    const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(req.user.userId, variation.project_id);
-    if (!access) return res.status(403).json({ error: "Access denied" });
+  if (!assertProjectAccess(db, req, variation.project_id)) {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   db.prepare("UPDATE project_variations SET status = 'rejected', decided_by = ?, decided_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(req.user.userId, id);
-
   audit(res, "variation_rejected", "project_variation", id, { projectId: variation.project_id });
   res.json({ success: true });
 });
@@ -259,13 +275,12 @@ router.get("/projects/:id/messages", (req, res) => {
   const db = getDb();
   const { id } = req.params;
 
-  if (req.user.role === "client") {
-    const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(req.user.userId, id);
-    if (!access) return res.status(403).json({ error: "Access denied" });
+  if (!assertProjectAccess(db, req, id)) {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   const messages = db.prepare(`
-    SELECT m.*, u.name as sender_name, u.role as sender_role
+    SELECT m.*, u.name as sender_name, u.role as sender_role, u.id as sender_id
     FROM client_portal_messages m
     JOIN users u ON u.id = m.sender_id
     WHERE m.project_id = ?
@@ -285,9 +300,8 @@ router.post("/projects/:id/messages", (req, res) => {
   const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(id);
   if (!project) return res.status(404).json({ error: "Project not found" });
 
-  if (req.user.role === "client") {
-    const access = db.prepare("SELECT id FROM client_project_access WHERE client_id = ? AND project_id = ?").get(req.user.userId, id);
-    if (!access) return res.status(403).json({ error: "Access denied" });
+  if (!assertProjectAccess(db, req, id)) {
+    return res.status(403).json({ error: "Access denied" });
   }
 
   const msgId = crypto.randomUUID();
