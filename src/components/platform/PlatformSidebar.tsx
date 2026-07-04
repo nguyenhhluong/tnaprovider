@@ -15,6 +15,7 @@ import {
   LogOut,
   ChevronRight,
   HardDrive,
+  Play,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { useAuth } from "../../context/AuthContext";
@@ -32,6 +33,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
     { name: "Leads", path: appPath("/platform/leads"), icon: Users, roles: ["owner", "admin", "manager"] },
     { name: "Projects", path: appPath("/platform/projects"), icon: FolderKanban, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Timesheets", path: appPath("/platform/timesheets"), icon: Clock, roles: ["owner", "admin", "manager", "worker"] },
+    { name: "Live Timesheet", path: appPath("/platform/realtime-timesheet"), icon: Play, roles: ["owner", "admin", "manager", "worker"] },
     { name: "Email", path: appPath("/platform/email"), icon: Mail, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Client Portal", path: appPath("/platform/client-portal"), icon: UserCircle, roles: ["owner", "admin", "manager", "client"] },
     { name: "Maintenance", path: appPath("/platform/maintenance"), icon: Wrench, roles: ["owner", "admin", "manager", "client"] },
@@ -43,6 +45,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
     { name: "Security", path: appPath("/platform/security"), icon: Shield, roles: ["owner", "admin"] },
     { name: "Admin Tools", path: appPath("/platform/admin-tools"), icon: HardDrive, roles: ["owner", "admin"] },
     { name: "Audit Log", path: appPath("/platform/audit"), icon: FileText, roles: ["owner", "admin"] },
+    { name: "Timesheet Admin", path: appPath("/platform/admin-realtime-timesheets"), icon: Clock, roles: ["owner", "admin", "manager"] },
     { name: "Settings", path: appPath("/platform/settings"), icon: Settings, roles: ["owner", "admin"] },
   ];
 

@@ -29,5 +29,17 @@ export function seed() {
     VALUES (?, ?, ?, 'owner', ?, 'active', ?, ?)
   `).run(id, email, name, password_hash, now, now);
 
+  // Seed default work site
+  const existingSite = db.prepare("SELECT id FROM work_sites LIMIT 1").get();
+  if (!existingSite) {
+    const siteId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO work_sites (id, name, address, timezone, created_at, updated_at)
+      VALUES (?, ?, ?, 'Australia/Sydney', ?, ?)
+    `).run(siteId, "TNA Provider Workshop", "Unit 6, 7-9 Gibbon St, Wetherill Park NSW 2164", now, now);
+    console.log("Seeded default work site: TNA Provider Workshop");
+  }
+
   console.log(`Seeded owner user: ${email}`);
 }

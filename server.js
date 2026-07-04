@@ -12,6 +12,7 @@ import authRoutes from './server/routes/auth.js';
 import platformRoutes from './server/routes/platform.js';
 import clientPortalRoutes from './server/routes/clientPortal.js';
 import adminToolsRoutes from './server/routes/adminTools.js';
+import realtimeTimesheetsRoutes from './server/routes/realtimeTimesheets.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,6 +46,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/platform', platformRoutes);
 app.use('/api/client-portal', clientPortalRoutes);
 app.use('/api/admin-tools', adminToolsRoutes);
+app.use('/api/realtime-timesheets', realtimeTimesheetsRoutes);
 
 app.post('/api/contact', (req, res) => {
   const submission = {
