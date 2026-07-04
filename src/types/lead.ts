@@ -20,6 +20,7 @@ export interface Lead {
   location: string;
   budget: string;
   targetDate: string;
+  tenderDeadline: string;
   message: string;
   uploadedFiles: string[];
   score: number;

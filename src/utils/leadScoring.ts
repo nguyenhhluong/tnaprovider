@@ -29,6 +29,10 @@ export function scoreLead(input: Partial<Lead>): LeadScoreResult {
     score += 10;
   }
 
+  if (input.tenderDeadline && input.tenderDeadline.trim().length > 0) {
+    score += 10;
+  }
+
   if (
     input.projectType &&
     COMMERCIAL_PROJECTS.has(input.projectType)

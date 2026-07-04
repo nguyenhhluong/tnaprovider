@@ -1,4 +1,5 @@
 import type { EstimateInput, EstimateResult, ProjectType, MaterialGrade, Complexity } from "../types/estimate";
+import { scoreLead } from "./leadScoring";
 
 const BASE_RATES: Record<ProjectType, { low: number; high: number }> = {
   "Kitchen joinery": { low: 15000, high: 40000 },
@@ -50,23 +51,6 @@ function getTimelineHint(projectType: ProjectType, complexity: Complexity): stri
   return "2–6 weeks typical";
 }
 
-function calculateLeadScore(input: EstimateInput): number {
-  let score = 0;
-  if (input.phone && input.phone.trim()) score += 15;
-  if (input.email && input.email.trim()) score += 5;
-  if (input.desiredStartDate && input.desiredStartDate.trim()) score += 10;
-  if (input.location && input.location.trim()) score += 5;
-  if (input.projectSize && input.projectSize.trim()) score += 5;
-  if (input.name && input.name.trim()) score += 5;
-
-  const commercialProjects = ["Retail fitout", "Hospitality fitout", "Office fitout", "Medical fitout", "Commercial construction"];
-  if (commercialProjects.includes(input.projectType)) {
-    score += 10;
-  }
-
-  return Math.max(0, Math.min(100, score));
-}
-
 export function calculateEstimate(input: EstimateInput): EstimateResult {
   const baseRate = BASE_RATES[input.projectType as ProjectType] || { low: 10000, high: 30000 };
   const materialMult = MATERIAL_MULTIPLIER[input.materialGrade as MaterialGrade] || 1;
@@ -87,16 +71,23 @@ export function calculateEstimate(input: EstimateInput): EstimateResult {
   }
 
   const timelineHint = getTimelineHint(input.projectType as ProjectType, input.complexity as Complexity);
-  const leadScore = calculateLeadScore(input);
 
-  let leadTemperature: "cold" | "warm" | "hot";
-  if (leadScore >= 70) {
-    leadTemperature = "hot";
-  } else if (leadScore >= 40) {
-    leadTemperature = "warm";
-  } else {
-    leadTemperature = "cold";
-  }
+  const leadScoreResult = scoreLead({
+    source: "cost-estimator",
+    firstName: input.name,
+    email: input.email,
+    phone: input.phone,
+    projectType: input.projectType,
+    location: input.location,
+    targetDate: input.desiredStartDate,
+    budget: `${lowPrice}-${highPrice}`,
+    message: `${input.projectSize} ${input.materialGrade} ${input.complexity}`,
+    uploadedFiles: [],
+    score: 0,
+    temperature: "cold",
+    status: "new",
+    createdAt: new Date().toISOString(),
+  });
 
-  return { lowPrice, highPrice, timelineHint, leadTemperature };
+  return { lowPrice, highPrice, timelineHint, leadTemperature: leadScoreResult.temperature };
 }
