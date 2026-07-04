@@ -18,6 +18,7 @@ import tasksRoutes from './server/routes/tasks.js';
 import documentsRoutes from './server/routes/documents.js';
 import notificationsRoutes from './server/routes/notifications.js';
 import reportsRoutes from './server/routes/reports.js';
+import realtimeTimesheetsRoutes from './server/routes/realtimeTimesheets.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,6 +58,7 @@ app.use('/api/tasks', tasksRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/realtime-timesheets', realtimeTimesheetsRoutes);
 
 app.post('/api/contact', (req, res) => {
   const submission = {
