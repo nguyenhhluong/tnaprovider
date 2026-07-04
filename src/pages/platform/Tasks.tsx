@@ -21,8 +21,9 @@ interface Project {
 
 interface Comment {
   id: string;
-  content: string;
-  author: { id: string; name: string };
+  message: string;
+  user_id: string;
+  user_name: string;
   created_at: string;
 }
 
@@ -33,10 +34,10 @@ interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   project_id: string;
-  project_name?: string;
+  project_title?: string;
   assigned_to: string | null;
-  assignee_name?: string;
-  due_date: string | null;
+  assigned_name?: string;
+  due_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -115,7 +116,7 @@ export default function Tasks() {
     priority: "medium" as TaskPriority,
     project_id: "",
     assigned_to: "",
-    due_date: "",
+    due_at: "",
   });
   const [createLoading, setCreateLoading] = useState(false);
 
@@ -197,7 +198,7 @@ export default function Tasks() {
       });
       setTasks((prev) => [newTask, ...prev]);
       setShowCreateModal(false);
-      setCreateForm({ title: "", description: "", priority: "medium", project_id: "", assigned_to: "", due_date: "" });
+      setCreateForm({ title: "", description: "", priority: "medium", project_id: "", assigned_to: "", due_at: "" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create task");
     } finally {
@@ -241,7 +242,7 @@ export default function Tasks() {
       const comment = await apiFetch<Comment>(`/api/tasks/${selectedTask.id}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: newComment }),
+        body: JSON.stringify({ message: newComment }),
       });
       setComments((prev) => [...prev, comment]);
       setNewComment("");
@@ -287,16 +288,16 @@ export default function Tasks() {
         {priorityBadge(task.priority)}
       </div>
       <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-        {task.assignee_name && (
+        {task.assigned_name && (
           <span className="flex items-center gap-1">
             <UserPlus className="w-3 h-3" />
-            {task.assignee_name}
+            {task.assigned_name}
           </span>
         )}
-        {task.due_date && (
+        {task.due_at && (
           <span className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
-            {new Date(task.due_date).toLocaleDateString()}
+            {new Date(task.due_at).toLocaleDateString()}
           </span>
         )}
       </div>
@@ -478,10 +479,10 @@ export default function Tasks() {
                     </td>
                     <td className="px-6 py-4">{priorityBadge(task.priority)}</td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                      {task.assignee_name || <span className="text-gray-400">Unassigned</span>}
+                      {task.assigned_name || <span className="text-gray-400">Unassigned</span>}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {task.due_date ? new Date(task.due_date).toLocaleDateString() : "-"}
+                      {task.due_at ? new Date(task.due_at).toLocaleDateString() : "-"}
                     </td>
                     <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <select
@@ -554,8 +555,8 @@ export default function Tasks() {
                 </select>
                 <input
                   type="date"
-                  value={createForm.due_date}
-                  onChange={(e) => setCreateForm({ ...createForm, due_date: e.target.value })}
+                  value={createForm.due_at}
+                  onChange={(e) => setCreateForm({ ...createForm, due_at: e.target.value })}
                   className="h-12 px-4 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 focus:border-brand-accent focus:ring-brand-accent w-full"
                 />
               </div>
@@ -629,14 +630,14 @@ export default function Tasks() {
                   <div>
                     <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Due Date</label>
                     <p className="text-sm text-gray-700 dark:text-gray-300">
-                      {selectedTask.due_date ? new Date(selectedTask.due_date).toLocaleDateString() : <span className="text-gray-400">Not set</span>}
+                      {selectedTask.due_at ? new Date(selectedTask.due_at).toLocaleDateString() : <span className="text-gray-400">Not set</span>}
                     </p>
                   </div>
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider block mb-1">Project</label>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">{selectedTask.project_name || <span className="text-gray-400">N/A</span>}</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">{selectedTask.project_title || <span className="text-gray-400">N/A</span>}</p>
                 </div>
 
                 <div>
@@ -674,10 +675,10 @@ export default function Tasks() {
                     {comments.map((c) => (
                       <div key={c.id} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-semibold text-brand-dark dark:text-white">{c.author.name}</span>
+                          <span className="text-xs font-semibold text-brand-dark dark:text-white">{c.user_name}</span>
                           <span className="text-xs text-gray-400">{new Date(c.created_at).toLocaleDateString()}</span>
                         </div>
-                        <p className="text-sm text-gray-700 dark:text-gray-300">{c.content}</p>
+                        <p className="text-sm text-gray-700 dark:text-gray-300">{c.message}</p>
                       </div>
                     ))}
                   </div>

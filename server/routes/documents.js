@@ -156,10 +156,10 @@ router.get("/proposal-templates", (req, res) => {
 router.post("/proposal-templates", (req, res) => {
   if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
   const db = getDb();
-  const { name, description, body } = req.body;
+  const { name, description, body, content } = req.body;
   if (!name) return res.status(400).json({ error: "name is required" });
   const id = crypto.randomUUID();
-  db.prepare("INSERT INTO proposal_templates (id, name, description, body, created_by) VALUES (?, ?, ?, ?, ?)").run(id, name, description || null, body || null, req.user.userId);
+  db.prepare("INSERT INTO proposal_templates (id, name, description, body, created_by) VALUES (?, ?, ?, ?, ?)").run(id, name, description || null, body ?? content ?? null, req.user.userId);
   res.status(201).json({ id });
 });
 
@@ -177,10 +177,10 @@ router.get("/proposals", (req, res) => {
 router.post("/proposals", (req, res) => {
   if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
   const db = getDb();
-  const { quote_id, template_id, title, body } = req.body;
+  const { quote_id, template_id, title, body, content } = req.body;
   if (!quote_id || !title) return res.status(400).json({ error: "quote_id and title are required" });
   const id = crypto.randomUUID();
-  db.prepare("INSERT INTO proposal_versions (id, quote_id, template_id, title, body, created_by) VALUES (?, ?, ?, ?, ?, ?)").run(id, quote_id, template_id || null, title, body || null, req.user.userId);
+  db.prepare("INSERT INTO proposal_versions (id, quote_id, template_id, title, body, created_by) VALUES (?, ?, ?, ?, ?, ?)").run(id, quote_id, template_id || null, title, body ?? content ?? null, req.user.userId);
   audit(res, "proposal_created", "proposal_version", id, { quote_id, title });
   res.status(201).json({ id });
 });

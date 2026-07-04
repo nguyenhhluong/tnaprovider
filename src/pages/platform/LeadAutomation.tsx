@@ -28,13 +28,11 @@ interface Lead {
 interface FollowUp {
   id: string;
   title: string;
-  note: string | null;
-  due_date: string;
-  status: "pending" | "completed";
+  due_at: string;
+  status: "pending" | "done" | "cancelled";
   lead_id: string;
-  lead_name: string;
-  created_by_name: string;
-  completed_by_name: string | null;
+  assigned_to: string | null;
+  created_by: string | null;
   completed_at: string | null;
   created_at: string;
 }
@@ -125,8 +123,7 @@ export default function LeadAutomation() {
         credentials: "include",
         body: JSON.stringify({
           title: formTitle.trim(),
-          note: formNote.trim() || null,
-          due_date: formDueDate,
+          due_at: formDueDate,
         }),
       });
       if (res.ok) {
@@ -147,19 +144,18 @@ export default function LeadAutomation() {
   const handleMarkDone = async (followUpId: string) => {
     try {
       const res = await fetch(
-        `/api/automation/leads/${selectedLeadId}/followups/${followUpId}`,
+        `/api/automation/followups/${followUpId}/done`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ status: "completed" }),
         }
       );
       if (res.ok) {
         setFollowups((prev) =>
           prev.map((f) =>
             f.id === followUpId
-              ? { ...f, status: "completed", completed_at: new Date().toISOString() }
+              ? { ...f, status: "done", completed_at: new Date().toISOString() }
               : f
           )
         );
@@ -172,16 +168,16 @@ export default function LeadAutomation() {
   // Derived stats
   const totalFollowUps = followups.length;
   const dueToday = followups.filter((f) => {
-    if (f.status === "completed") return false;
+    if (f.status === "done") return false;
     const today = new Date().toISOString().slice(0, 10);
-    return f.due_date?.slice(0, 10) === today;
+    return f.due_at?.slice(0, 10) === today;
   });
   const overdue = followups.filter((f) => {
-    if (f.status === "completed") return false;
+    if (f.status === "done") return false;
     const today = new Date().toISOString().slice(0, 10);
-    return f.due_date && f.due_date.slice(0, 10) < today;
+    return f.due_at && f.due_at.slice(0, 10) < today;
   });
-  const completed = followups.filter((f) => f.status === "completed");
+  const completed = followups.filter((f) => f.status === "done");
 
   const getFilteredFollowUps = () => {
     switch (followUpTab) {
@@ -191,9 +187,9 @@ export default function LeadAutomation() {
         return overdue;
       case "upcoming":
         return followups.filter((f) => {
-          if (f.status === "completed") return false;
+          if (f.status === "done") return false;
           const today = new Date().toISOString().slice(0, 10);
-          return f.due_date && f.due_date.slice(0, 10) > today;
+          return f.due_at && f.due_at.slice(0, 10) > today;
         });
     }
   };
@@ -440,9 +436,9 @@ export default function LeadAutomation() {
                         : tab === "overdue"
                         ? overdue.length
                         : followups.filter((f) => {
-                            if (f.status === "completed") return false;
+                            if (f.status === "done") return false;
                             const today = new Date().toISOString().slice(0, 10);
-                            return f.due_date && f.due_date.slice(0, 10) > today;
+                            return f.due_at && f.due_at.slice(0, 10) > today;
                           }).length;
                     return (
                       <button
@@ -480,7 +476,7 @@ export default function LeadAutomation() {
                       <div
                         key={f.id}
                         className={`p-4 rounded-xl border transition-all ${
-                          f.status === "completed"
+                          f.status === "done"
                             ? "bg-gray-50 dark:bg-gray-800/30 border-gray-100 dark:border-gray-800"
                             : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700"
                         }`}
@@ -490,14 +486,14 @@ export default function LeadAutomation() {
                             <div className="flex items-center gap-2 mb-1">
                               <h4
                                 className={`text-sm font-semibold ${
-                                  f.status === "completed"
+                                  f.status === "done"
                                     ? "text-gray-400 line-through"
                                     : "text-brand-dark dark:text-white"
                                 }`}
                               >
                                 {f.title}
                               </h4>
-                              {f.status === "completed" ? (
+                              {f.status === "done" ? (
                                 <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400">
                                   Done
                                 </span>
@@ -507,17 +503,11 @@ export default function LeadAutomation() {
                                 </span>
                               )}
                             </div>
-                            {f.note && (
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                {f.note}
-                              </p>
-                            )}
                             <div className="flex items-center gap-3 text-xs text-gray-400">
                               <span className="flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
-                                {new Date(f.due_date).toLocaleDateString()}
+                                {new Date(f.due_at).toLocaleDateString()}
                               </span>
-                              <span>{f.created_by_name}</span>
                             </div>
                           </div>
                           {f.status === "pending" && (
