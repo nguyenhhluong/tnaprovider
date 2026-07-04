@@ -69,23 +69,12 @@ export function TenderUploadForm() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const totalSize = uploadedFiles.reduce((sum, f) => sum + f.file.size, 0);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    const val = type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
-    setFormData(prev => ({ ...prev, [name]: val }));
-    if (errors[name as keyof FormState]) {
-      setErrors(prev => ({ ...prev, [name]: "" }));
-    }
-  };
-
-  const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
+  const processFiles = (files: File[]) => {
     const newErrors: string[] = [];
     const newFiles: UploadedFile[] = [];
 
@@ -117,10 +106,39 @@ export function TenderUploadForm() {
     }
 
     setUploadedFiles(prev => [...prev, ...newFiles]);
+  };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    const val = type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
+    setFormData(prev => ({ ...prev, [name]: val }));
+    if (errors[name as keyof FormState]) {
+      setErrors(prev => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleFileAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    processFiles(Array.from(files));
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    processFiles(Array.from(e.dataTransfer.files));
   };
 
   const removeFile = (id: string) => {
@@ -314,11 +332,18 @@ export function TenderUploadForm() {
           </label>
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center cursor-pointer hover:border-brand-accent transition-colors"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+              isDragging
+                ? "border-brand-accent bg-brand-accent/5"
+                : "border-gray-300 dark:border-gray-700 hover:border-brand-accent"
+            }`}
           >
             <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-              Click to upload or drag and drop
+              {isDragging ? "Drop files here" : "Click to upload or drag and drop"}
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500">
               PDF, DWG, DXF, ZIP, JPG, PNG, WEBP, RVT, IFC (max 20MB each)
