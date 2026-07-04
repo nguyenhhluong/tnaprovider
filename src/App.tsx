@@ -15,6 +15,14 @@ import { Contact } from "./pages/Contact";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicy";
 import { TermsOfServicePage } from "./pages/TermsOfService";
 import { ThemeProvider } from "./components/ThemeProvider";
+import { PlatformLayout } from "./pages/platform/PlatformLayout";
+import { Dashboard } from "./pages/platform/Dashboard";
+import { Leads } from "./pages/platform/Leads";
+import { PlatformProjects } from "./pages/platform/PlatformProjects";
+import { Timesheets } from "./pages/platform/Timesheets";
+import { ClientPortal } from "./pages/platform/ClientPortal";
+import { Maintenance } from "./pages/platform/Maintenance";
+import { Analytics } from "./pages/platform/Analytics";
 
 const router = createBrowserRouter([
   {
@@ -30,6 +38,19 @@ const router = createBrowserRouter([
       { path: "contact", element: <Contact /> },
       { path: "privacy-policy", element: <PrivacyPolicyPage /> },
       { path: "terms-of-service", element: <TermsOfServicePage /> },
+    ],
+  },
+  {
+    path: "/platform",
+    element: <PlatformLayout />,
+    children: [
+      { index: true, element: <Dashboard /> },
+      { path: "leads", element: <Leads /> },
+      { path: "projects", element: <PlatformProjects /> },
+      { path: "timesheets", element: <Timesheets /> },
+      { path: "client-portal", element: <ClientPortal /> },
+      { path: "maintenance", element: <Maintenance /> },
+      { path: "analytics", element: <Analytics /> },
     ],
   },
 ]);
