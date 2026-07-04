@@ -29,6 +29,49 @@ function isManagement(user) {
   return MANAGEMENT_ROLES.includes(user?.role);
 }
 
+function clientHasProjectAccess(db, clientId, projectId) {
+  if (!projectId) return false;
+
+  const directProject = db.prepare(
+    "SELECT id FROM projects WHERE id = ? AND client_id = ?"
+  ).get(projectId, clientId);
+
+  if (directProject) return true;
+
+  const assignedProject = db.prepare(
+    "SELECT id FROM client_project_access WHERE project_id = ? AND client_id = ?"
+  ).get(projectId, clientId);
+
+  return Boolean(assignedProject);
+}
+
+function clientCanAccessDocument(db, clientId, doc) {
+  if (!doc || doc.visibility !== "client") return false;
+
+  if (doc.entity_type === "project") {
+    return clientHasProjectAccess(db, clientId, doc.entity_id);
+  }
+
+  if (doc.entity_type === "client") {
+    return doc.entity_id === clientId;
+  }
+
+  if (doc.entity_type === "quote") {
+    const quote = db.prepare(`
+      SELECT qr.project_id
+      FROM quotes q
+      LEFT JOIN quote_requests qr ON qr.id = q.quote_request_id
+      WHERE q.id = ?
+    `).get(doc.entity_id);
+
+    return quote?.project_id
+      ? clientHasProjectAccess(db, clientId, quote.project_id)
+      : false;
+  }
+
+  return false;
+}
+
 // Document Folders
 router.get("/folders", (req, res) => {
   if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
@@ -55,22 +98,25 @@ router.get("/", (req, res) => {
   const { entity_type, entity_id, folder_id } = req.query;
 
   if (!isManagement(req.user)) {
-    if (req.user.role === "client") {
-      // Client can only view documents with visibility = client for their projects
-      let sql = `SELECT d.*, u.name as uploaded_by_name, df.name as folder_name 
-        FROM documents d 
-        LEFT JOIN users u ON u.id = d.uploaded_by 
-        LEFT JOIN document_folders df ON df.id = d.folder_id 
-        WHERE d.visibility = 'client'`;
-      const params = [];
-      if (entity_type) { sql += " AND d.entity_type = ?"; params.push(entity_type); }
-      if (entity_id) { sql += " AND d.entity_id = ?"; params.push(entity_id); }
-      if (folder_id) { sql += " AND d.folder_id = ?"; params.push(folder_id); }
-      sql += " ORDER BY d.created_at DESC";
-      const documents = db.prepare(sql).all(...params);
-      return res.json(documents);
+    if (req.user.role !== "client") {
+      return res.status(403).json({ error: "Access denied" });
     }
-    return res.status(403).json({ error: "Access denied" });
+
+    // Client: fetch all client-visible documents, then filter by project/entity access
+    const rows = db.prepare(`
+      SELECT d.*, u.name as uploaded_by_name, df.name as folder_name
+      FROM documents d
+      LEFT JOIN users u ON u.id = d.uploaded_by
+      LEFT JOIN document_folders df ON df.id = d.folder_id
+      WHERE d.visibility = 'client'
+      ORDER BY d.created_at DESC
+    `).all();
+
+    const documents = rows.filter((doc) =>
+      clientCanAccessDocument(db, req.user.userId, doc)
+    );
+
+    return res.json(documents);
   }
 
   let sql = `SELECT d.*, u.name as uploaded_by_name, df.name as folder_name 
@@ -175,8 +221,13 @@ router.get("/:id", (req, res) => {
     LEFT JOIN document_folders df ON df.id = d.folder_id 
     WHERE d.id = ?`).get(req.params.id);
   if (!doc) return res.status(404).json({ error: "Document not found" });
-  if (!isManagement(req.user) && req.user.role === "client" && doc.visibility !== "client") {
-    return res.status(403).json({ error: "Access denied" });
+  if (!isManagement(req.user)) {
+    if (req.user.role !== "client") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    if (!clientCanAccessDocument(db, req.user.userId, doc)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
   }
   res.json(doc);
 });
