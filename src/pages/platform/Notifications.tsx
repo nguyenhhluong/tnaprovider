@@ -24,12 +24,15 @@ import { Button } from "../../components/ui/Button";
 
 interface Notification {
   id: string;
-  type: "lead" | "quote" | "task" | "project" | "maintenance";
+  type: string;
   title: string;
-  message: string;
-  read: boolean;
-  createdAt: string;
-  internal: boolean;
+  message: string | null;
+  status: string;
+  channel: string;
+  created_at: string;
+  read_at: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
 }
 
 interface NotificationPreferences {
@@ -44,7 +47,7 @@ interface ReminderRule {
   id: string;
   name: string;
   type: string;
-  interval: number;
+  offset_hours: number;
   enabled: boolean;
   lastRun: string | null;
   nextRun: string | null;
@@ -53,14 +56,14 @@ interface ReminderRule {
 type Tab = "notifications" | "preferences" | "reminders";
 
 const TYPE_LABELS: Record<string, string> = {
-  lead: "Leads",
-  quote: "Quotes",
-  task: "Tasks",
-  project: "Projects",
-  maintenance: "Maintenance",
+  lead_followup: "Lead Follow-up",
+  quote_expiry: "Quote Expiry",
+  task_due: "Task Due",
+  project_due: "Project Due",
+  maintenance_pending: "Maintenance Pending",
 };
 
-const FILTER_TYPES = ["", "lead", "quote", "task", "project", "maintenance"];
+const FILTER_TYPES = ["", "lead_followup", "quote_expiry", "task_due", "project_due", "maintenance_pending"];
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
   leads: true,
@@ -98,13 +101,13 @@ export function Notifications() {
   const [rulesError, setRulesError] = useState<string | null>(null);
   const [showCreateRule, setShowCreateRule] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  const [ruleForm, setRuleForm] = useState({ name: "", type: "lead", interval: 24 });
+  const [ruleForm, setRuleForm] = useState({ name: "", type: "lead_followup", offset_hours: 24 });
   const [ruleSaving, setRuleSaving] = useState(false);
   const [ruleFormError, setRuleFormError] = useState<string | null>(null);
   const [runRemindersLoading, setRunRemindersLoading] = useState(false);
   const [runRemindersResult, setRunRemindersResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = notifications.filter((n) => n.status === 'unread').length;
 
   const fetchNotifications = useCallback(async () => {
     setNotifLoading(true);
@@ -114,7 +117,8 @@ export function Notifications() {
       if (filterType) params.set("type", filterType);
       const res = await fetch(`/api/notifications?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch notifications");
-      setNotifications(await res.json());
+      const body = await res.json();
+      setNotifications(body.notifications || []);
     } catch (err) {
       setNotifError(err instanceof Error ? err.message : "Failed to load notifications");
     } finally {
@@ -183,16 +187,19 @@ export function Notifications() {
   };
 
   const handleTogglePreference = async (key: keyof NotificationPreferences) => {
-    const updated = { ...preferences, [key]: !preferences[key] };
+    const newVal = !preferences[key];
+    const updated = { ...preferences, [key]: newVal };
     setPreferences(updated);
     setPrefsSaving(true);
     setPrefsError(null);
     setPrefsSuccess(false);
     try {
+      const body: Record<string, boolean> = {};
+      body[`notify_${key}`] = newVal;
       const res = await fetch("/api/notifications/preferences", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Failed to update preferences");
       setPrefsSuccess(true);
@@ -225,7 +232,7 @@ export function Notifications() {
       setRuleFormError("Name is required");
       return;
     }
-    if (ruleForm.interval < 1) {
+    if (ruleForm.offset_hours < 1) {
       setRuleFormError("Interval must be at least 1 hour");
       return;
     }
@@ -240,10 +247,10 @@ export function Notifications() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to create rule");
       }
-      const created = await res.json();
-      setReminderRules((prev) => [...prev, created]);
+      const { id } = await res.json();
+      setReminderRules((prev) => [...prev, { ...ruleForm, id, enabled: true } as ReminderRule]);
       setShowCreateRule(false);
-      setRuleForm({ name: "", type: "lead", interval: 24 });
+      setRuleForm({ name: "", type: "lead_followup", offset_hours: 24 });
     } catch (err) {
       setRuleFormError(err instanceof Error ? err.message : "Failed to create rule");
     } finally {
@@ -259,7 +266,7 @@ export function Notifications() {
       setRuleFormError("Name is required");
       return;
     }
-    if (ruleForm.interval < 1) {
+    if (ruleForm.offset_hours < 1) {
       setRuleFormError("Interval must be at least 1 hour");
       return;
     }
@@ -274,8 +281,7 @@ export function Notifications() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to update rule");
       }
-      const updated = await res.json();
-      setReminderRules((prev) => prev.map((r) => (r.id === editingRuleId ? updated : r)));
+      setReminderRules((prev) => prev.map((r) => (r.id === editingRuleId ? { ...r, ...ruleForm } : r)));
       setEditingRuleId(null);
     } catch (err) {
       setRuleFormError(err instanceof Error ? err.message : "Failed to update rule");
@@ -304,7 +310,7 @@ export function Notifications() {
   };
 
   const startEditRule = (rule: ReminderRule) => {
-    setRuleForm({ name: rule.name, type: rule.type, interval: rule.interval });
+    setRuleForm({ name: rule.name, type: rule.type, offset_hours: rule.offset_hours });
     setEditingRuleId(rule.id);
     setShowCreateRule(false);
     setRuleFormError(null);
@@ -313,7 +319,7 @@ export function Notifications() {
   const cancelForm = () => {
     setShowCreateRule(false);
     setEditingRuleId(null);
-    setRuleForm({ name: "", type: "lead", interval: 24 });
+    setRuleForm({ name: "", type: "lead_followup", offset_hours: 24 });
     setRuleFormError(null);
   };
 
@@ -450,39 +456,39 @@ export function Notifications() {
               {notifications.map((notif) => (
                 <button
                   key={notif.id}
-                  onClick={() => !notif.read && handleMarkAsRead(notif.id)}
+                  onClick={() => notif.status !== 'read' && handleMarkAsRead(notif.id)}
                   className={`w-full text-left flex items-start gap-4 p-4 rounded-xl border transition-colors ${
-                    notif.read
+                    notif.status === 'read'
                       ? "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800"
                       : "bg-brand-accent/5 dark:bg-brand-accent/10 border-brand-accent/20 dark:border-brand-accent/30"
                   } hover:bg-gray-50 dark:hover:bg-gray-800/50`}
                 >
-                  <div className={`mt-0.5 shrink-0 ${notif.read ? "text-gray-300 dark:text-gray-600" : "text-brand-accent"}`}>
-                    {notif.read ? <MailOpen className="w-5 h-5" /> : <Mail className="w-5 h-5" />}
+                  <div className={`mt-0.5 shrink-0 ${notif.status === 'read' ? "text-gray-300 dark:text-gray-600" : "text-brand-accent"}`}>
+                    {notif.status === 'read' ? <MailOpen className="w-5 h-5" /> : <Mail className="w-5 h-5" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <span className={`text-sm font-semibold ${notif.read ? "text-gray-600 dark:text-gray-400" : "text-brand-dark dark:text-white"}`}>
+                      <span className={`text-sm font-semibold ${notif.status === 'read' ? "text-gray-600 dark:text-gray-400" : "text-brand-dark dark:text-white"}`}>
                         {notif.title}
                       </span>
-                      {notif.internal && (
+                      {notif.channel === 'email_mock' && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">
                           (internal notification only)
                         </span>
                       )}
                     </div>
-                    <p className={`text-sm ${notif.read ? "text-gray-400 dark:text-gray-500" : "text-gray-600 dark:text-gray-300"}`}>
+                    <p className={`text-sm ${notif.status === 'read' ? "text-gray-400 dark:text-gray-500" : "text-gray-600 dark:text-gray-300"}`}>
                       {notif.message}
                     </p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-xs text-gray-400">{new Date(notif.createdAt).toLocaleString()}</span>
+                      <span className="text-xs text-gray-400">{new Date(notif.created_at).toLocaleString()}</span>
                       <span className="flex items-center gap-1 text-xs text-gray-400 capitalize">
                         {getTypeIcon(notif.type)}
                         {TYPE_LABELS[notif.type] || notif.type}
                       </span>
                     </div>
                   </div>
-                  {!notif.read && (
+                  {notif.status !== 'read' && (
                     <span className="w-2 h-2 rounded-full bg-brand-accent shrink-0 mt-2" />
                   )}
                 </button>
@@ -634,8 +640,8 @@ export function Notifications() {
                   <input
                     type="number"
                     min={1}
-                    value={ruleForm.interval}
-                    onChange={(e) => setRuleForm((p) => ({ ...p, interval: Math.max(1, parseInt(e.target.value) || 1) }))}
+                    value={ruleForm.offset_hours}
+                    onChange={(e) => setRuleForm((p) => ({ ...p, offset_hours: Math.max(1, parseInt(e.target.value) || 1) }))}
                     className="mt-1 h-12 px-4 rounded-lg border border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors w-full"
                   />
                 </div>
@@ -686,7 +692,7 @@ export function Notifications() {
                       </span>
                     </div>
                     <p className="text-xs text-gray-500">
-                      {TYPE_LABELS[rule.type] || rule.type} · Every {rule.interval}h
+                      {TYPE_LABELS[rule.type] || rule.type} · Every {rule.offset_hours}h
                     </p>
                     {rule.lastRun && (
                       <p className="text-xs text-gray-400 mt-0.5">

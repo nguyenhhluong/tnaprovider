@@ -32,6 +32,16 @@ interface DashboardSummary {
   openMaintenance: number;
 }
 
+interface DashboardResponse {
+  leads?: { total?: number; byStatus?: StatusCount[]; overdueFollowups?: number };
+  quotes?: { byStatus?: StatusCount[]; totalAcceptedValue?: number; conversionRate?: number };
+  projects?: { byStatus?: StatusCount[] };
+  tasks?: { byStatus?: StatusCount[]; overdue?: number };
+  maintenance?: { byStatus?: StatusCount[]; byPriority?: StatusCount[] };
+  activity?: any[];
+  backups?: { count?: number; lastBackupAt?: string | null };
+}
+
 interface StatusCount {
   status: string;
   count: number;
@@ -66,11 +76,12 @@ interface MaintenanceReport {
 
 interface ActivityItem {
   id: string;
-  type: string;
   action: string;
-  description: string;
-  user: string;
-  timestamp: string;
+  entity_type: string;
+  entity_id: string | null;
+  user_name: string | null;
+  created_at: string;
+  metadata_json: string | null;
 }
 
 type Section = "leads" | "quotes" | "projects" | "tasks" | "maintenance" | "activity";
@@ -199,8 +210,16 @@ export default function Reports() {
     setDashboardLoading(true);
     setDashboardError(null);
     try {
-      const data = await fetchJSON<DashboardSummary>("/api/reports/dashboard");
-      setDashboard(data);
+      const res = await fetch("/api/reports/dashboard");
+      const data = await res.json();
+      setDashboard({
+        totalLeads: data.leads?.total ?? 0,
+        overdueFollowups: data.leads?.overdueFollowups ?? 0,
+        acceptedQuoteValue: data.quotes?.totalAcceptedValue ?? 0,
+        activeProjects: (data.projects?.byStatus ?? []).reduce((s: number, st: any) => s + (st.status === 'active' ? st.c : 0), 0),
+        overdueTasks: data.tasks?.overdue ?? 0,
+        openMaintenance: (data.maintenance?.byStatus ?? []).reduce((s: number, st: any) => s + ((st.status === 'open' || st.status === 'in_progress') ? st.c : 0), 0),
+      });
     } catch (err) {
       setDashboardError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
@@ -479,7 +498,7 @@ export default function Reports() {
                   <div className="text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Conversion Rate</p>
                     <p className="text-2xl font-display font-bold text-brand">
-                      {(quotesReport.conversionRate * 100).toFixed(1)}%
+                      {quotesReport.conversionRate.toFixed(1)}%
                     </p>
                   </div>
                   <div className="text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50">
@@ -641,11 +660,11 @@ export default function Reports() {
                           </span>
                         </td>
                         <td className="py-2.5 px-2 text-gray-600 dark:text-gray-400">
-                          {a.description}
+                          {a.action?.replace(/_/g, ' ') || '-'}
                         </td>
-                        <td className="py-2.5 px-2 text-gray-500">{a.user}</td>
+                        <td className="py-2.5 px-2 text-gray-500">{a.user_name || '-'}</td>
                         <td className="py-2.5 px-2 text-right text-gray-400 whitespace-nowrap">
-                          {new Date(a.timestamp).toLocaleDateString("en-AU", {
+                          {new Date(a.created_at).toLocaleDateString("en-AU", {
                             day: "numeric",
                             month: "short",
                             hour: "2-digit",

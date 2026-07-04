@@ -21,16 +21,18 @@ import {
 } from "lucide-react";
 
 type QuoteStatus = "draft" | "sent" | "accepted" | "rejected" | "expired" | "converted";
-type RequestStatus = "new" | "contacted" | "quoted" | "closed";
+type RequestStatus = "new" | "quoted" | "converted" | "closed";
 type Tab = "requests" | "quotes" | "builder";
 
 interface QuoteRequest {
   id: string;
-  client_name: string;
-  client_email: string;
-  client_phone: string;
-  description: string;
-  status: RequestStatus;
+  title: string;
+  scope: string | null;
+  location: string | null;
+  budget: number | null;
+  lead_name: string | null;
+  lead_email: string | null;
+  status: string;
   created_at: string;
 }
 
@@ -46,9 +48,12 @@ interface QuoteItem {
 interface Quote {
   id: string;
   request_id?: string;
-  client_name: string;
-  client_email?: string;
-  subject: string;
+  quote_request_id?: string;
+  quote_number?: string;
+  lead_name?: string;
+  lead_email?: string;
+  client_name?: string;
+  title: string;
   status: QuoteStatus;
   items: QuoteItem[];
   subtotal: number;
@@ -103,7 +108,7 @@ export default function Quotes() {
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [requestsError, setRequestsError] = useState("");
   const [showRequestModal, setShowRequestModal] = useState(false);
-  const [requestForm, setRequestForm] = useState({ client_name: "", client_email: "", client_phone: "", description: "" });
+  const [requestForm, setRequestForm] = useState({ title: "", scope: "", location: "", budget: "", target_date: "" });
   const [requestSubmitting, setRequestSubmitting] = useState(false);
 
   // Quotes
@@ -183,7 +188,7 @@ export default function Quotes() {
         const created = await res.json();
         setRequests((prev) => [created, ...prev]);
         setShowRequestModal(false);
-        setRequestForm({ client_name: "", client_email: "", client_phone: "", description: "" });
+        setRequestForm({ title: "", scope: "", location: "", budget: "", target_date: "" });
       }
     } catch {
       // ignore
@@ -293,7 +298,7 @@ export default function Quotes() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subject: builderSubject,
+          title: builderSubject,
           client_name: builderClientName,
           client_email: builderClientEmail || undefined,
           notes: builderNotes || undefined,
@@ -347,7 +352,7 @@ export default function Quotes() {
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">
             <h2 className="text-lg font-display font-bold text-brand-dark dark:text-white flex items-center gap-2">
               <FileText className="w-5 h-5 text-brand-accent" />
-              {q.subject}
+{q.title}
             </h2>
             <div className="flex items-center gap-2">
               <button
@@ -372,8 +377,8 @@ export default function Quotes() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Client</p>
-                  <p className="font-medium text-brand-dark dark:text-white">{q.client_name}</p>
-                  {q.client_email && <p className="text-sm text-gray-500">{q.client_email}</p>}
+                  <p className="font-medium text-brand-dark dark:text-white">{q.lead_name}</p>
+                  {q.lead_email && <p className="text-sm text-gray-500">{q.lead_email}</p>}
                 </div>
                 <div className="text-right">
                   <StatusBadge status={q.status} />
@@ -548,12 +553,12 @@ export default function Quotes() {
             {/* Bill To */}
             <div className="mb-8">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Bill To</p>
-              <p className="font-medium text-brand-dark dark:text-white">{q.client_name}</p>
-              {q.client_email && <p className="text-sm text-gray-500">{q.client_email}</p>}
+              <p className="font-medium text-brand-dark dark:text-white">{q.lead_name || q.client_name}</p>
+              {q.lead_email && <p className="text-sm text-gray-500">{q.lead_email}</p>}
             </div>
 
             {/* Subject */}
-            <p className="text-lg font-semibold text-brand-dark dark:text-white mb-4">{q.subject}</p>
+            <p className="text-lg font-semibold text-brand-dark dark:text-white mb-4">{q.title}</p>
 
             {/* Items */}
             <table className="w-full text-sm mb-6">
@@ -670,12 +675,11 @@ export default function Quotes() {
             <div key={req.id} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <h4 className="font-medium text-brand-dark dark:text-white">{req.client_name}</h4>
-                  <p className="text-xs text-gray-500">{req.client_email}{req.client_phone ? ` · ${req.client_phone}` : ""}</p>
+                  <h4 className="font-medium text-brand-dark dark:text-white">{req.lead_name || req.title}</h4>
+                  <p className="text-xs text-gray-500">{req.lead_email || ''}</p>
                 </div>
-                <StatusBadge status={req.status} />
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{req.description}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{req.scope || ''}</p>
               <p className="text-xs text-gray-400 mt-2">{new Date(req.created_at).toLocaleDateString("en-AU")}</p>
             </div>
           ))}
@@ -694,41 +698,22 @@ export default function Quotes() {
             </div>
             <form onSubmit={handleCreateRequest} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Client Name</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Title</label>
                 <input
                   type="text"
                   required
-                  value={requestForm.client_name}
-                  onChange={(e) => setRequestForm((f) => ({ ...f, client_name: e.target.value }))}
+                  value={requestForm.title}
+                  onChange={(e) => setRequestForm((f) => ({ ...f, title: e.target.value }))}
                   className="w-full h-11 px-4 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 focus:border-brand-accent focus:ring-brand-accent text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                <input
-                  type="email"
-                  required
-                  value={requestForm.client_email}
-                  onChange={(e) => setRequestForm((f) => ({ ...f, client_email: e.target.value }))}
-                  className="w-full h-11 px-4 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 focus:border-brand-accent focus:ring-brand-accent text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Phone</label>
-                <input
-                  type="tel"
-                  value={requestForm.client_phone}
-                  onChange={(e) => setRequestForm((f) => ({ ...f, client_phone: e.target.value }))}
-                  className="w-full h-11 px-4 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 focus:border-brand-accent focus:ring-brand-accent text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Scope</label>
                 <textarea
                   required
                   rows={3}
-                  value={requestForm.description}
-                  onChange={(e) => setRequestForm((f) => ({ ...f, description: e.target.value }))}
+                  value={requestForm.scope}
+                  onChange={(e) => setRequestForm((f) => ({ ...f, scope: e.target.value }))}
                   className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 focus:border-brand-accent focus:ring-brand-accent text-sm resize-none"
                 />
               </div>
@@ -777,7 +762,7 @@ export default function Quotes() {
             >
               <div className="flex items-start justify-between mb-1">
                 <div className="min-w-0">
-                  <h4 className="font-medium text-brand-dark dark:text-white truncate">{quote.subject}</h4>
+                  <h4 className="font-medium text-brand-dark dark:text-white truncate">{quote.title}</h4>
                   <p className="text-xs text-gray-500">{quote.client_name}</p>
                 </div>
                 <StatusBadge status={quote.status} />
