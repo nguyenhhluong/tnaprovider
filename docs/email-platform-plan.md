@@ -84,13 +84,16 @@ See [email-dns-checklist.md](./email-dns-checklist.md) for full details.
 - Frontend email UI with mock data fallback
 - Backend email API routes (with `/api/email/*` endpoints)
 - Email API adapter with real+fallback modes
-- Stalwart docker-compose.yml and configuration
+- Mail server deployment files prepared (Stalwart primary, Mailu fallback)
+- SMTP connector via nodemailer (ready when `MAIL_PROVIDER=smtp` and SMTP credentials configured)
 
 ### What Is Mock/Fallback
-- Mail server not yet deployed (requires VPS with port 25)
-- DNS records not yet configured
-- Frontend runs in `VITE_EMAIL_MOCK_MODE=true` until deployment
-- Roundcube fallback available via `https://mail.tnaprovider.com.au/webmail`
+- Mail server deployment prepared but **not yet live** on VPS (requires port 25 confirmation, Docker deployment, DNS records)
+- DNS records (A, MX, SPF, DKIM, DMARC, PTR) not yet configured
+- Frontend runs in `VITE_EMAIL_MOCK_MODE=true` (default) until mail server is deployed
+- Backend runs with `MAIL_PROVIDER=mock` (default) until SMTP credentials are configured
+- Attachments blocked in non-mock mode until multipart/FormData upload is implemented
+- Stalwart docker-compose.yml and configuration ready for deployment
 
 ### Backup Mail Server Option: Mailu
 - Docker-based mail server suite

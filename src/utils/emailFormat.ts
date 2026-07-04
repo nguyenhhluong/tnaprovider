@@ -25,7 +25,13 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+let purify: ((html: string) => string) | null = null;
+
 export function sanitizeEmailHtml(html: string): string {
+  if (typeof window !== "undefined" && !purify) {
+    import("dompurify").then((m) => { purify = m.default.sanitize; }).catch(() => {});
+  }
+  if (purify) return purify(html);
   return html
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
     .replace(/on\w+="[^"]*"/gi, "")

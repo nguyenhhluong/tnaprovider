@@ -1,10 +1,15 @@
-import { X } from "lucide-react";
+import { X, Wifi, WifiOff, Info } from "lucide-react";
+import type { EmailStatus } from "../../../types/email";
 
 interface EmailSettingsProps {
   onClose: () => void;
+  emailStatus?: EmailStatus | null;
 }
 
-export function EmailSettings({ onClose }: EmailSettingsProps) {
+export function EmailSettings({ onClose, emailStatus }: EmailSettingsProps) {
+  const statusLabel = (ready: boolean | undefined) =>
+    ready ? "Ready" : "Not ready";
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-12 bg-black/40">
       <div className="bg-white dark:bg-brand-darker rounded-xl shadow-2xl w-full max-w-md mx-4">
@@ -16,14 +21,44 @@ export function EmailSettings({ onClose }: EmailSettingsProps) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <h4 className="text-sm font-medium mb-2">Mailboxes</h4>
+            <h4 className="text-sm font-medium mb-2">Mailbox</h4>
+            <div className="text-sm bg-gray-50 dark:bg-gray-900 px-3 py-2 rounded-lg">
+              {emailStatus?.mailbox || "info@tnaprovider.com.au"}
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-medium mb-2">Connection</h4>
             <div className="space-y-2">
-              {["info@tnaprovider.com.au", "admin@tnaprovider.com.au", "projects@tnaprovider.com.au", "accounts@tnaprovider.com.au"].map((mailbox) => (
-                <div key={mailbox} className="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-900 px-3 py-2 rounded-lg">
-                  <span>{mailbox}</span>
-                  <span className="text-xs text-gray-500">Active</span>
-                </div>
-              ))}
+              <div className="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-900 px-3 py-2 rounded-lg">
+                <span className="flex items-center gap-2">
+                  {emailStatus?.inboundReady ? <Wifi className="w-3 h-3 text-green-500" /> : <WifiOff className="w-3 h-3 text-amber-500" />}
+                  Inbound (receive)
+                </span>
+                <span className="text-xs">{statusLabel(emailStatus?.inboundReady)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-900 px-3 py-2 rounded-lg">
+                <span className="flex items-center gap-2">
+                  {emailStatus?.outboundReady ? <Wifi className="w-3 h-3 text-green-500" /> : <WifiOff className="w-3 h-3 text-amber-500" />}
+                  Outbound (send)
+                </span>
+                <span className="text-xs">{statusLabel(emailStatus?.outboundReady)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-900 px-3 py-2 rounded-lg">
+                <span className="flex items-center gap-2">
+                  <Info className="w-3 h-3 text-gray-400" />
+                  Provider
+                </span>
+                <span className="text-xs uppercase">{emailStatus?.provider || "mock"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-medium mb-2">Attachments</h4>
+            <div className="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-900 px-3 py-2 rounded-lg">
+              <span>Support</span>
+              <span className="text-xs">{emailStatus?.attachmentsReady ? "Ready" : "Not supported in live mode"}</span>
             </div>
           </div>
 

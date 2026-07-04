@@ -1,7 +1,9 @@
+import 'dotenv/config';
 import express from 'express';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import * as mailConnector from './server/email/mailConnector.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,105 +32,139 @@ app.post('/api/contact', (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Email API — server-side proxy to Stalwart/Mailu mail server
+// Email API — server-side proxy via mail connector layer
 // All SMTP/IMAP/JMAP credentials stay server-side only.
 // Frontend must never connect directly to IMAP or SMTP.
 // ---------------------------------------------------------------------------
-const mailConfig = {
-  provider: process.env.MAIL_PROVIDER || 'mock',
-  baseUrl: process.env.MAIL_BASE_URL || '',
-  jmapUrl: process.env.MAIL_JMAP_URL || '',
-  imapHost: process.env.MAIL_IMAP_HOST || '',
-  smtpHost: process.env.MAIL_SMTP_HOST || '',
-  smtpPort: parseInt(process.env.MAIL_SMTP_PORT || '587'),
-  domain: process.env.MAIL_DOMAIN || 'tnaprovider.com.au',
-  adminToken: process.env.MAIL_ADMIN_TOKEN || '',
-};
 
-// Simple in-memory store for mock mode
-const mockStore = { messages: [], sentCount: 0 };
-
-// Auth middleware (placeholder — replace with real session auth)
+// Auth middleware — uses server-side config, never trusts client headers
 function requireAuth(req, res, next) {
-  // TODO: integrate with platform session/auth system
-  req.userId = req.headers['x-user-id'] || 'user-1';
-  req.mailbox = req.headers['x-mailbox'] || 'info@tnaprovider.com.au';
+  const allowHeader = process.env.MAIL_ALLOW_HEADER_MAILBOX === "true";
+  const allowedMailboxes = (process.env.MAIL_ALLOWED_MAILBOXES || "info@tnaprovider.com.au")
+    .split(",")
+    .map((m) => m.trim());
+  const defaultMailbox = process.env.MAIL_DEFAULT_MAILBOX || "info@tnaprovider.com.au";
+
+  req.userId = "user-1";
+
+  if (allowHeader) {
+    // Staging/dev mode: allow x-mailbox if it's in the allowed list
+    const requested = req.headers["x-mailbox"];
+    if (requested && allowedMailboxes.includes(requested)) {
+      req.mailbox = requested;
+    } else {
+      req.mailbox = defaultMailbox;
+    }
+  } else {
+    // Production: ignore x-mailbox, use default only
+    req.mailbox = defaultMailbox;
+  }
+
+  // Reject if the resulting mailbox is not allowed
+  if (!allowedMailboxes.includes(req.mailbox)) {
+    return res.status(403).json({ error: "Mailbox not allowed" });
+  }
+
   next();
 }
 
+// GET /api/email/status
+app.get("/api/email/status", (req, res) => {
+  const config = mailConnector.getMailConfig();
+  res.json({
+    provider: config.provider,
+    inboundReady: config.inboundReady,
+    outboundReady: config.outboundReady,
+    attachmentsReady: config.attachmentsReady,
+    mailbox: process.env.MAIL_DEFAULT_MAILBOX || "info@tnaprovider.com.au",
+  });
+});
+
 // GET /api/email/messages?folder=inbox
-app.get('/api/email/messages', requireAuth, (req, res) => {
-  const { folder } = req.query;
-  if (mailConfig.provider === 'mock') {
-    return res.json(mockStore.messages.filter(m => !folder || m.folder === folder));
+app.get("/api/email/messages", requireAuth, async (req, res) => {
+  try {
+    const { folder } = req.query;
+    const messages = await mailConnector.listMessages({
+      mailbox: req.mailbox,
+      folder: folder || "inbox",
+    });
+    res.json(messages);
+  } catch (err) {
+    console.error("listMessages error:", err.message);
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
-  // TODO: proxy to Stalwart JMAP API
-  res.json([]);
 });
 
 // GET /api/email/messages/:id
-app.get('/api/email/messages/:id', requireAuth, (req, res) => {
-  if (mailConfig.provider === 'mock') {
-    const msg = mockStore.messages.find(m => m.id === req.params.id);
-    if (!msg) return res.status(404).json({ error: 'Message not found' });
-    return res.json(msg);
+app.get("/api/email/messages/:id", requireAuth, async (req, res) => {
+  try {
+    const msg = await mailConnector.getMessage({
+      mailbox: req.mailbox,
+      messageId: req.params.id,
+    });
+    res.json(msg);
+  } catch (err) {
+    console.error("getMessage error:", err.message);
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
-  res.status(501).json({ error: 'Mail server not connected' });
 });
 
 // POST /api/email/send
-app.post('/api/email/send', requireAuth, (req, res) => {
-  const { to, subject } = req.body;
-  if (!to || to.length === 0) {
-    return res.status(400).json({ error: 'At least one recipient is required' });
+app.post("/api/email/send", requireAuth, async (req, res) => {
+  try {
+    const result = await mailConnector.sendMessage({
+      mailbox: req.mailbox,
+      payload: req.body,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("sendMessage error:", err.message);
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
-  if (mailConfig.provider === 'mock') {
-    mockStore.sentCount++;
-    const msg = {
-      id: `sent-${Date.now()}`,
-      folder: 'sent',
-      ...req.body,
-      from: { name: 'TNA Provider', email: req.mailbox },
-      sentAt: new Date().toISOString(),
-      receivedAt: new Date().toISOString(),
-      isRead: true,
-      isStarred: false,
-      hasAttachments: false,
-    };
-    mockStore.messages.push(msg);
-    return res.json({ id: msg.id });
-  }
-  // TODO: proxy to Stalwart JMAP or SMTP
-  res.status(501).json({ error: 'Mail server not connected' });
 });
 
 // POST /api/email/messages/:id/read
-app.post('/api/email/messages/:id/read', requireAuth, (req, res) => {
-  if (mailConfig.provider === 'mock') {
-    const msg = mockStore.messages.find(m => m.id === req.params.id);
-    if (msg) msg.isRead = req.body.isRead;
-    return res.json({ success: true });
+app.post("/api/email/messages/:id/read", requireAuth, async (req, res) => {
+  try {
+    const result = await mailConnector.markMessageRead({
+      mailbox: req.mailbox,
+      messageId: req.params.id,
+      isRead: req.body.isRead,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("markMessageRead error:", err.message);
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
-  res.status(501).json({ error: 'Mail server not connected' });
 });
 
 // POST /api/email/messages/:id/move
-app.post('/api/email/messages/:id/move', requireAuth, (req, res) => {
-  if (mailConfig.provider === 'mock') {
-    const idx = mockStore.messages.findIndex(m => m.id === req.params.id);
-    if (idx !== -1) mockStore.messages[idx].folder = req.body.folder;
-    return res.json({ success: true });
+app.post("/api/email/messages/:id/move", requireAuth, async (req, res) => {
+  try {
+    const result = await mailConnector.moveMessage({
+      mailbox: req.mailbox,
+      messageId: req.params.id,
+      folder: req.body.folder,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("moveMessage error:", err.message);
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
-  res.status(501).json({ error: 'Mail server not connected' });
 });
 
 // DELETE /api/email/messages/:id
-app.delete('/api/email/messages/:id', requireAuth, (req, res) => {
-  if (mailConfig.provider === 'mock') {
-    mockStore.messages = mockStore.messages.filter(m => m.id !== req.params.id);
-    return res.json({ success: true });
+app.delete("/api/email/messages/:id", requireAuth, async (req, res) => {
+  try {
+    const result = await mailConnector.deleteMessage({
+      mailbox: req.mailbox,
+      messageId: req.params.id,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("deleteMessage error:", err.message);
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
-  res.status(501).json({ error: 'Mail server not connected' });
 });
 
 app.use(express.static(DIST_DIR, {

@@ -5,6 +5,9 @@ import {
   addMockEmail,
   removeMockEmail,
   updateMockEmail,
+  markEmailRead,
+  moveEmail,
+  deleteEmail,
 } from "../../../utils/emailApi";
 
 const MOCK_MODE = import.meta.env.VITE_EMAIL_MOCK_MODE !== "false";
@@ -50,27 +53,47 @@ export function useEmailData(folder: EmailFolder) {
   }, [folder]);
 
   const markRead = useCallback((id: string, isRead: boolean) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isRead } : m)));
     if (MOCK_MODE) {
       updateMockEmail(id, { isRead });
-      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isRead } : m)));
+    } else {
+      markEmailRead(id, isRead).catch(() => {
+        setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isRead: !isRead } : m)));
+      });
     }
   }, []);
 
-  const moveMessage = useCallback((id: string, targetFolder: EmailFolder) => {
+  const moveMessage = useCallback(async (id: string, targetFolder: EmailFolder) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
     if (MOCK_MODE) {
       removeMockEmail(id);
-      setMessages((prev) => prev.filter((m) => m.id !== id));
+    } else {
+      try {
+        await moveEmail(id, targetFolder);
+      } catch (err) {
+        // Revert the optimistic removal by re-fetching
+        setMessages((prev) => [...prev]);
+        throw err;
+      }
     }
   }, []);
 
-  const deleteMsg = useCallback((id: string) => {
+  const deleteMsg = useCallback(async (id: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
     if (MOCK_MODE) {
       removeMockEmail(id);
-      setMessages((prev) => prev.filter((m) => m.id !== id));
+    } else {
+      try {
+        await deleteEmail(id);
+      } catch (err) {
+        setMessages((prev) => [...prev]);
+        throw err;
+      }
     }
   }, []);
 
   const addSentMessage = useCallback((msg: EmailMessage) => {
+    setMessages((prev) => [msg, ...prev]);
     if (MOCK_MODE) {
       addMockEmail("sent", msg);
     }

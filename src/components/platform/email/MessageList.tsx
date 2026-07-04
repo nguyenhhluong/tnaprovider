@@ -9,9 +9,10 @@ interface MessageListProps {
   onSelect: (id: string) => void;
   loading: boolean;
   error: string | null;
+  onErrorDismiss?: () => void;
 }
 
-export function MessageList({ messages, selectedId, onSelect, loading, error }: MessageListProps) {
+export function MessageList({ messages, selectedId, onSelect, loading, error, onErrorDismiss }: MessageListProps) {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white dark:bg-brand-darker">
@@ -29,6 +30,11 @@ export function MessageList({ messages, selectedId, onSelect, loading, error }: 
         <div className="text-center max-w-sm">
           <p className="text-red-500 text-sm mb-2">Failed to load messages</p>
           <p className="text-xs text-gray-500">{error}</p>
+          {onErrorDismiss && (
+            <button onClick={onErrorDismiss} className="mt-2 text-xs text-brand-accent hover:underline">
+              Dismiss
+            </button>
+          )}
         </div>
       </div>
     );
