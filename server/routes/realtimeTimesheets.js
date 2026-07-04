@@ -8,6 +8,11 @@ import { requireRole } from "../middleware/roles.js";
 const router = Router();
 router.use(requireAuth);
 router.use(requirePasswordChanged);
+// Block clients from timesheet routes (they have client portal for their needs)
+router.use((req, res, next) => {
+  if (req.user.role === "client") return res.status(403).json({ error: "Access denied" });
+  next();
+});
 
 function getEmployee(db, userId) {
   const user = db.prepare("SELECT id, email, name, role FROM users WHERE id = ?").get(userId);
