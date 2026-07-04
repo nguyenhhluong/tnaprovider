@@ -64,6 +64,7 @@ export function ClientPortal() {
   const [clientUsers, setClientUsers] = useState<{ id: string; name: string; email: string }[]>([]);
   const [selectedClientId, setSelectedClientId] = useState("");
   const [accessMsg, setAccessMsg] = useState("");
+  const [assignedClients, setAssignedClients] = useState<{ id: string; name: string; email: string }[]>([]);
 
   const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "manager";
 
@@ -95,7 +96,14 @@ export function ClientPortal() {
       setVariations(v);
       setMessages(m);
     }).catch(() => setError("Failed to load project details"));
-  }, [selectedProject]);
+    // Fetch assigned clients for admin
+    if (isAdmin) {
+      fetch(`/api/platform/projects/${selectedProject}/client-access`)
+        .then((r) => r.ok ? r.json() : [])
+        .then(setAssignedClients)
+        .catch(() => {});
+    }
+  }, [selectedProject, isAdmin]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedProject) return;
@@ -123,7 +131,15 @@ export function ClientPortal() {
         body: JSON.stringify({ clientId: selectedClientId }),
       });
       const data = await res.json();
-      setAccessMsg(res.ok ? "Access granted" : data.error || "Failed");
+      if (res.ok) {
+        setAccessMsg("Access granted");
+        setSelectedClientId("");
+        // Refresh assigned clients
+        const updated = await fetch(`/api/platform/projects/${selectedProject}/client-access`).then(r => r.ok ? r.json() : []);
+        setAssignedClients(updated);
+      } else {
+        setAccessMsg(data.error || "Failed");
+      }
     } catch { setAccessMsg("Failed to grant access"); }
   };
 
@@ -133,7 +149,14 @@ export function ClientPortal() {
     try {
       const res = await fetch(`/api/platform/projects/${selectedProject}/client-access/${clientId}`, { method: "DELETE" });
       const data = await res.json();
-      setAccessMsg(res.ok ? "Access revoked" : data.error || "Failed");
+      if (res.ok) {
+        setAccessMsg("Access revoked");
+        // Refresh assigned clients
+        const updated = await fetch(`/api/platform/projects/${selectedProject}/client-access`).then(r => r.ok ? r.json() : []);
+        setAssignedClients(updated);
+      } else {
+        setAccessMsg(data.error || "Failed");
+      }
     } catch { setAccessMsg("Failed to revoke access"); }
   };
 
@@ -237,12 +260,27 @@ export function ClientPortal() {
                           <UserPlus className="w-4 h-4" />
                         </button>
                       </div>
-                      {/* Show current access list */}
-                      {(() => {
-                        const currentProject = projects.find((p) => p.id === selectedProject);
-                        if (!currentProject) return null;
-                        return null; // access info shown in project list panel
-                      })()}
+                      {/* Current access list */}
+                      {assignedClients.length > 0 && (
+                        <div className="space-y-2 mt-2">
+                          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Currently Assigned</p>
+                          {assignedClients.map((c) => (
+                            <div key={c.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-brand-dark dark:text-white truncate">{c.name}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{c.email}</p>
+                              </div>
+                              <button
+                                onClick={() => handleRevokeAccess(c.id)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0 ml-2"
+                                title="Revoke access"
+                              >
+                                <UserMinus className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 

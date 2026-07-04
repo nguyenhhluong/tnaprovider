@@ -463,6 +463,26 @@ router.patch("/maintenance/:id", requireRole("owner", "admin", "manager"), (req,
   res.json({ success: true });
 });
 
+// ── Client Access List for a Project ──
+
+router.get("/projects/:id/client-access", requireRole("owner", "admin", "manager"), (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(id);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  const clients = db.prepare(`
+    SELECT u.id, u.name, u.email, u.status
+    FROM client_project_access cpa
+    JOIN users u ON u.id = cpa.client_id
+    WHERE cpa.project_id = ?
+    ORDER BY u.name ASC
+  `).all(id);
+
+  res.json(clients);
+});
+
 // ── Client User List ──
 
 router.get("/client-users", requireRole("owner", "admin", "manager"), (req, res) => {
