@@ -7,6 +7,7 @@ import { requireRole } from "../middleware/roles.js";
 
 const router = Router();
 router.use(requireAuth);
+router.use(requirePasswordChanged);
 
 function getEmployee(db, userId) {
   const user = db.prepare("SELECT id, email, name, role FROM users WHERE id = ?").get(userId);
