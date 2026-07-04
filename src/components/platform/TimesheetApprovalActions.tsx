@@ -3,22 +3,37 @@ import type { TimesheetEntry } from "../../types/timesheet";
 import { exportTimesheetCSV, exportWeeklySummary } from "../../utils/timesheetExport";
 
 interface TimesheetApprovalActionsProps {
-  timesheets: TimesheetEntry[];
+  allTimesheets: TimesheetEntry[];
+  pendingTimesheets: TimesheetEntry[];
   onApprove: (id: string) => void;
   onReject: (id: string, reason: string) => void;
   onBulkApprove: (ids: string[]) => void;
 }
 
-export function TimesheetApprovalActions({ timesheets, onApprove, onReject, onBulkApprove }: TimesheetApprovalActionsProps) {
+export function TimesheetApprovalActions({ allTimesheets, pendingTimesheets, onApprove, onReject, onBulkApprove }: TimesheetApprovalActionsProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  if (!timesheets || timesheets.length === 0) {
+  if (!pendingTimesheets || pendingTimesheets.length === 0) {
     return (
       <div className="bg-white dark:bg-brand-darker rounded-xl border border-gray-200 dark:border-gray-800 p-6">
         <h3 className="font-display font-bold text-lg mb-2">Timesheet Approvals</h3>
         <p className="text-gray-500 text-sm">No pending timesheets to approve.</p>
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => exportTimesheetCSV(allTimesheets)}
+            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={() => exportWeeklySummary(allTimesheets)}
+            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+          >
+            Export Weekly Summary
+          </button>
+        </div>
       </div>
     );
   }
@@ -44,8 +59,6 @@ export function TimesheetApprovalActions({ timesheets, onApprove, onReject, onBu
     });
   };
 
-  const allPayrollEntries = timesheets.filter((t) => t.status === "approved");
-
   return (
     <div className="bg-white dark:bg-brand-darker rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
       <div className="p-4 border-b border-gray-200 dark:border-gray-800">
@@ -53,13 +66,13 @@ export function TimesheetApprovalActions({ timesheets, onApprove, onReject, onBu
           <h3 className="font-display font-bold text-lg">Timesheet Approvals</h3>
           <div className="flex gap-2">
             <button
-              onClick={() => exportTimesheetCSV(timesheets)}
+              onClick={() => exportTimesheetCSV(allTimesheets)}
               className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               Export CSV
             </button>
             <button
-              onClick={() => exportWeeklySummary(timesheets)}
+              onClick={() => exportWeeklySummary(allTimesheets)}
               className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               Export Weekly Summary
@@ -83,10 +96,10 @@ export function TimesheetApprovalActions({ timesheets, onApprove, onReject, onBu
                 <input
                   type="checkbox"
                   onChange={(e) => {
-                    if (e.target.checked) setSelected(new Set(timesheets.map((t) => t.id)));
+                    if (e.target.checked) setSelected(new Set(pendingTimesheets.map((t) => t.id)));
                     else setSelected(new Set());
                   }}
-                  checked={selected.size === timesheets.length}
+                  checked={selected.size === pendingTimesheets.length}
                   className="rounded"
                 />
               </th>
@@ -98,7 +111,7 @@ export function TimesheetApprovalActions({ timesheets, onApprove, onReject, onBu
             </tr>
           </thead>
           <tbody>
-            {timesheets.map((entry) => (
+            {pendingTimesheets.map((entry) => (
               <tr key={entry.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900">
                 <td className="px-4 py-3">
                   <input
@@ -163,7 +176,7 @@ export function TimesheetApprovalActions({ timesheets, onApprove, onReject, onBu
         </div>
       )}
 
-      {allPayrollEntries.length === 0 && (
+      {allTimesheets.filter((t) => t.status === "approved").length === 0 && (
         <div className="p-4 text-sm text-gray-500">
           Note: Rejected and draft entries are excluded from payroll export by default.
         </div>

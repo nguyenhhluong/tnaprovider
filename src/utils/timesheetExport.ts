@@ -45,9 +45,9 @@ export function exportTimesheetCSV(timesheets: TimesheetEntry[]): void {
   ].join("\n");
 
   const total = payrollEntries.reduce((sum, t) => sum + t.totalHours, 0);
-  csvContent + `\n"","","","","","","${total.toFixed(2)}","Total","","","",""`;
+  const csvWithTotal = csvContent + `\n"","","","","","","${total.toFixed(2)}","Total","","","",""`;
 
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([csvWithTotal], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = `timesheet-export-${new Date().toISOString().split("T")[0]}.csv`;

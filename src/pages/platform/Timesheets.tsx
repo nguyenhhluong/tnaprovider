@@ -94,7 +94,8 @@ export function Timesheets() {
 
         {approvalView && (
           <TimesheetApprovalActions
-            timesheets={timesheets.filter((t) => t.status === "submitted")}
+            allTimesheets={timesheets}
+            pendingTimesheets={timesheets.filter((t) => t.status === "submitted")}
             onApprove={handleApprove}
             onReject={handleReject}
             onBulkApprove={handleBulkApprove}
