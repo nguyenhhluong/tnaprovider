@@ -12,7 +12,7 @@ export function Maintenance() {
 
   const fetchTickets = async () => {
     try {
-      const res = await fetch("/api/maintenance", { credentials: "include" });
+      const res = await fetch("/api/platform/maintenance", { credentials: "include" });
       if (res.ok) setTickets(await res.json());
     } catch { /* ignore */ }
     finally { setLoading(false); }
