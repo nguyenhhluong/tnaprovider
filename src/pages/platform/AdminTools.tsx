@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
+import { PlatformHeader } from "../../components/platform/PlatformHeader";
 import { useAuth } from "../../context/AuthContext";
 import {
   Shield,
@@ -48,6 +50,7 @@ const EXPORTS = [
 ];
 
 export function AdminTools() {
+  const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const { user } = useAuth();
   const isOwner = user?.role === "owner";
 
@@ -118,8 +121,10 @@ export function AdminTools() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl">
+    <>
       <SEO title="Admin Tools | TNA Provider Platform" description="Backup, export, and system administration." canonical="https://tnaprovider.com.au/platform/admin-tools" />
+      <PlatformHeader title="Admin Tools" onMenuClick={() => setSidebarOpen(true)} />
+      <div className="p-4 md:p-8 max-w-4xl">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-1">Admin Tools</h1>
@@ -354,5 +359,6 @@ export function AdminTools() {
         </div>
       )}
     </div>
+    </>
   );
 }

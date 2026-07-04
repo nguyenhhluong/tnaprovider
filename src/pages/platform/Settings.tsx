@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { useOutletContext } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { SEO } from "../../components/SEO";
+import { PlatformHeader } from "../../components/platform/PlatformHeader";
 import { Button } from "../../components/ui/Button";
 import { getSessions, changePassword } from "../../utils/authApi";
 import { Save, AlertCircle, CheckCircle2, Shield, Monitor, Eye, EyeOff, Loader2 } from "lucide-react";
@@ -27,6 +29,7 @@ function validatePassword(password: string): string | null {
 }
 
 export function Settings() {
+  const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -77,9 +80,11 @@ export function Settings() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-2xl">
+    <>
       <SEO title="Settings | TNA Provider Platform" description="Platform settings." canonical="https://tnaprovider.com.au/platform/settings" />
-      <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-2">Settings</h1>
+      <PlatformHeader title="Settings" onMenuClick={() => setSidebarOpen(true)} />
+      <div className="p-4 md:p-8 max-w-2xl">
+      <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-2 sr-only">Settings</h1>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Manage your account and platform settings.</p>
 
       {/* Security summary */}
@@ -151,5 +156,6 @@ export function Settings() {
         </form>
       </div>
     </div>
+    </>
   );
 }

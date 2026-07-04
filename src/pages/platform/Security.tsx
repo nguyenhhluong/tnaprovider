@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
+import { PlatformHeader } from "../../components/platform/PlatformHeader";
 import { useAuth } from "../../context/AuthContext";
 import { getSessions, revokeSession, revokeAllSessions, changePassword } from "../../utils/authApi";
 import { Button } from "../../components/ui/Button";
@@ -27,6 +29,7 @@ function validatePassword(password: string): string | null {
 }
 
 export function Security() {
+  const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const { user } = useAuth();
 
   const [sessions, setSessions] = useState<{ id: string; createdAt: string; ipAddress?: string; userAgent?: string; isCurrent?: boolean; status?: string }[]>([]);
@@ -117,9 +120,11 @@ export function Security() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-3xl">
+    <>
       <SEO title="Security | TNA Provider Platform" description="Account security." canonical="https://tnaprovider.com.au/platform/security" />
-      <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-2">Security</h1>
+      <PlatformHeader title="Security" onMenuClick={() => setSidebarOpen(true)} />
+      <div className="p-4 md:p-8 max-w-3xl">
+      <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-2 sr-only">Security</h1>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Manage your account security and active sessions.</p>
 
       {/* Security Status Summary */}
@@ -270,5 +275,6 @@ export function Security() {
         </div>
       </div>
     </div>
+    </>
   );
 }

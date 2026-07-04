@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
+import { PlatformHeader } from "../../components/platform/PlatformHeader";
 import { Shield, AlertCircle, Search, Calendar, Filter, X } from "lucide-react";
 
 interface AuditEntry {
@@ -26,6 +28,7 @@ const EVENT_TYPES = [
 const ENTITY_TYPES = ["user", "lead", "project", "timesheet", "email", "maintenance", "session", "invite"];
 
 export function Audit() {
+  const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const [logs, setLogs] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -82,8 +85,10 @@ export function Audit() {
   const filteredLogs = hasFilters ? logs : logs;
 
   return (
-    <div className="p-4 md:p-8">
+    <>
       <SEO title="Audit Log | TNA Provider Platform" description="Platform audit log." canonical="https://tnaprovider.com.au/platform/audit" />
+      <PlatformHeader title="Audit Log" onMenuClick={() => setSidebarOpen(true)} />
+      <div className="p-4 md:p-8">
       <div className="flex items-center gap-3 mb-6">
         <Shield className="w-6 h-6 text-brand-accent shrink-0" />
         <div>
@@ -187,5 +192,6 @@ export function Audit() {
         )}
       </div>
     </div>
+    </>
   );
 }
