@@ -1,23 +1,48 @@
 import { getDb } from "./database.js";
 
+function getColumnNames(db, table) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+}
+
 function addColumnIfMissing(db, table, column, definition) {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+  const cols = getColumnNames(db, table);
   if (!cols.includes(column)) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 }
 
+function buildSelectExpr(cols, field, defaultValue) {
+  return cols.includes(field) ? field : defaultValue;
+}
+
 export function migrate() {
   const db = getDb();
 
-  // ── Users table with safe migration for CHECK constraint changes ──
+  // First, add Phase 5A columns to any existing users table (safe no-op if present)
+  addColumnIfMissing(db, 'users', 'must_change_password', 'INTEGER DEFAULT 0');
+  addColumnIfMissing(db, 'users', 'invited_at', 'TEXT');
+  addColumnIfMissing(db, 'users', 'disabled_at', 'TEXT');
+  addColumnIfMissing(db, 'users', 'disabled_by', 'TEXT REFERENCES users(id)');
+  addColumnIfMissing(db, 'users', 'password_changed_at', 'TEXT');
 
+  // Now recreate users table with updated CHECK constraint if needed
   const usersExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
 
   if (usersExists) {
     const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get().sql;
     if (!sql.includes("'invited'")) {
-      // Upgrade CHECK constraint: recreate table with support for 'invited' status
+      const cols = getColumnNames(db, 'users');
+
+      const selMustChange = buildSelectExpr(cols, 'must_change_password', '0');
+      const selInvitedAt = buildSelectExpr(cols, 'invited_at', 'NULL');
+      const selDisabledAt = buildSelectExpr(cols, 'disabled_at', 'NULL');
+      const selDisabledBy = buildSelectExpr(cols, 'disabled_by', 'NULL');
+      const selPasswordChangedAt = buildSelectExpr(cols, 'password_changed_at', 'NULL');
+
+      // Temporarily disable FK checks for the table recreation
+      db.exec("PRAGMA legacy_alter_table = ON");
+      db.exec("PRAGMA foreign_keys = OFF");
+
       db.exec(`
         CREATE TABLE users_new (
           id TEXT PRIMARY KEY,
@@ -37,11 +62,22 @@ export function migrate() {
         );
         INSERT INTO users_new SELECT id, email, name, role, password_hash,
           CASE WHEN status = 'active' THEN 'active' ELSE 'disabled' END,
-          COALESCE(must_change_password, 0), invited_at, disabled_at, disabled_by, password_changed_at,
+          ${selMustChange}, ${selInvitedAt}, ${selDisabledAt}, ${selDisabledBy}, ${selPasswordChangedAt},
           created_at, updated_at, last_login_at FROM users;
         DROP TABLE users;
         ALTER TABLE users_new RENAME TO users;
       `);
+
+      db.exec("PRAGMA foreign_keys = ON");
+      db.exec("PRAGMA legacy_alter_table = OFF");
+
+      // Verify foreign key integrity
+      const fkErrors = db.prepare("PRAGMA foreign_key_check").all();
+      if (fkErrors.length > 0) {
+        console.error("Foreign key violations after users table migration:", fkErrors);
+        throw new Error("Foreign key check failed during users table migration");
+      }
+
       console.log("Migrated users table to support 'invited' status");
     }
   } else {
@@ -164,14 +200,6 @@ export function migrate() {
     CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
     CREATE INDEX IF NOT EXISTS idx_maintenance_client ON maintenance_tickets(client_id);
   `);
-
-  // ── Safe column additions for existing tables ──
-
-  addColumnIfMissing(db, 'users', 'must_change_password', 'INTEGER DEFAULT 0');
-  addColumnIfMissing(db, 'users', 'invited_at', 'TEXT');
-  addColumnIfMissing(db, 'users', 'disabled_at', 'TEXT');
-  addColumnIfMissing(db, 'users', 'disabled_by', 'TEXT REFERENCES users(id)');
-  addColumnIfMissing(db, 'users', 'password_changed_at', 'TEXT');
 
   // ── Phase 5A new tables ──
 
