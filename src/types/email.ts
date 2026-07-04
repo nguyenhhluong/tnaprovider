@@ -58,3 +58,11 @@ export interface MailboxAccount {
   canSend: boolean;
   canDelete: boolean;
 }
+
+export interface EmailStatus {
+  provider: "mock" | "smtp" | "imap-smtp" | "stalwart";
+  inboundReady: boolean;
+  outboundReady: boolean;
+  attachmentsReady: boolean;
+  mailbox: string;
+}

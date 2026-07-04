@@ -1,11 +1,12 @@
-import { useState, useCallback } from "react";
-import type { EmailFolder, EmailMessage, ComposeEmailPayload } from "../../../types/email";
+import { useState, useCallback, useEffect } from "react";
+import type { EmailFolder, EmailMessage, ComposeEmailPayload, EmailStatus } from "../../../types/email";
 import { MailboxSidebar } from "./MailboxSidebar";
 import { MessageList } from "./MessageList";
 import { MessagePreview } from "./MessagePreview";
 import { ComposeEmail } from "./ComposeEmail";
+import { EmailSettings } from "./EmailSettings";
 import { useEmailData } from "./useEmailData";
-import { sendEmail } from "../../../utils/emailApi";
+import { sendEmail, getEmailStatus } from "../../../utils/emailApi";
 import { logEmailAudit } from "../../../utils/emailAudit";
 
 const MOCK_MODE = import.meta.env.VITE_EMAIL_MOCK_MODE !== "false";
@@ -22,6 +23,25 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
   const [searchQuery, setSearchQuery] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [starredOnly, setStarredOnly] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null);
+  const [uiError, setUiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!MOCK_MODE) {
+      getEmailStatus()
+        .then(setEmailStatus)
+        .catch(() => setEmailStatus(null));
+    } else {
+      setEmailStatus({
+        provider: "mock",
+        inboundReady: true,
+        outboundReady: true,
+        attachmentsReady: true,
+        mailbox: "info@tnaprovider.com.au",
+      });
+    }
+  }, []);
 
   const {
     messages,
@@ -84,20 +104,32 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
     });
   }, [addSentMessage]);
 
-  const handleDelete = useCallback((id: string) => {
-    moveMessage(id, "trash");
-    if (selectedMessageId === id) setSelectedMessageId(null);
-    logEmailAudit("user-1", "info@tnaprovider.com.au", "email.deleted", { messageId: id });
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await deleteMsg(id);
+      if (selectedMessageId === id) setSelectedMessageId(null);
+      logEmailAudit("user-1", "info@tnaprovider.com.au", "email.deleted", { messageId: id });
+      setUiError(null);
+    } catch (err) {
+      setUiError(err instanceof Error ? err.message : "Failed to delete message");
+    }
+  }, [deleteMsg, selectedMessageId]);
+
+  const handleArchive = useCallback(async (id: string) => {
+    try {
+      await moveMessage(id, "archive");
+      if (selectedMessageId === id) setSelectedMessageId(null);
+      logEmailAudit("user-1", "info@tnaprovider.com.au", "email.moved", {
+        messageId: id,
+        targetFolder: "archive",
+      });
+      setUiError(null);
+    } catch (err) {
+      setUiError(err instanceof Error ? err.message : "Failed to archive message");
+    }
   }, [moveMessage, selectedMessageId]);
 
-  const handleArchive = useCallback((id: string) => {
-    moveMessage(id, "archive");
-    if (selectedMessageId === id) setSelectedMessageId(null);
-    logEmailAudit("user-1", "info@tnaprovider.com.au", "email.moved", {
-      messageId: id,
-      targetFolder: "archive",
-    });
-  }, [moveMessage, selectedMessageId]);
+  const clearError = useCallback(() => setUiError(null), []);
 
   const filteredMessages = messages.filter((m) => {
     if (unreadOnly && m.isRead) return false;
@@ -126,6 +158,8 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
         onUnreadOnlyChange={setUnreadOnly}
         starredOnly={starredOnly}
         onStarredOnlyChange={setStarredOnly}
+        emailStatus={emailStatus}
+        onSettingsClick={() => setSettingsOpen(true)}
       />
 
       <MessageList
@@ -133,7 +167,8 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
         selectedId={selectedMessageId}
         onSelect={handleSelectMessage}
         loading={loading}
-        error={error}
+        error={error || uiError}
+        onErrorDismiss={clearError}
       />
 
       {selectedMessage && (
@@ -151,6 +186,13 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
           replyTo={replyTo}
           onSend={handleSend}
           onDiscard={() => { setShowCompose(false); setReplyTo(null); }}
+        />
+      )}
+
+      {settingsOpen && (
+        <EmailSettings
+          onClose={() => setSettingsOpen(false)}
+          emailStatus={emailStatus}
         />
       )}
     </div>

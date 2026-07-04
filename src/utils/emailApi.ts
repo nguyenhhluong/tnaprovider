@@ -1,4 +1,4 @@
-import type { EmailFolder, EmailMessage, ComposeEmailPayload } from "../types/email";
+import type { EmailFolder, EmailMessage, ComposeEmailPayload, EmailStatus } from "../types/email";
 
 const MOCK_MODE = import.meta.env.VITE_EMAIL_MOCK_MODE !== "false";
 
@@ -50,6 +50,19 @@ export async function moveEmail(messageId: string, folder: EmailFolder): Promise
 
 export async function deleteEmail(messageId: string): Promise<void> {
   return apiRequest("DELETE", `/messages/${messageId}`);
+}
+
+export async function getEmailStatus(): Promise<EmailStatus> {
+  if (MOCK_MODE) {
+    return {
+      provider: "mock",
+      inboundReady: true,
+      outboundReady: true,
+      attachmentsReady: true,
+      mailbox: "info@tnaprovider.com.au",
+    };
+  }
+  return apiRequest("GET", "/status");
 }
 
 // --- Mock mode functions ---

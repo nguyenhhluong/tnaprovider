@@ -1,4 +1,4 @@
-import type { EmailFolder } from "../../../types/email";
+import type { EmailFolder, EmailStatus } from "../../../types/email";
 import { cn } from "../../../utils/cn";
 import {
   Inbox,
@@ -10,6 +10,9 @@ import {
   Search,
   Filter,
   PenSquare,
+  Settings,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 
 interface MailboxSidebarProps {
@@ -22,6 +25,8 @@ interface MailboxSidebarProps {
   onUnreadOnlyChange: (v: boolean) => void;
   starredOnly: boolean;
   onStarredOnlyChange: (v: boolean) => void;
+  emailStatus?: EmailStatus | null;
+  onSettingsClick?: () => void;
 }
 
 const folders: { id: EmailFolder; label: string; icon: typeof Inbox }[] = [
@@ -43,7 +48,19 @@ export function MailboxSidebar({
   onUnreadOnlyChange,
   starredOnly,
   onStarredOnlyChange,
+  emailStatus,
+  onSettingsClick,
 }: MailboxSidebarProps) {
+  const statusLabel = emailStatus
+    ? emailStatus.provider === "mock"
+      ? "Mock mode"
+      : emailStatus.inboundReady && emailStatus.outboundReady
+        ? "Live mailbox connected"
+        : emailStatus.outboundReady
+          ? "Outbound only"
+          : "Mail server not connected"
+    : "Checking...";
+
   return (
     <div className="w-56 lg:w-64 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-brand-darker flex flex-col shrink-0">
       <div className="p-3">
@@ -88,6 +105,22 @@ export function MailboxSidebar({
       </nav>
 
       <div className="p-3 border-t border-gray-200 dark:border-gray-800 space-y-2">
+        <div className="flex items-center gap-2 text-xs">
+          {emailStatus?.inboundReady && emailStatus?.outboundReady ? (
+            <Wifi className="w-3 h-3 text-green-500" />
+          ) : (
+            <WifiOff className="w-3 h-3 text-amber-500" />
+          )}
+          <span
+            className={cn(
+              emailStatus?.inboundReady && emailStatus?.outboundReady
+                ? "text-green-600 dark:text-green-400"
+                : "text-amber-600 dark:text-amber-400"
+            )}
+          >
+            {statusLabel}
+          </span>
+        </div>
         <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
           <input
             type="checkbox"
@@ -108,6 +141,15 @@ export function MailboxSidebar({
           <Filter className="w-3 h-3" />
           Starred only
         </label>
+        {onSettingsClick && (
+          <button
+            onClick={onSettingsClick}
+            className="flex items-center gap-2 text-xs text-gray-500 hover:text-brand-accent cursor-pointer"
+          >
+            <Settings className="w-3 h-3" />
+            Settings
+          </button>
+        )}
       </div>
     </div>
   );

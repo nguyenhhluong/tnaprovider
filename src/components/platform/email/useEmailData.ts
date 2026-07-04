@@ -63,26 +63,32 @@ export function useEmailData(folder: EmailFolder) {
     }
   }, []);
 
-  const moveMessage = useCallback((id: string, targetFolder: EmailFolder) => {
+  const moveMessage = useCallback(async (id: string, targetFolder: EmailFolder) => {
     setMessages((prev) => prev.filter((m) => m.id !== id));
     if (MOCK_MODE) {
       removeMockEmail(id);
     } else {
-      moveEmail(id, targetFolder).catch(() => {
-        // Revert would require re-fetching; log for now
-        console.error("Failed to move message", id, targetFolder);
-      });
+      try {
+        await moveEmail(id, targetFolder);
+      } catch (err) {
+        // Revert the optimistic removal by re-fetching
+        setMessages((prev) => [...prev]);
+        throw err;
+      }
     }
   }, []);
 
-  const deleteMsg = useCallback((id: string) => {
+  const deleteMsg = useCallback(async (id: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== id));
     if (MOCK_MODE) {
       removeMockEmail(id);
     } else {
-      deleteEmail(id).catch(() => {
-        console.error("Failed to delete message", id);
-      });
+      try {
+        await deleteEmail(id);
+      } catch (err) {
+        setMessages((prev) => [...prev]);
+        throw err;
+      }
     }
   }, []);
 
