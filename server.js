@@ -11,6 +11,7 @@ import { requirePasswordChanged } from './server/middleware/passwordChange.js';
 import authRoutes from './server/routes/auth.js';
 import platformRoutes from './server/routes/platform.js';
 import clientPortalRoutes from './server/routes/clientPortal.js';
+import adminToolsRoutes from './server/routes/adminTools.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +32,7 @@ if (process.env.APP_ENV !== 'test') {
 app.use('/api/auth', authRoutes);
 app.use('/api/platform', platformRoutes);
 app.use('/api/client-portal', clientPortalRoutes);
+app.use('/api/admin-tools', adminToolsRoutes);
 
 app.post('/api/contact', (req, res) => {
   const submission = {

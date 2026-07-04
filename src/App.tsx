@@ -38,6 +38,7 @@ import { Users as PlatformUsers } from "./pages/platform/Users";
 import { Audit } from "./pages/platform/Audit";
 import { Profile } from "./pages/platform/Profile";
 import { Security } from "./pages/platform/Security";
+import { AdminTools } from "./pages/platform/AdminTools";
 
 const router = createBrowserRouter([
   {
@@ -98,6 +99,7 @@ const router = createBrowserRouter([
       { path: "settings", element: <ProtectedRoute roles={["owner", "admin"]}><Settings /></ProtectedRoute> },
       { path: "users", element: <ProtectedRoute roles={["owner", "admin"]}><PlatformUsers /></ProtectedRoute> },
       { path: "audit", element: <ProtectedRoute roles={["owner", "admin"]}><Audit /></ProtectedRoute> },
+      { path: "admin-tools", element: <ProtectedRoute roles={["owner", "admin"]}><AdminTools /></ProtectedRoute> },
       { path: "profile", element: <Profile /> },
     ],
   },
