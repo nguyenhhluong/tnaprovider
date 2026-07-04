@@ -16,6 +16,12 @@ import { FAQ } from "./pages/FAQ";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicy";
 import { TermsOfServicePage } from "./pages/TermsOfService";
 import { ThemeProvider } from "./components/ThemeProvider";
+import { CostEstimator } from "./pages/tools/CostEstimator";
+import { TenderUpload } from "./pages/tools/TenderUpload";
+import { TimelinePredictor } from "./pages/tools/TimelinePredictor";
+import { Capability } from "./pages/capability/Capability";
+import { Materials } from "./pages/Materials";
+import { ProjectMapPage } from "./pages/ProjectMap";
 
 const router = createBrowserRouter([
   {
@@ -32,6 +38,12 @@ const router = createBrowserRouter([
       { path: "faq", element: <FAQ /> },
       { path: "privacy-policy", element: <PrivacyPolicyPage /> },
       { path: "terms-of-service", element: <TermsOfServicePage /> },
+      { path: "tools/cost-estimator", element: <CostEstimator /> },
+      { path: "tools/tender-upload", element: <TenderUpload /> },
+      { path: "tools/timeline-predictor", element: <TimelinePredictor /> },
+      { path: "capability", element: <Capability /> },
+      { path: "materials", element: <Materials /> },
+      { path: "project-map", element: <ProjectMapPage /> },
     ],
   },
 ]);

@@ -18,6 +18,12 @@ const routes = [
   "/faq",
   "/privacy-policy",
   "/terms-of-service",
+  "/tools/cost-estimator",
+  "/tools/tender-upload",
+  "/tools/timeline-predictor",
+  "/capability",
+  "/materials",
+  "/project-map",
 ];
 
 async function prerender() {
