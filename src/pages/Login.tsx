@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { SEO } from "../components/SEO";
+import { HeidiCreditBadge } from "../components/platform/HeidiCreditBadge";
 import { LogIn, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export function Login() {
@@ -122,6 +123,9 @@ export function Login() {
               <Link to="/" className="text-sm text-brand-accent hover:underline">
                 Back to public site
               </Link>
+            </div>
+            <div className="mt-6 flex justify-center">
+              <HeidiCreditBadge />
             </div>
           </div>
         </div>

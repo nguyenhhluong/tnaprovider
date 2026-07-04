@@ -19,6 +19,7 @@ import {
 import { cn } from "../../utils/cn";
 import { useAuth } from "../../context/AuthContext";
 import { appPath } from "../../utils/host";
+import { HeidiCreditBadge } from "./HeidiCreditBadge";
 
 export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation();
@@ -146,6 +147,9 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
             <LogOut className="w-5 h-5" />
             Sign Out
           </button>
+          <div className="pt-3">
+            <HeidiCreditBadge compact />
+          </div>
         </div>
       </aside>
     </>
