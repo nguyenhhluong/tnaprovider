@@ -18,17 +18,15 @@ function buildSelectExpr(cols, field, defaultValue) {
 export function migrate() {
   const db = getDb();
 
-  // First, add Phase 5A columns to any existing users table (safe no-op if present)
-  addColumnIfMissing(db, 'users', 'must_change_password', 'INTEGER DEFAULT 0');
-  addColumnIfMissing(db, 'users', 'invited_at', 'TEXT');
-  addColumnIfMissing(db, 'users', 'disabled_at', 'TEXT');
-  addColumnIfMissing(db, 'users', 'disabled_by', 'TEXT REFERENCES users(id)');
-  addColumnIfMissing(db, 'users', 'password_changed_at', 'TEXT');
-
-  // Now recreate users table with updated CHECK constraint if needed
   const usersExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
 
   if (usersExists) {
+    // Safely add Phase 5A columns (no-op if already present)
+    addColumnIfMissing(db, 'users', 'must_change_password', 'INTEGER DEFAULT 0');
+    addColumnIfMissing(db, 'users', 'invited_at', 'TEXT');
+    addColumnIfMissing(db, 'users', 'disabled_at', 'TEXT');
+    addColumnIfMissing(db, 'users', 'disabled_by', 'TEXT REFERENCES users(id)');
+    addColumnIfMissing(db, 'users', 'password_changed_at', 'TEXT');
     const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get().sql;
     if (!sql.includes("'invited'")) {
       const cols = getColumnNames(db, 'users');
