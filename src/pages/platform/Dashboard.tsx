@@ -25,16 +25,18 @@ export function Dashboard() {
           revenuePipeline: data.quotes?.totalAcceptedValue ?? 0,
         });
         const raw = data.activity || [];
+        const knownTypes = new Set(["lead","leads","timesheet","timesheets","realtime_timesheet","project","projects","quote","quotes","task","tasks","document","documents","variation","maintenance","review","notification","notifications","user","users","security","audit","system"]);
+        const normalise = (t?: string | null) => { const s = String(t || "system").toLowerCase(); return knownTypes.has(s) ? s : "system"; };
         setActivities(raw.map((a: any) => ({
-          id: a.id,
-          type: a.entity_type || "system",
+          id: a.id || `${a.action || "activity"}-${a.created_at || ""}`,
+          type: normalise(a.entity_type),
           action: a.action || "Activity",
           description: a.user_name
-            ? `${a.user_name} performed ${a.action}`
+            ? `${a.user_name} performed ${a.action || "an action"}`
             : a.entity_type
-              ? `${a.action} on ${a.entity_type}`
+              ? `${a.action || "Activity"} on ${a.entity_type}`
               : a.action || "System activity",
-          timestamp: a.created_at,
+          timestamp: a.created_at || a.updated_at || null,
         })));
       }
     } catch {

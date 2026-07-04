@@ -54,6 +54,22 @@ import { PayrollSummary } from "./pages/platform/PayrollSummary";
 import { QRSiteCheckIn } from "./pages/platform/QRSiteCheckIn";
 import { isAppHost, isMainHost } from "./utils/host";
 
+function RouteErrorFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+      <div className="max-w-md w-full rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 text-center">
+        <h1 className="text-lg font-semibold text-brand-dark dark:text-white">Something went wrong</h1>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          Please refresh the page or return to the dashboard.
+        </p>
+        <a href="/dashboard" className="mt-4 inline-flex px-4 py-2 rounded-lg bg-brand-accent text-white text-sm font-semibold">
+          Back to Dashboard
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function MarketingRoute({ children }: { children: React.ReactNode }) {
   if (isAppHost()) {
     window.location.href = `https://tnaprovider.com.au${window.location.pathname}${window.location.search}`;
@@ -101,6 +117,7 @@ const router = createBrowserRouter([
   {
     path: "/",
     element: <RootLayout />,
+    errorElement: <RouteErrorFallback />,
     children: [
       { index: true, element: <AppIndex /> },
       { path: "about", element: <MarketingRoute><About /></MarketingRoute> },
