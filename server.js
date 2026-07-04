@@ -12,6 +12,12 @@ import authRoutes from './server/routes/auth.js';
 import platformRoutes from './server/routes/platform.js';
 import clientPortalRoutes from './server/routes/clientPortal.js';
 import adminToolsRoutes from './server/routes/adminTools.js';
+import automationRoutes from './server/routes/automation.js';
+import quotesRoutes from './server/routes/quotes.js';
+import tasksRoutes from './server/routes/tasks.js';
+import documentsRoutes from './server/routes/documents.js';
+import notificationsRoutes from './server/routes/notifications.js';
+import reportsRoutes from './server/routes/reports.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,6 +39,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/platform', platformRoutes);
 app.use('/api/client-portal', clientPortalRoutes);
 app.use('/api/admin-tools', adminToolsRoutes);
+app.use('/api/automation', automationRoutes);
+app.use('/api/quotes', quotesRoutes);
+app.use('/api/tasks', tasksRoutes);
+app.use('/api/documents', documentsRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/reports', reportsRoutes);
 
 app.post('/api/contact', (req, res) => {
   const submission = {

@@ -75,6 +75,55 @@ router.post("/", (req, res) => {
   res.status(201).json({ id });
 });
 
+// Task Templates — must be defined before /:id routes
+router.get("/templates", (req, res) => {
+  if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
+  const db = getDb();
+  const templates = db.prepare("SELECT * FROM project_task_templates ORDER BY name ASC").all();
+  res.json(templates);
+});
+
+router.post("/templates", (req, res) => {
+  if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
+  const db = getDb();
+  const { name, description, sector, tasks } = req.body;
+  if (!name) return res.status(400).json({ error: "name is required" });
+  const id = crypto.randomUUID();
+  db.prepare("INSERT INTO project_task_templates (id, name, description, sector, created_by) VALUES (?, ?, ?, ?, ?)").run(id, name, description || null, sector || null, req.user.userId);
+  
+  if (Array.isArray(tasks)) {
+    const insert = db.prepare("INSERT INTO project_template_tasks (id, template_id, title, description, default_assignee_role, sort_order, estimated_hours) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    tasks.forEach((t, i) => {
+      insert.run(crypto.randomUUID(), id, t.title, t.description || null, t.default_assignee_role || null, i, t.estimated_hours || null);
+    });
+  }
+  
+  audit(res, "task_template_created", "project_task_template", id, { name });
+  res.status(201).json({ id });
+});
+
+router.post("/templates/:id/apply-to-project/:projectId", (req, res) => {
+  if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
+  const db = getDb();
+  const template = db.prepare("SELECT * FROM project_task_templates WHERE id = ?").get(req.params.id);
+  if (!template) return res.status(404).json({ error: "Template not found" });
+  
+  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.projectId);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+  
+  const templateTasks = db.prepare("SELECT * FROM project_template_tasks WHERE template_id = ? ORDER BY sort_order ASC").all(req.params.id);
+  const insert = db.prepare("INSERT INTO project_tasks (id, project_id, title, description, created_by) VALUES (?, ?, ?, ?, ?)");
+  const created = [];
+  templateTasks.forEach((tt) => {
+    const id = crypto.randomUUID();
+    insert.run(id, req.params.projectId, tt.title, tt.description || null, req.user.userId);
+    created.push(id);
+  });
+  
+  audit(res, "task_template_applied", "project_task_template", req.params.id, { projectId: req.params.projectId, taskCount: created.length });
+  res.status(201).json({ created });
+});
+
 router.get("/:id", (req, res) => {
   const db = getDb();
   const task = db.prepare(`SELECT pt.*, p.title as project_title, u.name as assigned_name 
@@ -176,55 +225,6 @@ router.get("/:id/comments", (req, res) => {
     LEFT JOIN users u ON u.id = ptc.user_id 
     WHERE ptc.task_id = ? ORDER BY ptc.created_at ASC`).all(req.params.id);
   res.json(comments);
-});
-
-// Task Templates
-router.get("/templates", (req, res) => {
-  if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
-  const db = getDb();
-  const templates = db.prepare("SELECT * FROM project_task_templates ORDER BY name ASC").all();
-  res.json(templates);
-});
-
-router.post("/templates", (req, res) => {
-  if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
-  const db = getDb();
-  const { name, description, sector, tasks } = req.body;
-  if (!name) return res.status(400).json({ error: "name is required" });
-  const id = crypto.randomUUID();
-  db.prepare("INSERT INTO project_task_templates (id, name, description, sector, created_by) VALUES (?, ?, ?, ?, ?)").run(id, name, description || null, sector || null, req.user.userId);
-  
-  if (Array.isArray(tasks)) {
-    const insert = db.prepare("INSERT INTO project_template_tasks (id, template_id, title, description, default_assignee_role, sort_order, estimated_hours) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    tasks.forEach((t, i) => {
-      insert.run(crypto.randomUUID(), id, t.title, t.description || null, t.default_assignee_role || null, i, t.estimated_hours || null);
-    });
-  }
-  
-  audit(res, "task_template_created", "project_task_template", id, { name });
-  res.status(201).json({ id });
-});
-
-router.post("/templates/:id/apply-to-project/:projectId", (req, res) => {
-  if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
-  const db = getDb();
-  const template = db.prepare("SELECT * FROM project_task_templates WHERE id = ?").get(req.params.id);
-  if (!template) return res.status(404).json({ error: "Template not found" });
-  
-  const project = db.prepare("SELECT id FROM projects WHERE id = ?").get(req.params.projectId);
-  if (!project) return res.status(404).json({ error: "Project not found" });
-  
-  const templateTasks = db.prepare("SELECT * FROM project_template_tasks WHERE template_id = ? ORDER BY sort_order ASC").all(req.params.id);
-  const insert = db.prepare("INSERT INTO project_tasks (id, project_id, title, description, created_by) VALUES (?, ?, ?, ?, ?)");
-  const created = [];
-  templateTasks.forEach((tt) => {
-    const id = crypto.randomUUID();
-    insert.run(id, req.params.projectId, tt.title, tt.description || null, req.user.userId);
-    created.push(id);
-  });
-  
-  audit(res, "task_template_applied", "project_task_template", req.params.id, { projectId: req.params.projectId, taskCount: created.length });
-  res.status(201).json({ created });
 });
 
 export default router;

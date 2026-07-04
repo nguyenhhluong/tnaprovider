@@ -99,49 +99,7 @@ router.post("/", (req, res) => {
   res.status(201).json({ id });
 });
 
-router.get("/:id", (req, res) => {
-  const db = getDb();
-  const doc = db.prepare(`SELECT d.*, u.name as uploaded_by_name, df.name as folder_name 
-    FROM documents d 
-    LEFT JOIN users u ON u.id = d.uploaded_by 
-    LEFT JOIN document_folders df ON df.id = d.folder_id 
-    WHERE d.id = ?`).get(req.params.id);
-  if (!doc) return res.status(404).json({ error: "Document not found" });
-  if (!isManagement(req.user) && req.user.role === "client" && doc.visibility !== "client") {
-    return res.status(403).json({ error: "Access denied" });
-  }
-  res.json(doc);
-});
-
-router.patch("/:id", (req, res) => {
-  if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
-  const db = getDb();
-  const { title, description, visibility, file_url, file_name, file_type, file_size } = req.body;
-  const sets = []; const vals = [];
-  if (title) { sets.push("title = ?"); vals.push(title); }
-  if (description !== undefined) { sets.push("description = ?"); vals.push(description); }
-  if (visibility) { sets.push("visibility = ?"); vals.push(visibility); }
-  if (file_url !== undefined) { sets.push("file_url = ?"); vals.push(file_url); }
-  if (file_name !== undefined) { sets.push("file_name = ?"); vals.push(file_name); }
-  if (file_type !== undefined) { sets.push("file_type = ?"); vals.push(file_type); }
-  if (file_size !== undefined) { sets.push("file_size = ?"); vals.push(file_size); }
-  if (sets.length > 0) {
-    sets.push("updated_at = datetime('now')");
-    db.prepare(`UPDATE documents SET ${sets.join(", ")} WHERE id = ?`).run(...vals, req.params.id);
-    audit(res, "document_updated", "document", req.params.id, { changes: sets });
-  }
-  res.json({ success: true });
-});
-
-router.delete("/:id", (req, res) => {
-  if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
-  const db = getDb();
-  db.prepare("DELETE FROM documents WHERE id = ?").run(req.params.id);
-  audit(res, "document_deleted", "document", req.params.id, {});
-  res.json({ success: true });
-});
-
-// Proposal Templates
+// Proposal routes must be defined before /:id document routes
 router.get("/proposal-templates", (req, res) => {
   if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
   const db = getDb();
@@ -159,7 +117,6 @@ router.post("/proposal-templates", (req, res) => {
   res.status(201).json({ id });
 });
 
-// Proposal Versions
 router.get("/proposals", (req, res) => {
   if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
   const db = getDb();
@@ -207,6 +164,48 @@ router.patch("/proposals/:id", (req, res) => {
     db.prepare(`UPDATE proposal_versions SET ${sets.join(", ")} WHERE id = ?`).run(...vals, req.params.id);
     audit(res, "proposal_updated", "proposal_version", req.params.id, { changes: sets });
   }
+  res.json({ success: true });
+});
+
+router.get("/:id", (req, res) => {
+  const db = getDb();
+  const doc = db.prepare(`SELECT d.*, u.name as uploaded_by_name, df.name as folder_name 
+    FROM documents d 
+    LEFT JOIN users u ON u.id = d.uploaded_by 
+    LEFT JOIN document_folders df ON df.id = d.folder_id 
+    WHERE d.id = ?`).get(req.params.id);
+  if (!doc) return res.status(404).json({ error: "Document not found" });
+  if (!isManagement(req.user) && req.user.role === "client" && doc.visibility !== "client") {
+    return res.status(403).json({ error: "Access denied" });
+  }
+  res.json(doc);
+});
+
+router.patch("/:id", (req, res) => {
+  if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
+  const db = getDb();
+  const { title, description, visibility, file_url, file_name, file_type, file_size } = req.body;
+  const sets = []; const vals = [];
+  if (title) { sets.push("title = ?"); vals.push(title); }
+  if (description !== undefined) { sets.push("description = ?"); vals.push(description); }
+  if (visibility) { sets.push("visibility = ?"); vals.push(visibility); }
+  if (file_url !== undefined) { sets.push("file_url = ?"); vals.push(file_url); }
+  if (file_name !== undefined) { sets.push("file_name = ?"); vals.push(file_name); }
+  if (file_type !== undefined) { sets.push("file_type = ?"); vals.push(file_type); }
+  if (file_size !== undefined) { sets.push("file_size = ?"); vals.push(file_size); }
+  if (sets.length > 0) {
+    sets.push("updated_at = datetime('now')");
+    db.prepare(`UPDATE documents SET ${sets.join(", ")} WHERE id = ?`).run(...vals, req.params.id);
+    audit(res, "document_updated", "document", req.params.id, { changes: sets });
+  }
+  res.json({ success: true });
+});
+
+router.delete("/:id", (req, res) => {
+  if (!isManagement(req.user)) return res.status(403).json({ error: "Access denied" });
+  const db = getDb();
+  db.prepare("DELETE FROM documents WHERE id = ?").run(req.params.id);
+  audit(res, "document_deleted", "document", req.params.id, {});
   res.json({ success: true });
 });
 
