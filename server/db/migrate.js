@@ -1,5 +1,12 @@
 import { getDb } from "./database.js";
 
+function addColumnIfMissing(db, table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+  if (!cols.includes(column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 export function migrate() {
   const db = getDb();
 
@@ -111,6 +118,41 @@ export function migrate() {
     CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
     CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
     CREATE INDEX IF NOT EXISTS idx_maintenance_client ON maintenance_tickets(client_id);
+  `);
+
+  // Phase 5A: Add columns safely for existing tables
+  addColumnIfMissing(db, 'users', 'must_change_password', 'INTEGER DEFAULT 0');
+  addColumnIfMissing(db, 'users', 'invited_at', 'TEXT');
+  addColumnIfMissing(db, 'users', 'disabled_at', 'TEXT');
+  addColumnIfMissing(db, 'users', 'disabled_by', 'TEXT REFERENCES users(id)');
+  addColumnIfMissing(db, 'users', 'password_changed_at', 'TEXT');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_ip TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS user_invite_tokens (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('admin','manager','worker','client')),
+      name TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      accepted_at TEXT,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_ip TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_user_invite_email ON user_invite_tokens(email);
   `);
 
   console.log("Database migrated successfully");

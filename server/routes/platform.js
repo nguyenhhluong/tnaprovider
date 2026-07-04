@@ -6,6 +6,8 @@ import { requireRole } from "../middleware/roles.js";
 import { createAuditLog } from "../middleware/audit.js";
 import { validate, schemas } from "../middleware/validate.js";
 import { hashPassword } from "../auth/hash.js";
+import { generateToken, hashToken } from "../auth/tokens.js";
+import { revokeAllUserSessions } from "../auth/session.js";
 
 const router = Router();
 
@@ -27,7 +29,7 @@ function audit(res, action, entityType, entityId, metadata) {
 
 router.get("/users", requireRole("owner", "admin"), (req, res) => {
   const db = getDb();
-  const users = db.prepare("SELECT id, email, name, role, status, created_at, last_login_at FROM users ORDER BY created_at DESC").all();
+  const users = db.prepare("SELECT id, email, name, role, status, must_change_password, invited_at, disabled_at, disabled_by, password_changed_at, created_at, last_login_at FROM users ORDER BY created_at DESC").all();
   res.json(users);
 });
 
@@ -72,6 +74,178 @@ router.patch("/users/:id", requireRole("owner", "admin"), (req, res) => {
     db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...values, id);
     audit(res, "user_updated", "user", id, { changes: updates });
   }
+
+  res.json({ success: true });
+});
+
+// ── Invite User ──
+
+router.post("/users/invite", requireRole("owner", "admin"), validate(schemas.inviteUser), (req, res) => {
+  const db = getDb();
+  const { email, name, role } = req.body;
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Only owner can invite admin
+  if (role === "admin" && req.user.role !== "owner") {
+    return res.status(403).json({ error: "Only owner can invite admin users" });
+  }
+
+  const existing = db.prepare("SELECT id, status FROM users WHERE email = ?").get(normalizedEmail);
+  if (existing && existing.status !== "disabled") {
+    return res.status(409).json({ error: "User with this email already exists" });
+  }
+
+  const rawToken = generateToken();
+  const tokenHash = hashToken(rawToken);
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  db.prepare(`
+    INSERT INTO user_invite_tokens (id, email, role, name, token_hash, expires_at, created_by, created_at, created_ip)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, normalizedEmail, role, name, tokenHash, expiresAt, req.user.userId, now, req.ip);
+
+  // If user exists but is disabled, mark as invited
+  if (existing && existing.status === "disabled") {
+    db.prepare("UPDATE users SET status = 'active', invited_at = ?, updated_at = ? WHERE id = ?").run(now, now, existing.id);
+  }
+
+  createAuditLog({
+    userId: req.user.userId,
+    action: "invite_created",
+    entityType: "user",
+    metadata: { email: normalizedEmail, role },
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  if (process.env.APP_ENV !== "production") {
+    res.status(201).json({ message: "Invite created", devToken: rawToken, inviteId: id });
+  } else {
+    res.status(201).json({ message: "Invite sent" });
+  }
+});
+
+// ── Disable User ──
+
+router.patch("/users/:id/disable", requireRole("owner", "admin"), (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  if (user.role === "owner" && req.user.role !== "owner") {
+    return res.status(403).json({ error: "Only owner can disable owner accounts" });
+  }
+
+  // Prevent disabling the last active owner
+  if (user.role === "owner") {
+    const activeOwners = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'owner' AND status = 'active'").get();
+    if (activeOwners.count <= 1) {
+      return res.status(400).json({ error: "Cannot disable the last active owner" });
+    }
+  }
+
+  db.prepare("UPDATE users SET status = 'disabled', disabled_at = datetime('now'), disabled_by = ?, updated_at = datetime('now') WHERE id = ?").run(req.user.userId, id);
+  revokeAllUserSessions(id);
+
+  createAuditLog({
+    userId: req.user.userId,
+    action: "user_disabled",
+    entityType: "user",
+    entityId: id,
+    metadata: { email: user.email, role: user.role },
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ success: true });
+});
+
+// ── Enable User ──
+
+router.patch("/users/:id/enable", requireRole("owner", "admin"), (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  db.prepare("UPDATE users SET status = 'active', disabled_at = NULL, disabled_by = NULL, updated_at = datetime('now') WHERE id = ?").run(id);
+
+  createAuditLog({
+    userId: req.user.userId,
+    action: "user_enabled",
+    entityType: "user",
+    entityId: id,
+    metadata: { email: user.email, role: user.role },
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ success: true });
+});
+
+// ── Change User Role ──
+
+router.patch("/users/:id/role", requireRole("owner"), (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { role } = req.body;
+
+  if (!["owner", "admin", "manager", "worker", "client"].includes(role)) {
+    return res.status(400).json({ error: "Invalid role" });
+  }
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  // Prevent demoting the last owner
+  if (user.role === "owner" && role !== "owner") {
+    const activeOwners = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'owner' AND status = 'active'").get();
+    if (activeOwners.count <= 1) {
+      return res.status(400).json({ error: "Cannot change role of the last active owner" });
+    }
+  }
+
+  db.prepare("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(role, id);
+
+  createAuditLog({
+    userId: req.user.userId,
+    action: "user_role_changed",
+    entityType: "user",
+    entityId: id,
+    metadata: { email: user.email, oldRole: user.role, newRole: role },
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  res.json({ success: true });
+});
+
+// ── Force Password Change ──
+
+router.patch("/users/:id/force-password-change", requireRole("owner", "admin"), (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  db.prepare("UPDATE users SET must_change_password = 1, updated_at = datetime('now') WHERE id = ?").run(id);
+  revokeAllUserSessions(id);
+
+  createAuditLog({
+    userId: req.user.userId,
+    action: "force_password_change_set",
+    entityType: "user",
+    entityId: id,
+    metadata: { email: user.email },
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
 
   res.json({ success: true });
 });
@@ -291,7 +465,19 @@ router.patch("/maintenance/:id", requireRole("owner", "admin", "manager"), (req,
 
 router.get("/audit", requireRole("owner", "admin"), (req, res) => {
   const db = getDb();
-  const logs = db.prepare("SELECT a.*, u.name as user_name FROM audit_logs a LEFT JOIN users u ON u.id = a.user_id ORDER BY a.created_at DESC LIMIT 500").all();
+  const { action, userId, entityType, limit } = req.query;
+
+  let query = "SELECT a.*, u.name as user_name FROM audit_logs a LEFT JOIN users u ON u.id = a.user_id WHERE 1=1";
+  const params = [];
+
+  if (action) { query += " AND a.action = ?"; params.push(action); }
+  if (userId) { query += " AND a.user_id = ?"; params.push(userId); }
+  if (entityType) { query += " AND a.entity_type = ?"; params.push(entityType); }
+
+  query += " ORDER BY a.created_at DESC LIMIT ?";
+  params.push(parseInt(limit) || 500);
+
+  const logs = db.prepare(query).all(...params);
   res.json(logs);
 });
 
