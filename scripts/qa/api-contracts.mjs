@@ -1,5 +1,4 @@
-import { withServer, getCookie, auth } from "./test-harness.mjs";
-import { existsSync, unlinkSync } from "fs";
+import { withServer, mustGetCookie, auth } from "./test-harness.mjs";
 
 const BASE = "http://127.0.0.1:3007";
 let pass = 0, fail = 0;
@@ -15,15 +14,19 @@ async function check(label, url, opts = {}) {
   } catch (e) { fail++; console.error(`FAIL ${label}: ${e.message}`); return null; }
 }
 
-await withServer(null, async () => {
-  const c = await getCookie("owner@example.com", "ChangeMe123!");
-  if (!c) { fail++; console.error("FAIL: owner login"); return; }
+await withServer({
+  dbPath: "data/test-phase7h-api.db",
+  setupEnv: {
+    SEED_OWNER_EMAIL: "owner@test.com",
+    SEED_OWNER_PASSWORD: "ChangeMe123!",
+    SEED_OWNER_NAME: "Test Owner",
+  },
+}, async () => {
+  const c = await mustGetCookie("owner@test.com", "ChangeMe123!", "owner");
 
-  // Email status (public - no cookie needed)
   const email = await check("email/status", `${BASE}/api/email/status`);
   if (email && email.provider !== "mock") { fail++; console.error("FAIL: email provider not mock"); }
 
-  // Protected endpoints - must be authenticated
   await check("reports/dashboard", `${BASE}/api/reports/dashboard`, auth(c));
   await check("quotes", `${BASE}/api/quotes`, auth(c));
   await check("tasks", `${BASE}/api/tasks`, auth(c));
@@ -32,7 +35,6 @@ await withServer(null, async () => {
   await check("sites", `${BASE}/api/realtime-timesheets/sites`, auth(c));
   await check("payroll-summary", `${BASE}/api/realtime-timesheets/payroll/summary`, auth(c));
 
-  // Dashboard check - verify safe JSON
   const dash = await check("dashboard", `${BASE}/api/reports/dashboard`, auth(c));
   if (dash && typeof dash !== "object") { fail++; console.error("FAIL: dashboard not object"); }
 });

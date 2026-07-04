@@ -1,8 +1,6 @@
-import { existsSync, unlinkSync } from "fs";
-import { withServer, getCookie, auth } from "./test-harness.mjs";
+import { withServer, mustGetCookie, auth } from "./test-harness.mjs";
 
 const BASE = "http://127.0.0.1:3007";
-const DB = "data/test-phase7h-payroll.db";
 let pass = 0, fail = 0;
 
 async function api(method, path, body, cookie) {
@@ -16,27 +14,15 @@ async function api(method, path, body, cookie) {
   return { status: res.status, data };
 }
 
-// Prepare DB
-if (existsSync(DB)) unlinkSync(DB);
-process.env.DATABASE_URL = DB;
-process.env.APP_ENV = "development";
-process.env.SESSION_SECRET = "phase7h-payroll-test";
-process.env.MAIL_PROVIDER = "mock";
-process.env.VITE_EMAIL_MOCK_MODE = "true";
-process.env.HOST = "127.0.0.1";
-process.env.PORT = "3007";
-
-const { migrate } = await import("../../server/db/migrate.js");
-migrate();
-process.env.SEED_OWNER_EMAIL = "owner@test.com";
-process.env.SEED_OWNER_PASSWORD = "ChangeMe123!";
-process.env.SEED_OWNER_NAME = "Test Owner";
-const { seed } = await import("../../server/db/seed.js");
-seed();
-
-await withServer(DB, async () => {
-  const c = await getCookie("owner@test.com", "ChangeMe123!");
-  if (!c) { fail++; console.error("FAIL: owner login"); return; }
+await withServer({
+  dbPath: "data/test-phase7h-payroll.db",
+  setupEnv: {
+    SEED_OWNER_EMAIL: "owner@test.com",
+    SEED_OWNER_PASSWORD: "ChangeMe123!",
+    SEED_OWNER_NAME: "Test Owner",
+  },
+}, async () => {
+  const c = await mustGetCookie("owner@test.com", "ChangeMe123!", "owner");
 
   // 1. Create rule with DT after 10
   const r1 = await api("POST", "/api/realtime-timesheets/pay-rules", {
@@ -89,18 +75,23 @@ await withServer(DB, async () => {
   const firstActive = list3.data?.find(r => r.name === "Test Rule")?.is_active;
   if (firstActive === 0) pass++; else { fail++; console.error("FAIL: old rule not deactivated"); }
 
-  // 9. Payroll calculation test via exported function
+  // 9. Payroll calculation via exported helper
   const { calculatePayBreakdownServer } = await import("../../server/routes/realtimeTimesheets.js");
   const HR = 40;
-  const p1 = calculatePayBreakdownServer(11 * 3600, HR, { ordinary_hours_per_day: 7.6, overtime_daily_after_hours: 7.6, overtime_rate_multiplier: 1.5, double_time_after_hours: 10, double_time_multiplier: 2 });
+  const p1 = calculatePayBreakdownServer(11 * 3600, HR, {
+    ordinary_hours_per_day: 7.6, overtime_daily_after_hours: 7.6,
+    overtime_rate_multiplier: 1.5, double_time_after_hours: 10, double_time_multiplier: 2
+  });
   if (p1.basePay === 304 && p1.overtimePay === 144 && p1.doubleTimePay === 80) pass++;
-  else { fail++; console.error(`FAIL: DT after 10 expected 304/144/80 got ${p1.basePay}/${p1.overtimePay}/${p1.doubleTimePay}`); }
+  else { fail++; console.error(`FAIL: DT 10 expected 304/144/80 got ${p1.basePay}/${p1.overtimePay}/${p1.doubleTimePay}`); }
 
-  const p2 = calculatePayBreakdownServer(11 * 3600, HR, { ordinary_hours_per_day: 7.6, overtime_daily_after_hours: 7.6, overtime_rate_multiplier: 1.5, double_time_after_hours: null, double_time_multiplier: 2 });
+  const p2 = calculatePayBreakdownServer(11 * 3600, HR, {
+    ordinary_hours_per_day: 7.6, overtime_daily_after_hours: 7.6,
+    overtime_rate_multiplier: 1.5, double_time_after_hours: null, double_time_multiplier: 2
+  });
   if (p2.basePay === 304 && p2.overtimePay === 204 && p2.doubleTimePay === 0) pass++;
-  else { fail++; console.error(`FAIL: DT disabled expected 304/204/0 got ${p2.basePay}/${p2.overtimePay}/${p2.doubleTimePay}`); }
+  else { fail++; console.error(`FAIL: DT null expected 304/204/0 got ${p2.basePay}/${p2.overtimePay}/${p2.doubleTimePay}`); }
 });
 
-if (existsSync(DB)) unlinkSync(DB);
 console.log(`Payroll: ${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

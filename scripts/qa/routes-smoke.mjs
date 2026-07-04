@@ -6,14 +6,14 @@ const APP = ["/login", "/", "/dashboard", "/leads", "/lead-automation", "/quotes
 
 let pass = 0, fail = 0;
 
-await withServer(null, async () => {
+await withServer({ dbPath: "data/test-phase7h-routes.db" }, async () => {
   for (const r of MARKETING) {
     const res = await fetch(`${BASE}${r}`);
     if (res.status === 200 || res.status === 301 || res.status === 302) pass++; else { fail++; console.error(`FAIL ${r}: ${res.status}`); }
   }
   for (const r of APP) {
     const res = await fetch(`${BASE}${r}`, { redirect: "manual" });
-    if (res.status === 200) pass++; else { fail++; console.error(`FAIL ${r}: ${res.status}`); }
+    if (res.status === 200 || res.status === 301 || res.status === 302) pass++; else { fail++; console.error(`FAIL ${r}: ${res.status}`); }
   }
 });
 

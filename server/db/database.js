@@ -4,17 +4,23 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = process.env.DATABASE_URL || path.join(__dirname, "../../data/tna.db");
+function getDbPath() {
+  return process.env.DATABASE_URL || path.join(__dirname, "../../data/tna.db");
+}
 
+let dbPath = null;
 let db = null;
 
 export function getDb() {
-  if (!db) {
-    const dir = path.dirname(DB_PATH);
+  const newPath = getDbPath();
+  if (!db || newPath !== dbPath) {
+    dbPath = newPath;
+    const dir = path.dirname(dbPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    db = new Database(DB_PATH);
+    if (db) { try { db.close(); } catch {} }
+    db = new Database(dbPath);
     db.pragma("journal_mode = WAL");
     db.pragma("foreign_keys = ON");
   }
@@ -23,7 +29,8 @@ export function getDb() {
 
 export function closeDb() {
   if (db) {
-    db.close();
+    try { db.close(); } catch {}
     db = null;
+    dbPath = null;
   }
 }
