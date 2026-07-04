@@ -57,6 +57,7 @@ interface ProposalTemplate {
 interface Proposal {
   id: string;
   title: string;
+  quote_id?: string;
   template_id: string | null;
   content: string;
   status: string;
@@ -144,7 +145,8 @@ export default function Documents() {
 
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [editingProposal, setEditingProposal] = useState<Proposal | null>(null);
-  const [proposalForm, setProposalForm] = useState({ title: "", template_id: "", content: "" });
+  const [proposalForm, setProposalForm] = useState({ title: "", quote_id: "", template_id: "", content: "" });
+  const [allQuotes, setAllQuotes] = useState<{ id: string; title: string; quote_number: string }[]>([]);
   const [proposalSubmitting, setProposalSubmitting] = useState(false);
   const [proposalFormError, setProposalFormError] = useState("");
 
@@ -156,16 +158,18 @@ export default function Documents() {
     setLoading(true);
     setError("");
     try {
-      const [docRes, folderRes, tmplRes, propRes] = await Promise.all([
+      const [docRes, folderRes, tmplRes, propRes, quotesRes] = await Promise.all([
         fetch("/api/documents", { credentials: "include" }),
         fetch("/api/documents/folders", { credentials: "include" }),
         fetch("/api/documents/proposal-templates", { credentials: "include" }),
         fetch("/api/documents/proposals", { credentials: "include" }),
+        fetch("/api/quotes", { credentials: "include" }),
       ]);
       if (docRes.ok) setDocuments(await docRes.json());
       if (folderRes.ok) setFolders(await folderRes.json());
       if (tmplRes.ok) setTemplates(await tmplRes.json());
       if (propRes.ok) setProposals(await propRes.json());
+      if (quotesRes.ok) setAllQuotes(await quotesRes.json());
     } catch {
       setError("Failed to load data");
     } finally {
@@ -280,7 +284,7 @@ export default function Documents() {
     setProposalFormError("");
     setProposalSubmitting(true);
     try {
-      const body = { ...proposalForm, template_id: proposalForm.template_id || null };
+      const body = { ...proposalForm, quote_id: proposalForm.quote_id || null, template_id: proposalForm.template_id || null };
       if (editingProposal) {
         const res = await fetch(`/api/documents/proposals/${editingProposal.id}`, {
           method: "PATCH",
@@ -306,7 +310,7 @@ export default function Documents() {
       }
       setShowProposalModal(false);
       setEditingProposal(null);
-      setProposalForm({ title: "", template_id: "", content: "" });
+      setProposalForm({ title: "", quote_id: "", template_id: "", content: "" });
       fetchAll();
     } catch (err) {
       setProposalFormError(err instanceof Error ? err.message : "Failed to save proposal");
@@ -319,6 +323,7 @@ export default function Documents() {
     setEditingProposal(proposal);
     setProposalForm({
       title: proposal.title,
+      quote_id: proposal.quote_id || "",
       template_id: proposal.template_id || "",
       content: proposal.content,
     });
@@ -576,7 +581,7 @@ export default function Documents() {
                 Proposals
               </h2>
               <button
-                onClick={() => { setEditingProposal(null); setProposalForm({ title: "", template_id: "", content: "" }); setShowProposalModal(true); }}
+                onClick={() => { setEditingProposal(null); setProposalForm({ title: "", quote_id: "", template_id: "", content: "" }); setShowProposalModal(true); }}
                 className="h-9 px-3 bg-brand-accent text-white rounded-lg text-sm font-medium hover:bg-brand-accent-hover transition-colors flex items-center gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -747,6 +752,13 @@ export default function Documents() {
           <div>
             <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Proposal Title *</label>
             <input type="text" value={proposalForm.title} onChange={(e) => setProposalForm({ ...proposalForm, title: e.target.value })} required className="mt-1 h-12 px-4 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 focus:border-brand-accent focus:ring-brand-accent w-full" />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Quote *</label>
+            <select value={proposalForm.quote_id} onChange={(e) => setProposalForm({ ...proposalForm, quote_id: e.target.value })} required className="mt-1 h-12 px-4 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 focus:border-brand-accent focus:ring-brand-accent w-full">
+              <option value="">Select a quote...</option>
+              {allQuotes.map((q) => <option key={q.id} value={q.id}>{q.quote_number || q.title}</option>)}
+            </select>
           </div>
           <div>
             <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Template</label>

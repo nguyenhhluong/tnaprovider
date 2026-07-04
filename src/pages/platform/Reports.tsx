@@ -378,9 +378,9 @@ export default function Reports() {
               <RefreshCw className="w-4 h-4" />
               Refresh
             </button>
-            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            <button disabled className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed">
               <Download className="w-4 h-4" />
-              Export
+              Export (coming soon)
             </button>
           </div>
         </div>

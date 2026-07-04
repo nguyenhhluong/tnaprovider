@@ -224,9 +224,11 @@ export default function Quotes() {
         body: body ? JSON.stringify(body) : undefined,
       });
       if (res.ok) {
-        const updated = await res.json();
-        setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, ...updated } : q)));
-        if (selectedQuote?.id === id) setSelectedQuote((prev) => (prev ? { ...prev, ...updated } : null));
+        await fetchQuotes();
+        if (selectedQuote?.id === id) {
+          const quoteRes = await fetch(`/api/quotes/${id}`, { credentials: "include" });
+          if (quoteRes.ok) setSelectedQuote(await quoteRes.json());
+        }
         if (action === "send") setSendDate("");
       }
     } catch {
@@ -244,9 +246,8 @@ export default function Quotes() {
         credentials: "include",
       });
       if (res.ok) {
-        const updated = await res.json();
-        setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, ...updated } : q)));
-        if (selectedQuote?.id === id) setSelectedQuote((prev) => (prev ? { ...prev, ...updated } : null));
+        await fetchQuotes();
+        setSelectedQuote(null);
       }
     } catch {
       // ignore

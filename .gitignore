@@ -9,3 +9,4 @@ coverage/
 .wrangler/
 nohup.out
 /data/
+backups/

@@ -127,12 +127,13 @@ export default function LeadAutomation() {
         }),
       });
       if (res.ok) {
-        const created: FollowUp = await res.json();
-        setFollowups((prev) => [...prev, created]);
         setShowModal(false);
         setFormTitle("");
-        setFormNote("");
         setFormDueDate("");
+        if (selectedLeadId) {
+          const followRes = await fetch(`/api/automation/leads/${selectedLeadId}/followups`, { credentials: "include" });
+          if (followRes.ok) setFollowups(await followRes.json());
+        }
       }
     } catch {
       /* ignore */
@@ -151,14 +152,9 @@ export default function LeadAutomation() {
           credentials: "include",
         }
       );
-      if (res.ok) {
-        setFollowups((prev) =>
-          prev.map((f) =>
-            f.id === followUpId
-              ? { ...f, status: "done", completed_at: new Date().toISOString() }
-              : f
-          )
-        );
+      if (res.ok && selectedLeadId) {
+        const followRes = await fetch(`/api/automation/leads/${selectedLeadId}/followups`, { credentials: "include" });
+        if (followRes.ok) setFollowups(await followRes.json());
       }
     } catch {
       /* ignore */
