@@ -32,11 +32,18 @@ export function validateSession(token) {
     SELECT s.*, u.email, u.name, u.role, u.status
     FROM sessions s
     JOIN users u ON u.id = s.user_id
-    WHERE s.session_hash = ? AND s.revoked_at IS NULL AND s.expires_at > datetime('now')
+    WHERE s.session_hash = ? AND s.revoked_at IS NULL
   `).get(sessionHash);
 
   if (!session) return null;
   if (session.status !== "active") return null;
+
+  // JS-level expiry check (belt-and-suspenders with the SQL datetime comparison)
+  if (Date.parse(session.expires_at) <= Date.now()) {
+    // Mark as expired in DB for cleanup
+    db.prepare("UPDATE sessions SET revoked_at = datetime('now') WHERE id = ?").run(session.id);
+    return null;
+  }
 
   return {
     sessionId: session.id,

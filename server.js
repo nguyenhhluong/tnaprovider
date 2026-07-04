@@ -6,6 +6,7 @@ import fs from 'fs';
 import cookieParser from 'cookie-parser';
 import * as mailConnector from './server/email/mailConnector.js';
 import { migrate } from './server/db/migrate.js';
+import { requireAuth as requireSessionAuth } from './server/middleware/auth.js';
 import authRoutes from './server/routes/auth.js';
 import platformRoutes from './server/routes/platform.js';
 
@@ -51,30 +52,17 @@ app.post('/api/contact', (req, res) => {
 // Frontend must never connect directly to IMAP or SMTP.
 // ---------------------------------------------------------------------------
 
-// Auth middleware — uses server-side config, never trusts client headers
-function requireAuth(req, res, next) {
-  const allowHeader = process.env.MAIL_ALLOW_HEADER_MAILBOX === "true";
+function attachMailbox(req, res, next) {
   const allowedMailboxes = (process.env.MAIL_ALLOWED_MAILBOXES || "info@tnaprovider.com.au")
     .split(",")
-    .map((m) => m.trim());
+    .map((m) => m.trim())
+    .filter(Boolean);
+
   const defaultMailbox = process.env.MAIL_DEFAULT_MAILBOX || "info@tnaprovider.com.au";
 
-  req.userId = "user-1";
+  req.userId = req.user.userId;
+  req.mailbox = defaultMailbox;
 
-  if (allowHeader) {
-    // Staging/dev mode: allow x-mailbox if it's in the allowed list
-    const requested = req.headers["x-mailbox"];
-    if (requested && allowedMailboxes.includes(requested)) {
-      req.mailbox = requested;
-    } else {
-      req.mailbox = defaultMailbox;
-    }
-  } else {
-    // Production: ignore x-mailbox, use default only
-    req.mailbox = defaultMailbox;
-  }
-
-  // Reject if the resulting mailbox is not allowed
   if (!allowedMailboxes.includes(req.mailbox)) {
     return res.status(403).json({ error: "Mailbox not allowed" });
   }
@@ -82,7 +70,7 @@ function requireAuth(req, res, next) {
   next();
 }
 
-// GET /api/email/status
+// GET /api/email/status (public — no credentials exposed)
 app.get("/api/email/status", (req, res) => {
   const config = mailConnector.getMailConfig();
   res.json({
@@ -95,7 +83,7 @@ app.get("/api/email/status", (req, res) => {
 });
 
 // GET /api/email/messages?folder=inbox
-app.get("/api/email/messages", requireAuth, async (req, res) => {
+app.get("/api/email/messages", requireSessionAuth, attachMailbox, async (req, res) => {
   try {
     const { folder } = req.query;
     const messages = await mailConnector.listMessages({
@@ -110,7 +98,7 @@ app.get("/api/email/messages", requireAuth, async (req, res) => {
 });
 
 // GET /api/email/messages/:id
-app.get("/api/email/messages/:id", requireAuth, async (req, res) => {
+app.get("/api/email/messages/:id", requireSessionAuth, attachMailbox, async (req, res) => {
   try {
     const msg = await mailConnector.getMessage({
       mailbox: req.mailbox,
@@ -124,7 +112,7 @@ app.get("/api/email/messages/:id", requireAuth, async (req, res) => {
 });
 
 // POST /api/email/send
-app.post("/api/email/send", requireAuth, async (req, res) => {
+app.post("/api/email/send", requireSessionAuth, attachMailbox, async (req, res) => {
   try {
     const result = await mailConnector.sendMessage({
       mailbox: req.mailbox,
@@ -138,7 +126,7 @@ app.post("/api/email/send", requireAuth, async (req, res) => {
 });
 
 // POST /api/email/messages/:id/read
-app.post("/api/email/messages/:id/read", requireAuth, async (req, res) => {
+app.post("/api/email/messages/:id/read", requireSessionAuth, attachMailbox, async (req, res) => {
   try {
     const result = await mailConnector.markMessageRead({
       mailbox: req.mailbox,
@@ -153,7 +141,7 @@ app.post("/api/email/messages/:id/read", requireAuth, async (req, res) => {
 });
 
 // POST /api/email/messages/:id/move
-app.post("/api/email/messages/:id/move", requireAuth, async (req, res) => {
+app.post("/api/email/messages/:id/move", requireSessionAuth, attachMailbox, async (req, res) => {
   try {
     const result = await mailConnector.moveMessage({
       mailbox: req.mailbox,
@@ -168,7 +156,7 @@ app.post("/api/email/messages/:id/move", requireAuth, async (req, res) => {
 });
 
 // DELETE /api/email/messages/:id
-app.delete("/api/email/messages/:id", requireAuth, async (req, res) => {
+app.delete("/api/email/messages/:id", requireSessionAuth, attachMailbox, async (req, res) => {
   try {
     const result = await mailConnector.deleteMessage({
       mailbox: req.mailbox,

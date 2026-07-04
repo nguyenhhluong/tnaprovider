@@ -73,7 +73,7 @@ const router = createBrowserRouter([
       { path: "maintenance", element: <Maintenance /> },
       { path: "analytics", element: <Analytics /> },
       { path: "email", element: <Email /> },
-      { path: "settings", element: <Settings /> },
+      { path: "settings", element: <ProtectedRoute roles={["owner", "admin"]}><Settings /></ProtectedRoute> },
       { path: "users", element: <ProtectedRoute roles={["owner", "admin"]}><PlatformUsers /></ProtectedRoute> },
       { path: "audit", element: <ProtectedRoute roles={["owner", "admin"]}><Audit /></ProtectedRoute> },
       { path: "profile", element: <Profile /> },
