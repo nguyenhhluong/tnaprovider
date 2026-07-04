@@ -28,6 +28,18 @@ if (process.env.APP_ENV !== 'test') {
   try { migrate(); } catch (err) { console.error('Migration failed:', err.message); }
 }
 
+// Redirect old /platform URLs to app subdomain
+app.use((req, res, next) => {
+  const host = (req.headers.host || "").split(":")[0];
+  const isMainDomain = host === "tnaprovider.com.au" || host === "www.tnaprovider.com.au";
+  if (isMainDomain && (req.path === "/platform" || req.path.startsWith("/platform/"))) {
+    const targetPath = req.path.replace(/^\/platform/, "") || "/";
+    const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+    return res.redirect(302, `https://app.tnaprovider.com.au${targetPath}${query}`);
+  }
+  next();
+});
+
 // Auth & Platform API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/platform', platformRoutes);
