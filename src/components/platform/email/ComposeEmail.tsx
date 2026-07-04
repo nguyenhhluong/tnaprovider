@@ -5,7 +5,7 @@ import { X, Paperclip, Send, Loader2, AlertTriangle } from "lucide-react";
 
 interface ComposeEmailProps {
   replyTo?: EmailMessage | null;
-  onSend: (payload: ComposeEmailPayload) => void;
+  onSend: (payload: ComposeEmailPayload) => Promise<void>;
   onDiscard: () => void;
 }
 
@@ -76,12 +76,14 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
       replyToMessageId: replyTo?.id,
     };
 
-    // Simulate network delay
-    await new Promise((r) => setTimeout(r, 1000));
-
-    onSend(payload);
-    setSent(true);
-    setSending(false);
+    try {
+      await onSend(payload);
+      setSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send message");
+    } finally {
+      setSending(false);
+    }
   }, [to, cc, bcc, subject, bodyHtml, attachments, replyTo, onSend, validate]);
 
   const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {

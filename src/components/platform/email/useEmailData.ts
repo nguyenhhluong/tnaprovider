@@ -5,6 +5,9 @@ import {
   addMockEmail,
   removeMockEmail,
   updateMockEmail,
+  markEmailRead,
+  moveEmail,
+  deleteEmail,
 } from "../../../utils/emailApi";
 
 const MOCK_MODE = import.meta.env.VITE_EMAIL_MOCK_MODE !== "false";
@@ -50,27 +53,41 @@ export function useEmailData(folder: EmailFolder) {
   }, [folder]);
 
   const markRead = useCallback((id: string, isRead: boolean) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isRead } : m)));
     if (MOCK_MODE) {
       updateMockEmail(id, { isRead });
-      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isRead } : m)));
+    } else {
+      markEmailRead(id, isRead).catch(() => {
+        setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isRead: !isRead } : m)));
+      });
     }
   }, []);
 
   const moveMessage = useCallback((id: string, targetFolder: EmailFolder) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
     if (MOCK_MODE) {
       removeMockEmail(id);
-      setMessages((prev) => prev.filter((m) => m.id !== id));
+    } else {
+      moveEmail(id, targetFolder).catch(() => {
+        // Revert would require re-fetching; log for now
+        console.error("Failed to move message", id, targetFolder);
+      });
     }
   }, []);
 
   const deleteMsg = useCallback((id: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
     if (MOCK_MODE) {
       removeMockEmail(id);
-      setMessages((prev) => prev.filter((m) => m.id !== id));
+    } else {
+      deleteEmail(id).catch(() => {
+        console.error("Failed to delete message", id);
+      });
     }
   }, []);
 
   const addSentMessage = useCallback((msg: EmailMessage) => {
+    setMessages((prev) => [msg, ...prev]);
     if (MOCK_MODE) {
       addMockEmail("sent", msg);
     }

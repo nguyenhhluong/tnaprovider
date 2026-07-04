@@ -1,6 +1,6 @@
 import type { EmailFolder, EmailMessage, ComposeEmailPayload } from "../types/email";
 
-const MOCK_MODE = import.meta.env.VITE_EMAIL_MOCK_MODE === "true";
+const MOCK_MODE = import.meta.env.VITE_EMAIL_MOCK_MODE !== "false";
 
 const API_BASE = "/api/email";
 

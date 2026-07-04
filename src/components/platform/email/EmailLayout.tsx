@@ -5,7 +5,10 @@ import { MessageList } from "./MessageList";
 import { MessagePreview } from "./MessagePreview";
 import { ComposeEmail } from "./ComposeEmail";
 import { useEmailData } from "./useEmailData";
+import { sendEmail } from "../../../utils/emailApi";
 import { logEmailAudit } from "../../../utils/emailAudit";
+
+const MOCK_MODE = import.meta.env.VITE_EMAIL_MOCK_MODE !== "false";
 
 interface EmailLayoutProps {
   currentFolder: EmailFolder;
@@ -48,7 +51,7 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
     setShowCompose(true);
   }, []);
 
-  const handleSend = useCallback((payload: ComposeEmailPayload) => {
+  const handleSend = useCallback(async (payload: ComposeEmailPayload) => {
     const newMsg: EmailMessage = {
       id: `sent-${Date.now()}`,
       folder: "sent",
@@ -65,7 +68,15 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
       isStarred: false,
       hasAttachments: !!(payload.attachments && payload.attachments.length > 0),
     };
-    addSentMessage(newMsg);
+
+    if (MOCK_MODE) {
+      addSentMessage(newMsg);
+    } else {
+      const result = await sendEmail(payload);
+      newMsg.id = result.id;
+      addSentMessage(newMsg);
+    }
+
     setShowCompose(false);
     setReplyTo(null);
     logEmailAudit("user-1", "info@tnaprovider.com.au", "email.sent", {
