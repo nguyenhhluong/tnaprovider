@@ -7,6 +7,7 @@ import {
   UserCircle,
   Wrench,
   BarChart3,
+  Mail,
   X,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
@@ -16,6 +17,7 @@ const sidebarLinks = [
   { name: "Leads", path: "/platform/leads", icon: Users },
   { name: "Projects", path: "/platform/projects", icon: FolderKanban },
   { name: "Timesheets", path: "/platform/timesheets", icon: Clock },
+  { name: "Email", path: "/platform/email", icon: Mail },
   { name: "Client Portal", path: "/platform/client-portal", icon: UserCircle },
   { name: "Maintenance", path: "/platform/maintenance", icon: Wrench },
   { name: "Analytics", path: "/platform/analytics", icon: BarChart3 },

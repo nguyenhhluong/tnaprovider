@@ -23,6 +23,7 @@ import { Timesheets } from "./pages/platform/Timesheets";
 import { ClientPortal } from "./pages/platform/ClientPortal";
 import { Maintenance } from "./pages/platform/Maintenance";
 import { Analytics } from "./pages/platform/Analytics";
+import { Email } from "./pages/platform/Email";
 
 const router = createBrowserRouter([
   {
@@ -51,6 +52,7 @@ const router = createBrowserRouter([
       { path: "client-portal", element: <ClientPortal /> },
       { path: "maintenance", element: <Maintenance /> },
       { path: "analytics", element: <Analytics /> },
+      { path: "email", element: <Email /> },
     ],
   },
 ]);
