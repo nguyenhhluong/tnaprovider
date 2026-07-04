@@ -16,22 +16,48 @@ interface PayRule {
   is_active: number
 }
 
+type PayRuleFormState = {
+  name: string
+  ordinary_hours_per_day: string
+  overtime_daily_after_hours: string
+  overtime_rate_multiplier: string
+  double_time_after_hours: string
+  double_time_multiplier: string
+  is_active: boolean
+}
+
+function parseRequiredPositiveNumber(value: string, label: string) {
+  const cleaned = value.trim()
+  if (cleaned === "") return { value: null, error: `${label} is required.` }
+  const parsed = Number(cleaned)
+  if (!Number.isFinite(parsed) || parsed <= 0) return { value: null, error: `${label} must be greater than 0.` }
+  return { value: parsed, error: null }
+}
+
+function parseOptionalPositiveNumber(value: string, label: string) {
+  const cleaned = value.trim()
+  if (cleaned === "") return { value: null, error: null }
+  const parsed = Number(cleaned)
+  if (!Number.isFinite(parsed) || parsed <= 0) return { value: null, error: `${label} must be greater than 0.` }
+  return { value: parsed, error: null }
+}
+
 export function PayRules() {
   const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>()
   const [rules, setRules] = useState<PayRule[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<string[]>([])
   const [success, setSuccess] = useState<string | null>(null)
   const [showNewForm, setShowNewForm] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<PayRuleFormState>({
     name: "",
-    ordinary_hours_per_day: 7.6,
-    overtime_daily_after_hours: 7.6,
-    overtime_rate_multiplier: 1.5,
+    ordinary_hours_per_day: "",
+    overtime_daily_after_hours: "",
+    overtime_rate_multiplier: "",
     double_time_after_hours: "",
-    double_time_multiplier: 2,
+    double_time_multiplier: "",
     is_active: false,
   })
 
@@ -46,30 +72,72 @@ export function PayRules() {
   useEffect(() => { fetchRules() }, [])
 
   const resetForm = () => {
-    setForm({ name: "", ordinary_hours_per_day: 7.6, overtime_daily_after_hours: 7.6, overtime_rate_multiplier: 1.5, double_time_after_hours: "", double_time_multiplier: 2, is_active: false })
+    setForm({ name: "", ordinary_hours_per_day: "", overtime_daily_after_hours: "", overtime_rate_multiplier: "", double_time_after_hours: "", double_time_multiplier: "", is_active: false })
+    setErrors([])
     setEditingId(null)
     setShowNewForm(false)
   }
 
   const startEdit = (rule: PayRule) => {
-    setForm({ name: rule.name, ordinary_hours_per_day: rule.ordinary_hours_per_day, overtime_daily_after_hours: rule.overtime_daily_after_hours, overtime_rate_multiplier: rule.overtime_rate_multiplier, double_time_after_hours: rule.double_time_after_hours ? String(rule.double_time_after_hours) : "", double_time_multiplier: rule.double_time_multiplier, is_active: !!rule.is_active })
+    setForm({
+      name: rule.name,
+      ordinary_hours_per_day: String(rule.ordinary_hours_per_day),
+      overtime_daily_after_hours: String(rule.overtime_daily_after_hours),
+      overtime_rate_multiplier: String(rule.overtime_rate_multiplier),
+      double_time_after_hours: rule.double_time_after_hours ? String(rule.double_time_after_hours) : "",
+      double_time_multiplier: String(rule.double_time_multiplier),
+      is_active: !!rule.is_active,
+    })
+    setErrors([])
     setEditingId(rule.id)
     setShowNewForm(true)
   }
 
+  const updateField = (name: keyof PayRuleFormState, value: string | boolean) => {
+    setForm((current) => ({ ...current, [name]: value }))
+    setErrors([])
+  }
+
   const handleSave = async () => {
-    if (!form.name.trim()) { setError("Name is required"); return }
-    setSaving(true)
-    setError(null)
+    setErrors([])
     setSuccess(null)
 
+    const nameError = form.name.trim() ? null : "Name is required."
+    const errs = [
+      nameError,
+      parseRequiredPositiveNumber(form.ordinary_hours_per_day, "Ordinary hours per day").error,
+      parseRequiredPositiveNumber(form.overtime_daily_after_hours, "Overtime after hours").error,
+      parseRequiredPositiveNumber(form.overtime_rate_multiplier, "Overtime multiplier").error,
+      parseOptionalPositiveNumber(form.double_time_after_hours, "Double time after").error,
+      parseRequiredPositiveNumber(form.double_time_multiplier, "Double time multiplier").error,
+    ].filter((e): e is string => e !== null)
+
+    if (errs.length > 0) {
+      setErrors(errs)
+      return
+    }
+
+    if (errs.length > 0) {
+      setErrors(errs)
+      return
+    }
+
+    const ordinary = Number(form.ordinary_hours_per_day)
+    const otAfter = Number(form.overtime_daily_after_hours)
+    const otMult = Number(form.overtime_rate_multiplier)
+    const dtAfter = form.double_time_after_hours.trim() ? Number(form.double_time_after_hours) : null
+    const dtMult = Number(form.double_time_multiplier)
+
+    setSaving(true)
+
     const body: any = {
-      name: form.name,
-      ordinary_hours_per_day: form.ordinary_hours_per_day,
-      overtime_daily_after_hours: form.overtime_daily_after_hours,
-      overtime_rate_multiplier: form.overtime_rate_multiplier,
-      double_time_multiplier: form.double_time_multiplier,
-      double_time_after_hours: form.double_time_after_hours ? parseFloat(form.double_time_after_hours) : null,
+      name: form.name.trim(),
+      ordinary_hours_per_day: ordinary,
+      overtime_daily_after_hours: otAfter,
+      overtime_rate_multiplier: otMult,
+      double_time_multiplier: dtMult,
+      double_time_after_hours: dtAfter,
+      is_active: form.is_active ? 1 : 0,
     }
 
     try {
@@ -81,7 +149,7 @@ export function PayRules() {
       setSuccess(editingId ? "Rule updated" : "Rule created")
       resetForm()
     } catch (e: any) {
-      setError(e.message)
+      setErrors([e.message])
     } finally {
       setSaving(false)
     }
@@ -95,7 +163,7 @@ export function PayRules() {
       setRules((prev) => prev.filter((r) => r.id !== ruleId))
       setSuccess("Rule deleted")
     } catch (e: any) {
-      setError(e.message)
+      setErrors([e.message])
     }
   }
 
@@ -110,18 +178,37 @@ export function PayRules() {
       await fetchRules()
       setSuccess("Active rule updated")
     } catch (e: any) {
-      setError(e.message)
+      setErrors([e.message])
     }
   }
+
+  const NumericInput = ({ label, field, placeholder }: { label: string; field: keyof PayRuleFormState; placeholder?: string }) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{label}</label>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={form[field] as string}
+        onChange={(e) => updateField(field, e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-brand-dark dark:text-white"
+      />
+    </div>
+  )
 
   return (
     <>
       <PlatformHeader title="Pay Rules" onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-6 max-w-4xl mx-auto space-y-6">
-        {error && (
-          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            {error}
+        {errors.length > 0 && (
+          <div className="flex flex-col gap-1 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
+            {errors.map((e, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {e}
+              </div>
+            ))}
           </div>
         )}
         {success && (
@@ -147,31 +234,16 @@ export function PayRules() {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
-                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-brand-dark dark:text-white" />
+                <input type="text" value={form.name} onChange={(e) => updateField("name", e.target.value)} className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-brand-dark dark:text-white" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Ordinary Hours/Day</label>
-                <input type="number" step="0.1" value={form.ordinary_hours_per_day} onChange={(e) => setForm({ ...form, ordinary_hours_per_day: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-brand-dark dark:text-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">OT After (hours)</label>
-                <input type="number" step="0.1" value={form.overtime_daily_after_hours} onChange={(e) => setForm({ ...form, overtime_daily_after_hours: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-brand-dark dark:text-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">OT Multiplier</label>
-                <input type="number" step="0.1" value={form.overtime_rate_multiplier} onChange={(e) => setForm({ ...form, overtime_rate_multiplier: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-brand-dark dark:text-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Double Time After</label>
-                <input type="number" step="0.1" value={form.double_time_after_hours} onChange={(e) => setForm({ ...form, double_time_after_hours: e.target.value })} placeholder="Leave empty to disable" className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-brand-dark dark:text-white" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">DT Multiplier</label>
-                <input type="number" step="0.1" value={form.double_time_multiplier} onChange={(e) => setForm({ ...form, double_time_multiplier: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-brand-dark dark:text-white" />
-              </div>
+              <NumericInput label="Ordinary Hours/Day" field="ordinary_hours_per_day" />
+              <NumericInput label="OT After (hours)" field="overtime_daily_after_hours" />
+              <NumericInput label="OT Multiplier" field="overtime_rate_multiplier" />
+              <NumericInput label="Double Time After" field="double_time_after_hours" placeholder="Leave empty to disable" />
+              <NumericInput label="DT Multiplier" field="double_time_multiplier" />
             </div>
             <div className="flex items-center gap-2">
-              <input type="checkbox" id="is_active_form" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="rounded border-gray-300 dark:border-gray-600" />
+              <input type="checkbox" id="is_active_form" checked={form.is_active} onChange={(e) => updateField("is_active", e.target.checked)} className="rounded border-gray-300 dark:border-gray-600" />
               <label htmlFor="is_active_form" className="text-sm font-medium text-gray-600 dark:text-gray-400">Set as active rule</label>
             </div>
             <div className="flex gap-3 pt-2">
