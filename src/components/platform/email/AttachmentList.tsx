@@ -30,11 +30,11 @@ export function AttachmentList({ attachments }: { attachments: EmailAttachment[]
           return (
             <div
               key={att.id}
-              className="flex items-center gap-2 bg-white dark:bg-brand-darker rounded-lg px-3 py-2 text-sm border border-gray-200 dark:border-gray-700"
+              className="flex items-center gap-2 bg-white dark:bg-brand-darker rounded-lg px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 min-w-0 max-w-full"
             >
               <Paperclip className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs font-medium truncate max-w-[150px]">{att.filename}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium truncate max-w-[120px] sm:max-w-[180px]">{att.filename}</p>
                 <p className="text-xs text-gray-500">{formatFileSize(att.sizeBytes)}</p>
               </div>
               {isRisky && (
@@ -43,7 +43,7 @@ export function AttachmentList({ attachments }: { attachments: EmailAttachment[]
               {att.downloadUrl && (
                 <a
                   href={att.downloadUrl}
-                  className="p-1 text-gray-400 hover:text-brand-accent"
+                  className="p-1 text-gray-400 hover:text-brand-accent shrink-0"
                   title="Download"
                 >
                   <Download className="w-3.5 h-3.5" />
