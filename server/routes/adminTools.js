@@ -11,7 +11,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
 
 const BACKUP_DIR = path.join(__dirname, "../../data/backups");
-const DB_PATH = process.env.DATABASE_URL || path.join(__dirname, "../../data/tna.db");
 
 function ensureBackupDir() {
   if (!fs.existsSync(BACKUP_DIR)) {
@@ -42,219 +41,193 @@ function isSafeBackupPath(filepath) {
   return resolved.startsWith(BACKUP_DIR) && fs.existsSync(resolved) && fs.statSync(resolved).isFile();
 }
 
-// GET /api/admin-tools/health
-router.get(
-  "/health",
-  requireAuth,
-  requirePasswordChanged,
-  requireRole("owner", "admin"),
-  (req, res) => {
-    const db = getDb();
-    const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get();
-    const sessionCount = db.prepare("SELECT COUNT(*) as count FROM sessions WHERE revoked_at IS NULL AND expires_at > datetime('now')").get();
-    const auditCount = db.prepare("SELECT COUNT(*) as count FROM audit_logs").get();
+function tableExists(db, tableName) {
+  return Boolean(
+    db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(tableName)
+  );
+}
 
-    res.json({
-      status: "healthy",
-      uptime: process.uptime(),
-      nodeVersion: process.version,
-      database: {
-        users: userCount.count,
-        activeSessions: sessionCount.count,
-        auditEntries: auditCount.count,
-        path: DB_PATH.replace(/^.*[\/\\]/, "…/"),
-      },
-      timestamp: new Date().toISOString(),
-    });
-  }
-);
-
-// GET /api/admin-tools/storage
-router.get(
-  "/storage",
-  requireAuth,
-  requirePasswordChanged,
-  requireRole("owner", "admin"),
-  (req, res) => {
-    ensureBackupDir();
-
-    let dbSize = 0;
-    try { dbSize = fs.statSync(DB_PATH).size; } catch {}
-
-    let backupSize = 0;
-    let backupCount = 0;
-    try {
-      const files = fs.readdirSync(BACKUP_DIR);
-      backupCount = files.length;
-      backupSize = files.reduce((sum, f) => {
-        try { return sum + fs.statSync(path.join(BACKUP_DIR, f)).size; } catch { return sum; }
-      }, 0);
-    } catch {}
-
-    const total = dbSize + backupSize;
-
-    res.json({
-      database: {
-        sizeBytes: dbSize,
-        sizeFormatted: formatBytes(dbSize),
-      },
-      backups: {
-        count: backupCount,
-        totalSizeBytes: backupSize,
-        totalSizeFormatted: formatBytes(backupSize),
-        path: BACKUP_DIR.replace(/^.*[\/\\]/, "…/"),
-      },
-      total: {
-        sizeBytes: total,
-        sizeFormatted: formatBytes(total),
-      },
-    });
-  }
-);
-
-// POST /api/admin-tools/backups (owner only)
-router.post(
-  "/backups",
-  requireAuth,
-  requirePasswordChanged,
-  requireRole("owner"),
-  (req, res) => {
-    ensureBackupDir();
-
-    const now = new Date();
-    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-    const filename = `tna-db-backup-${ts}.sqlite`;
-    const dest = path.join(BACKUP_DIR, filename);
-
-    try {
-      if (!fs.existsSync(DB_PATH)) {
-        return res.status(500).json({ error: "Database file not found" });
-      }
-      fs.copyFileSync(DB_PATH, dest);
-      const stats = fs.statSync(dest);
-
-      res.json({
-        message: "Backup created",
-        filename,
-        sizeBytes: stats.size,
-        sizeFormatted: formatBytes(stats.size),
-        createdAt: new Date().toISOString(),
-      });
-    } catch (err) {
-      console.error("Backup error:", err.message);
-      res.status(500).json({ error: "Failed to create backup" });
-    }
-  }
-);
-
-// GET /api/admin-tools/backups (owner only)
-router.get(
-  "/backups",
-  requireAuth,
-  requirePasswordChanged,
-  requireRole("owner"),
-  (req, res) => {
-    ensureBackupDir();
-
-    try {
-      const files = fs.readdirSync(BACKUP_DIR)
-        .filter((f) => f.startsWith("tna-db-backup-") && f.endsWith(".sqlite"))
-        .map((f) => {
-          const stat = fs.statSync(path.join(BACKUP_DIR, f));
-          return {
-            filename: f,
-            sizeBytes: stat.size,
-            sizeFormatted: formatBytes(stat.size),
-            createdAt: stat.mtime.toISOString(),
-          };
-        })
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      res.json(files);
-    } catch (err) {
-      console.error("List backups error:", err.message);
-      res.status(500).json({ error: "Failed to list backups" });
-    }
-  }
-);
-
-// GET /api/admin-tools/backups/:filename/download (owner only)
-router.get(
-  "/backups/:filename/download",
-  requireAuth,
-  requirePasswordChanged,
-  requireRole("owner"),
-  (req, res) => {
-    const { filename } = req.params;
-
-    // Path traversal protection
-    if (filename.includes("..") || filename.includes("/") || filename.includes("\\") || filename.includes("%")) {
-      return res.status(403).json({ error: "Invalid filename" });
-    }
-
-    const filepath = path.join(BACKUP_DIR, filename);
-
-    if (!isSafeBackupPath(filename)) {
-      return res.status(404).json({ error: "Backup not found" });
-    }
-
-    if (!filename.startsWith("tna-db-backup-") || !filename.endsWith(".sqlite")) {
-      return res.status(403).json({ error: "Invalid backup file" });
-    }
-
-    res.setHeader("Content-Type", "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.sendFile(filepath);
-  }
-);
-
-function safeExport(res, filename, headers, query) {
+function safeExport(res, filename, headers, query, tableName) {
   try {
     const db = getDb();
+    if (tableName && !tableExists(db, tableName)) {
+      // Missing optional table — return header-only CSV, not an error
+      return sendCsv(res, filename, headers, []);
+    }
     const rows = db.prepare(query).all();
     sendCsv(res, filename, headers, rows);
   } catch (err) {
-    // Table may not exist in this DB version — return empty CSV
-    sendCsv(res, filename, headers, []);
+    console.error(`CSV export error (${filename}):`, err.message);
+    res.status(500).json({ error: `Export failed: ${err.message}` });
   }
 }
 
-// CSV exports
+// GET /api/admin-tools/health
+router.get("/health", requireAuth, requirePasswordChanged, requireRole("owner", "admin"), (req, res) => {
+  const db = getDb();
+  const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get();
+  const sessionCount = db.prepare("SELECT COUNT(*) as count FROM sessions WHERE revoked_at IS NULL AND expires_at > datetime('now')").get();
+  const auditCount = db.prepare("SELECT COUNT(*) as count FROM audit_logs").get();
+
+  res.json({
+    status: "healthy",
+    uptime: process.uptime(),
+    nodeVersion: process.version,
+    database: {
+      users: userCount.count,
+      activeSessions: sessionCount.count,
+      auditEntries: auditCount.count,
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// GET /api/admin-tools/storage
+router.get("/storage", requireAuth, requirePasswordChanged, requireRole("owner", "admin"), (req, res) => {
+  ensureBackupDir();
+  const dbPath = process.env.DATABASE_URL || path.join(__dirname, "../../data/tna.db");
+
+  let dbSize = 0;
+  try { dbSize = fs.statSync(dbPath).size; } catch {}
+
+  let backupSize = 0;
+  let backupCount = 0;
+  try {
+    const files = fs.readdirSync(BACKUP_DIR);
+    backupCount = files.length;
+    backupSize = files.reduce((sum, f) => {
+      try { return sum + fs.statSync(path.join(BACKUP_DIR, f)).size; } catch { return sum; }
+    }, 0);
+  } catch {}
+
+  res.json({
+    database: { sizeBytes: dbSize, sizeFormatted: formatBytes(dbSize) },
+    backups: { count: backupCount, totalSizeBytes: backupSize, totalSizeFormatted: formatBytes(backupSize) },
+    total: { sizeBytes: dbSize + backupSize, sizeFormatted: formatBytes(dbSize + backupSize) },
+  });
+});
+
+// POST /api/admin-tools/backups (owner only) — uses SQLite VACUUM INTO for safe live backup
+router.post("/backups", requireAuth, requirePasswordChanged, requireRole("owner"), (req, res) => {
+  ensureBackupDir();
+
+  const now = new Date();
+  const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+  const filename = `tna-db-backup-${ts}.sqlite`;
+  const dest = path.join(BACKUP_DIR, filename);
+
+  try {
+    const db = getDb();
+    const safeDest = dest.replace(/'/g, "''");
+    db.exec(`VACUUM INTO '${safeDest}'`);
+
+    const stats = fs.statSync(dest);
+    res.json({
+      message: "Backup created",
+      filename,
+      sizeBytes: stats.size,
+      sizeFormatted: formatBytes(stats.size),
+      createdAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error("Backup error:", err.message);
+    res.status(500).json({ error: "Failed to create backup" });
+  }
+});
+
+// GET /api/admin-tools/backups (owner only)
+router.get("/backups", requireAuth, requirePasswordChanged, requireRole("owner"), (req, res) => {
+  ensureBackupDir();
+
+  try {
+    const files = fs.readdirSync(BACKUP_DIR)
+      .filter((f) => f.startsWith("tna-db-backup-") && f.endsWith(".sqlite"))
+      .map((f) => {
+        const stat = fs.statSync(path.join(BACKUP_DIR, f));
+        return { filename: f, sizeBytes: stat.size, sizeFormatted: formatBytes(stat.size), createdAt: stat.mtime.toISOString() };
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.json(files);
+  } catch (err) {
+    console.error("List backups error:", err.message);
+    res.status(500).json({ error: "Failed to list backups" });
+  }
+});
+
+// GET /api/admin-tools/backups/:filename/download (owner only)
+router.get("/backups/:filename/download", requireAuth, requirePasswordChanged, requireRole("owner"), (req, res) => {
+  const { filename } = req.params;
+
+  if (filename.includes("..") || filename.includes("/") || filename.includes("\\") || filename.includes("%")) {
+    return res.status(403).json({ error: "Invalid filename" });
+  }
+
+  if (!filename.startsWith("tna-db-backup-") || !filename.endsWith(".sqlite")) {
+    return res.status(403).json({ error: "Invalid backup file" });
+  }
+
+  if (!isSafeBackupPath(filename)) {
+    return res.status(404).json({ error: "Backup not found" });
+  }
+
+  const filepath = path.join(BACKUP_DIR, filename);
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.sendFile(filepath);
+});
+
+// ── CSV exports ──
 
 // GET /api/admin-tools/export/users.csv
 router.get("/export/users.csv", requireAuth, requirePasswordChanged, requireRole("owner", "admin"), (req, res) => {
-  safeExport(res, "users.csv", ["id", "email", "name", "role", "status", "must_change_password", "last_login_at", "created_at"],
-    "SELECT id, email, name, role, status, must_change_password, last_login_at, created_at FROM users ORDER BY created_at DESC");
+  safeExport(res, "users.csv",
+    ["id", "email", "name", "role", "status", "must_change_password", "last_login_at", "created_at"],
+    "SELECT id, email, name, role, status, must_change_password, last_login_at, created_at FROM users ORDER BY created_at DESC",
+    "users");
 });
 
 // GET /api/admin-tools/export/leads.csv
 router.get("/export/leads.csv", requireAuth, requirePasswordChanged, requireRole("owner", "admin"), (req, res) => {
-  safeExport(res, "leads.csv", ["id", "company_name", "contact_name", "email", "phone", "source", "status", "score", "notes", "created_at", "updated_at"],
-    "SELECT id, company_name, contact_name, email, phone, source, status, score, notes, created_at, updated_at FROM leads ORDER BY created_at DESC");
+  safeExport(res, "leads.csv",
+    ["id", "name", "email", "phone", "company", "project_type", "location", "budget", "message", "score", "temperature", "status", "source", "assigned_to", "created_at", "updated_at"],
+    "SELECT id, name, email, phone, company, project_type, location, budget, message, score, temperature, status, source, assigned_to, created_at, updated_at FROM leads ORDER BY created_at DESC",
+    "leads");
 });
 
 // GET /api/admin-tools/export/projects.csv
 router.get("/export/projects.csv", requireAuth, requirePasswordChanged, requireRole("owner", "admin"), (req, res) => {
-  safeExport(res, "projects.csv", ["id", "name", "client_name", "status", "stage", "estimated_hours", "actual_hours", "location", "start_date", "end_date", "created_at"],
-    "SELECT id, name, client_name, status, stage, estimated_hours, actual_hours, location, start_date, end_date, created_at FROM projects ORDER BY created_at DESC");
+  safeExport(res, "projects.csv",
+    ["id", "title", "client_name", "client_id", "status", "sector", "location", "budget", "start_date", "target_date", "created_at", "updated_at"],
+    "SELECT id, title, client_name, client_id, status, sector, location, budget, start_date, target_date, created_at, updated_at FROM projects ORDER BY created_at DESC",
+    "projects");
 });
 
 // GET /api/admin-tools/export/timesheets.csv
 router.get("/export/timesheets.csv", requireAuth, requirePasswordChanged, requireRole("owner", "admin"), (req, res) => {
-  safeExport(res, "timesheets.csv", ["id", "user_id", "user_name", "project_id", "date", "hours", "description", "status", "created_at"],
-    "SELECT t.id, t.user_id, u.name as user_name, t.project_id, t.date, t.hours, t.description, t.status, t.created_at FROM timesheets t LEFT JOIN users u ON t.user_id = u.id ORDER BY t.created_at DESC");
+  safeExport(res, "timesheets.csv",
+    ["id", "user_id", "user_name", "project_id", "work_date", "start_time", "finish_time", "break_minutes", "total_hours", "status", "notes", "approved_by", "approved_at", "created_at", "updated_at"],
+    `SELECT t.id, t.user_id, u.name AS user_name, t.project_id, t.work_date, t.start_time, t.finish_time, t.break_minutes, t.total_hours, t.status, t.notes, t.approved_by, t.approved_at, t.created_at, t.updated_at
+     FROM timesheets t LEFT JOIN users u ON u.id = t.user_id ORDER BY t.created_at DESC`,
+    "timesheets");
 });
 
 // GET /api/admin-tools/export/maintenance.csv
 router.get("/export/maintenance.csv", requireAuth, requirePasswordChanged, requireRole("owner", "admin"), (req, res) => {
-  safeExport(res, "maintenance.csv", ["id", "title", "description", "status", "priority", "reported_by", "assigned_to", "created_at", "updated_at"],
-    "SELECT id, title, description, status, priority, reported_by, assigned_to, created_at, updated_at FROM maintenance ORDER BY created_at DESC");
+  safeExport(res, "maintenance.csv",
+    ["id", "client_id", "client_name", "project_id", "title", "description", "priority", "status", "assigned_to", "created_at", "updated_at"],
+    `SELECT mt.id, mt.client_id, u.name AS client_name, mt.project_id, mt.title, mt.description, mt.priority, mt.status, mt.assigned_to, mt.created_at, mt.updated_at
+     FROM maintenance_tickets mt LEFT JOIN users u ON u.id = mt.client_id ORDER BY mt.created_at DESC`,
+    "maintenance_tickets");
 });
 
 // GET /api/admin-tools/export/audit-logs.csv
 router.get("/export/audit-logs.csv", requireAuth, requirePasswordChanged, requireRole("owner", "admin"), (req, res) => {
-  safeExport(res, "audit-logs.csv", ["id", "user_id", "user_name", "action", "entity_type", "entity_id", "ip_address", "created_at"],
-    "SELECT id, user_id, user_name, action, entity_type, entity_id, ip_address, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 10000");
+  safeExport(res, "audit-logs.csv",
+    ["id", "user_id", "user_name", "action", "entity_type", "entity_id", "ip_address", "created_at"],
+    `SELECT a.id, a.user_id, u.name AS user_name, a.action, a.entity_type, a.entity_id, a.ip_address, a.created_at
+     FROM audit_logs a LEFT JOIN users u ON u.id = a.user_id ORDER BY a.created_at DESC LIMIT 10000`,
+    "audit_logs");
 });
 
 function formatBytes(bytes) {
@@ -264,7 +237,7 @@ function formatBytes(bytes) {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 }
 
-// Catch-all for unmatched admin-tools paths — return 404, not SPA
+// Catch-all for unmatched admin-tools paths
 router.use((req, res) => {
   res.status(404).json({ error: "Not found" });
 });
