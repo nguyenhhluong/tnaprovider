@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
+import { PlatformHeader } from "../../components/platform/PlatformHeader";
 import {
   FileText,
   Folder,
@@ -106,6 +108,7 @@ function Modal({
 }
 
 export default function Documents() {
+  const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const [tab, setTab] = useState<"documents" | "proposals">("documents");
 
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -360,8 +363,10 @@ export default function Documents() {
   }
 
   return (
-    <div className="p-4 md:p-8">
+    <>
       <SEO title="Documents | TNA Provider Platform" description="Document management and proposals." canonical="https://tnaprovider.com.au/platform/documents" />
+      <PlatformHeader title="Documents" onMenuClick={() => setSidebarOpen(true)} />
+      <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-1">Documents</h1>
@@ -782,5 +787,6 @@ export default function Documents() {
         }
       `}</style>
     </div>
+    </>
   );
 }
