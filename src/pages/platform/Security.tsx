@@ -7,8 +7,8 @@ import { Shield, Smartphone, Monitor, AlertCircle, CheckCircle2, Loader2, Eye, E
 
 function passwordStrength(password: string): { label: string; color: string; score: number } {
   let score = 0;
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
+  if (password.length >= 10) score++;
+  if (password.length >= 14) score++;
   if (/[A-Z]/.test(password)) score++;
   if (/[a-z]/.test(password)) score++;
   if (/[0-9]/.test(password)) score++;
@@ -18,10 +18,18 @@ function passwordStrength(password: string): { label: string; color: string; sco
   return { label: "Strong", color: "bg-green-500", score };
 }
 
+function validatePassword(password: string): string | null {
+  if (password.length < 10) return "Password must be at least 10 characters";
+  if (!/[A-Z]/.test(password)) return "Password must contain at least one uppercase letter";
+  if (!/[a-z]/.test(password)) return "Password must contain at least one lowercase letter";
+  if (!/[0-9]/.test(password)) return "Password must contain at least one number";
+  return null;
+}
+
 export function Security() {
   const { user } = useAuth();
 
-  const [sessions, setSessions] = useState<{ id: string; createdAt: string; ipAddress: string; userAgent: string; isCurrent: boolean }[]>([]);
+  const [sessions, setSessions] = useState<{ id: string; createdAt: string; ipAddress?: string; userAgent?: string; isCurrent?: boolean; status?: string }[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [sessionsError, setSessionsError] = useState("");
 
@@ -81,10 +89,8 @@ export function Security() {
     setPasswordError("");
     setPasswordSuccess(false);
 
-    if (newPassword.length < 8) {
-      setPasswordError("Password must be at least 8 characters");
-      return;
-    }
+    const pwErr = validatePassword(newPassword);
+    if (pwErr) { setPasswordError(pwErr); return; }
     if (newPassword !== confirmPassword) {
       setPasswordError("Passwords do not match");
       return;
@@ -183,7 +189,7 @@ export function Security() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-brand-dark dark:text-white truncate">
-                        {formatUA(session.userAgent || "")}
+                        {session.userAgent ? formatUA(session.userAgent) : session.status ? `Session (${session.status})` : "Device"}
                         {session.isCurrent && <span className="ml-2 text-xs text-brand-accent font-normal">(current)</span>}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -191,7 +197,7 @@ export function Security() {
                       </p>
                     </div>
                   </div>
-                  {!session.isCurrent && (
+                  {session.isCurrent !== true && (
                     <button
                       onClick={() => handleRevoke(session.id)}
                       disabled={revokingId === session.id}
@@ -237,7 +243,7 @@ export function Security() {
             <div>
               <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">New Password</label>
               <div className="relative mt-1">
-                <input type={showPassword ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} className="h-12 pl-4 pr-12 rounded-lg border border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors w-full" />
+                <input type={showPassword ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={10} className="h-12 pl-4 pr-12 rounded-lg border border-gray-300 dark:border-gray-700 focus:border-brand-accent focus:ring-brand-accent bg-white dark:bg-gray-800 text-brand-dark dark:text-white focus:outline-none focus:ring-1 transition-colors w-full" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>

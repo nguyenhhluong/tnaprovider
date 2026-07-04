@@ -30,7 +30,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
-        setMustChangePassword(data.must_change_password === true || data.user?.must_change_password === true);
+        setMustChangePassword(
+          data.mustChangePassword === true ||
+          data.must_change_password === true ||
+          data.user?.mustChangePassword === true ||
+          data.user?.must_change_password === true
+        );
       } else {
         setUser(null);
         setMustChangePassword(false);
@@ -61,7 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setUser(data.user);
-    setMustChangePassword(data.must_change_password === true || data.user?.must_change_password === true);
+    setMustChangePassword(
+      data.mustChangePassword === true ||
+      data.must_change_password === true ||
+      data.user?.mustChangePassword === true ||
+      data.user?.must_change_password === true
+    );
   };
 
   const logout = async () => {

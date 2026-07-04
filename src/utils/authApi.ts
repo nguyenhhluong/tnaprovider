@@ -25,15 +25,27 @@ export async function acceptInvite(token: string, password: string, name: string
   return apiRequest("POST", "/auth/accept-invite", { token, password, name });
 }
 
-export async function resendInvite(userId: string): Promise<{ message: string }> {
-  return apiRequest("POST", "/auth/resend-invite", { userId });
+export async function resendInvite(email: string): Promise<{ message: string }> {
+  return apiRequest("POST", "/auth/resend-invite", { email });
 }
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
   return apiRequest("POST", "/auth/change-password", { currentPassword, newPassword });
 }
 
-export async function getSessions(): Promise<{ id: string; createdAt: string; ipAddress: string; userAgent: string; isCurrent: boolean }[]> {
+interface Session {
+  id: string;
+  userId?: string;
+  createdAt: string;
+  expiresAt?: string;
+  revokedAt?: string | null;
+  status?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  isCurrent?: boolean;
+}
+
+export async function getSessions(): Promise<Session[]> {
   return apiRequest("GET", "/auth/sessions");
 }
 

@@ -109,10 +109,10 @@ export function Users() {
     }
   };
 
-  const handleResendInvite = async (userId: string) => {
+  const handleResendInvite = async (userId: string, email: string) => {
     setActionLoading(userId);
     try {
-      await resendInvite(userId);
+      await resendInvite(email);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to resend invite");
     } finally {
@@ -225,13 +225,13 @@ export function Users() {
                 </button>
               )}
               {u.status === "invited" && (
-                <button onClick={() => handleResendInvite(u.id)} disabled={actionLoading === u.id} className="px-3 py-2 min-h-[36px] text-xs border border-blue-200 dark:border-blue-800 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-1">
-                  <Mail className="w-3 h-3" /> Resend Invite
-                </button>
-              )}
-              {u.status === "active" && u.id !== currentUser?.id && (
-                <button onClick={() => handleForcePasswordChange(u.id)} disabled={actionLoading === u.id} className="px-3 py-2 min-h-[36px] text-xs border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1">
-                  <RotateCcw className="w-3 h-3" /> Force Reset
+<button onClick={() => handleResendInvite(u.id, u.email)} disabled={actionLoading === u.id} className="px-3 py-2 min-h-[36px] text-xs border border-blue-200 dark:border-blue-800 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-1">
+                          <Mail className="w-3 h-3" /> Resend Invite
+                        </button>
+                      )}
+                      {u.status === "active" && u.id !== currentUser?.id && (
+                        <button onClick={() => handleForcePasswordChange(u.id)} disabled={actionLoading === u.id} className="px-3 py-2 min-h-[36px] text-xs border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-1">
+                          <RotateCcw className="w-3 h-3" /> Force Reset
                 </button>
               )}
               <span className="text-xs text-gray-400 ml-auto self-center">Joined {new Date(u.created_at).toLocaleDateString()}</span>
@@ -289,7 +289,7 @@ export function Users() {
                         </button>
                       )}
                       {u.status === "invited" && (
-                        <button onClick={() => handleResendInvite(u.id)} disabled={actionLoading === u.id} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Resend Invite">
+                        <button onClick={() => handleResendInvite(u.id, u.email)} disabled={actionLoading === u.id} className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Resend Invite">
                           <Mail className="w-4 h-4" />
                         </button>
                       )}
