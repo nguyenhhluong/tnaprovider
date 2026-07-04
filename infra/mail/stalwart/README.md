@@ -42,10 +42,15 @@ ufw reload
 The repo is already deployed on the VPS by Dev 1's integration branch work.
 ```bash
 cd /root/tnaprovider
+git status
 git fetch origin --prune
-git checkout feature/phase-3-business-platform
+# Use the currently approved deployed branch only.
+# Do not switch the live website repo to a feature branch during mail deployment.
+```
+**Warning**: Mail deployment files must be merged into the approved deployment branch before production mail deployment. Do not deploy mail from `feature/phase-3-business-platform` directly on the live VPS.
 
-# Then configure Stalwart
+Then configure Stalwart:
+```bash
 cd infra/mail/stalwart
 cp .env.example .env
 nano .env
