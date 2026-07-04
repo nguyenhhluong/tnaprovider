@@ -77,6 +77,7 @@ export function TenderUploadForm() {
   const processFiles = (files: File[]) => {
     const newErrors: string[] = [];
     const newFiles: UploadedFile[] = [];
+    let runningTotalSize = totalSize;
 
     if (uploadedFiles.length + files.length > MAX_FILES) {
       setErrors(prev => ({ ...prev, files: `Maximum ${MAX_FILES} files allowed` }));
@@ -84,18 +85,27 @@ export function TenderUploadForm() {
     }
 
     for (const file of files) {
-      if (!ALLOWED_TYPES.includes(file.type) && !ALLOWED_EXTENSIONS.split(",").some(ext => file.name.toLowerCase().endsWith(ext))) {
+      const extensionAllowed = ALLOWED_EXTENSIONS
+        .split(",")
+        .some(ext => file.name.toLowerCase().endsWith(ext));
+      const typeAllowed = ALLOWED_TYPES.includes(file.type);
+
+      if (!typeAllowed && !extensionAllowed) {
         newErrors.push(`${file.name}: File type not supported`);
         continue;
       }
+
       if (file.size > MAX_FILE_SIZE) {
         newErrors.push(`${file.name}: File exceeds 20MB limit`);
         continue;
       }
-      if (totalSize + file.size > MAX_TOTAL_SIZE) {
+
+      if (runningTotalSize + file.size > MAX_TOTAL_SIZE) {
         newErrors.push(`${file.name}: Total upload would exceed 100MB limit`);
         continue;
       }
+
+      runningTotalSize += file.size;
       newFiles.push({ file, id: `${file.name}-${Date.now()}-${Math.random()}` });
     }
 
