@@ -57,10 +57,11 @@ function recalculateShift(db, shiftId) {
   if (!shift) return null;
 
   const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(shiftId);
+  const effectiveEnd = shift.checked_out_at || new Date().toISOString();
 
-  const totalSeconds = calculateTotalSeconds(shift.checked_in_at, shift.checked_out_at || new Date().toISOString());
-  const breakSeconds = calculateBreakSeconds(events);
-  const payableSeconds = calculatePayableSeconds(shift.checked_in_at, shift.checked_out_at || new Date().toISOString(), breakSeconds);
+  const totalSeconds = calculateTotalSeconds(shift.checked_in_at, effectiveEnd);
+  const breakSeconds = calculateBreakSeconds(events, effectiveEnd);
+  const payableSeconds = calculatePayableSeconds(shift.checked_in_at, effectiveEnd, breakSeconds);
   const estimatedGrossPay = calculateGrossPay(payableSeconds, shift.hourly_rate_snapshot);
 
   // Compute pay breakdown
@@ -115,6 +116,57 @@ function calculateGrossPay(payableSeconds, hourlyRate) {
   return payableSeconds / 3600 * hourlyRate;
 }
 
+// ── Shared live shift serializer ──
+
+function serializeLiveShift(db, shift, employeeName) {
+  const site = shift.site_id ? db.prepare("SELECT id, name FROM work_sites WHERE id = ?").get(shift.site_id) : null;
+  const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(shift.id);
+  const serverNow = new Date().toISOString();
+  const effectiveEnd = shift.checked_out_at || serverNow;
+
+  const liveTotalSeconds = calculateTotalSeconds(shift.checked_in_at, effectiveEnd);
+  const liveBreakSeconds = calculateBreakSeconds(events, effectiveEnd);
+  const livePayableSeconds = calculatePayableSeconds(shift.checked_in_at, effectiveEnd, liveBreakSeconds);
+  const liveEstimatedGrossPay = calculateGrossPay(livePayableSeconds, shift.hourly_rate_snapshot);
+
+  const currentBreakEvent = shift.status === "on_break"
+    ? [...events].reverse().find(e => e.event_type === "break_start")
+    : null;
+
+  const result = {
+    id: shift.id,
+    status: shift.status,
+    checkedInAt: shift.checked_in_at,
+    checkedOutAt: shift.checked_out_at,
+    hourlyRateSnapshot: shift.hourly_rate_snapshot,
+    timezone: shift.timezone,
+    site: site || null,
+    breakSeconds: shift.break_seconds || 0,
+    currentBreakStartedAt: currentBreakEvent ? currentBreakEvent.event_time : null,
+    liveTotalSeconds,
+    liveBreakSeconds,
+    livePayableSeconds,
+    liveEstimatedGrossPay,
+    serverNow,
+    // Backward-compatible fields
+    total_seconds: shift.total_seconds,
+    break_seconds: shift.break_seconds,
+    payable_seconds: shift.payable_seconds,
+    estimated_gross_pay: shift.estimated_gross_pay,
+  };
+
+  if (employeeName) {
+    result.employeeId = shift.employee_id;
+    result.employeeName = employeeName;
+    result.employeeEmail = employeeName; // fallback
+    const emp = db.prepare("SELECT email FROM users WHERE id = ?").get(shift.employee_id);
+    if (emp) result.employeeEmail = emp.email;
+    if (site) result.siteName = site.name;
+  }
+
+  return result;
+}
+
 // ── Get active shift ──
 
 router.get("/active", (req, res) => {
@@ -125,27 +177,9 @@ router.get("/active", (req, res) => {
     return res.json({ active: false, serverNow: new Date().toISOString() });
   }
 
-  const site = shift.site_id ? db.prepare("SELECT id, name FROM work_sites WHERE id = ?").get(shift.site_id) : null;
-  const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(shift.id);
-
-  const currentBreakEvent = shift.status === "on_break"
-    ? [...events].reverse().find(e => e.event_type === "break_start")
-    : null;
-
   return res.json({
     active: true,
-    shift: {
-      id: shift.id,
-      status: shift.status,
-      checkedInAt: shift.checked_in_at,
-      checkedOutAt: shift.checked_out_at,
-      hourlyRateSnapshot: shift.hourly_rate_snapshot,
-      timezone: shift.timezone,
-      site: site || null,
-      breakSeconds: shift.break_seconds || 0,
-      currentBreakStartedAt: currentBreakEvent ? currentBreakEvent.event_time : null,
-      serverNow: new Date().toISOString(),
-    },
+    shift: serializeLiveShift(db, shift),
   });
 });
 
@@ -157,28 +191,10 @@ router.post("/check-in", (req, res) => {
 
   const existingActive = db.prepare("SELECT * FROM shift_sessions WHERE employee_id = ? AND status IN ('active','on_break') LIMIT 1").get(req.user.userId);
   if (existingActive) {
-    const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(existingActive.id);
-    const currentBreakEvent = existingActive.status === "on_break"
-      ? [...events].reverse().find(e => e.event_type === "break_start")
-      : null;
-
-    const site = existingActive.site_id ? db.prepare("SELECT id, name FROM work_sites WHERE id = ?").get(existingActive.site_id) : null;
-
     return res.json({
       active: true,
       existing: true,
-      shift: {
-        id: existingActive.id,
-        status: existingActive.status,
-        checkedInAt: existingActive.checked_in_at,
-        checkedOutAt: existingActive.checked_out_at,
-        hourlyRateSnapshot: existingActive.hourly_rate_snapshot,
-        timezone: existingActive.timezone,
-        site: site || null,
-        breakSeconds: existingActive.break_seconds || 0,
-        currentBreakStartedAt: currentBreakEvent ? currentBreakEvent.event_time : null,
-        serverNow: new Date().toISOString(),
-      },
+      shift: serializeLiveShift(db, existingActive),
     });
   }
 
@@ -366,7 +382,7 @@ router.get("/admin/pending", requireRole("owner", "admin", "manager"), (req, res
 
 router.get("/admin/active", requireRole("owner", "admin", "manager"), (req, res) => {
   const db = getDb();
-  const active = db.prepare(`
+  const rows = db.prepare(`
     SELECT s.*, u.name as employee_name, u.email as employee_email, w.name as site_name
     FROM shift_sessions s
     JOIN users u ON u.id = s.employee_id
@@ -375,7 +391,18 @@ router.get("/admin/active", requireRole("owner", "admin", "manager"), (req, res)
     ORDER BY s.checked_in_at DESC
   `).all();
 
-  res.json(active);
+  const result = rows.map((row) => {
+    const live = serializeLiveShift(db, row, row.employee_name);
+    return {
+      ...row,
+      ...live,
+      employee_name: row.employee_name,
+      employee_email: row.employee_email,
+      site_name: row.site_name || live.site?.name || null,
+    };
+  });
+
+  res.json(result);
 });
 
 // ── Admin: shift detail ──
@@ -411,9 +438,10 @@ router.post("/admin/:shiftId/approve", requireRole("owner", "admin", "manager"),
   if (shift.status !== "pending_approval") return res.status(400).json({ error: "Only pending-approval shifts can be approved" });
 
   const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(shiftId);
-  const breakSeconds = calculateBreakSeconds(events);
-  const totalSeconds = calculateTotalSeconds(shift.checked_in_at, shift.checked_out_at || new Date().toISOString());
-  const payableSeconds = calculatePayableSeconds(shift.checked_in_at, shift.checked_out_at || new Date().toISOString(), breakSeconds);
+  const effectiveEnd = shift.checked_out_at || new Date().toISOString();
+  const breakSeconds = calculateBreakSeconds(events, effectiveEnd);
+  const totalSeconds = calculateTotalSeconds(shift.checked_in_at, effectiveEnd);
+  const payableSeconds = calculatePayableSeconds(shift.checked_in_at, effectiveEnd, breakSeconds);
   const finalGrossPay = calculateGrossPay(payableSeconds, shift.hourly_rate_snapshot);
 
   // Compute pay breakdown

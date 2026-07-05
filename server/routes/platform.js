@@ -27,6 +27,16 @@ function audit(res, action, entityType, entityId, metadata) {
   });
 }
 
+function validateRate(value) {
+  if (value === undefined || value === null || value === "") return "Hourly rate is required";
+  const str = String(value).trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(str)) return "Hourly rate must be a number with up to 2 decimal places";
+  const num = Number(str);
+  if (!Number.isFinite(num) || num <= 0) return "Hourly rate must be greater than 0";
+  if (num > 300) return "Hourly rate must not exceed 300";
+  return null;
+}
+
 // ── Users ──
 
 router.get("/users", requireRole("owner", "admin"), (req, res) => {
@@ -46,13 +56,8 @@ router.post("/users", requireRole("owner"), validate(schemas.createUser), (req, 
 
   // Validate hourly rate for non-client roles
   if (role !== "client") {
-    if (hourlyRate === undefined || hourlyRate === null || hourlyRate === "") {
-      return res.status(400).json({ error: "hourlyRate is required for this role" });
-    }
-    const rate = Number(hourlyRate);
-    if (!Number.isFinite(rate) || rate <= 0 || rate > 300) {
-      return res.status(400).json({ error: "hourlyRate must be a number between 0.01 and 300" });
-    }
+    const rateError = validateRate(hourlyRate);
+    if (rateError) return res.status(400).json({ error: rateError });
   }
 
   const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email.toLowerCase().trim());
@@ -84,15 +89,10 @@ router.patch("/users/:id/hourly-rate", requireRole("owner"), (req, res) => {
   if (!user) return res.status(404).json({ error: "User not found" });
   if (user.role === "client") return res.status(400).json({ error: "Cannot set hourly rate for client users" });
 
-  if (hourlyRate === undefined || hourlyRate === null || hourlyRate === "") {
-    return res.status(400).json({ error: "hourlyRate is required" });
-  }
-  const rate = Number(hourlyRate);
-  if (!Number.isFinite(rate) || rate <= 0 || rate > 300) {
-    return res.status(400).json({ error: "hourlyRate must be a number between 0.01 and 300" });
-  }
+  const rateError = validateRate(hourlyRate);
+  if (rateError) return res.status(400).json({ error: rateError });
 
-  const roundedRate = Math.round(rate * 100) / 100;
+  const roundedRate = Math.round(Number(hourlyRate) * 100) / 100;
   const oldRate = user.hourly_rate;
 
   db.prepare("UPDATE users SET hourly_rate = ?, updated_at = datetime('now') WHERE id = ?").run(roundedRate, id);
