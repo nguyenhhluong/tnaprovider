@@ -4,6 +4,7 @@ import { getDb } from "../db/database.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePasswordChanged } from "../middleware/passwordChange.js";
 import { requireRole } from "../middleware/roles.js";
+import { createAuditLog } from "../middleware/audit.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -645,7 +646,7 @@ router.post("/check-in-by-qr", (req, res) => {
 
   db.prepare(`
     INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-    VALUES (?, ?, ?, 'check_in', ?, 'qr', ?)
+    VALUES (?, ?, ?, 'check_in', ?, 'kiosk', ?)
   `).run(eventId, shiftId, req.user.userId, now, now);
 
   res.status(201).json({
@@ -994,6 +995,197 @@ router.post("/payroll/export", requireRole("owner", "admin"), (req, res) => {
     shiftCount: shifts.length,
     csv: csvContent,
   });
+});
+
+// ── Phase 8C: QR Quick Action endpoints ──
+
+// GET /api/realtime-timesheets/qr/:qrToken — resolve QR + active shift
+router.get("/qr/:qrToken", requireAuth, (req, res) => {
+  const db = getDb();
+  const { qrToken } = req.params;
+
+  const site = db.prepare("SELECT id, name, address, timezone FROM work_sites WHERE qr_token = ? AND qr_enabled = 1 AND is_active = 1").get(qrToken);
+  if (!site) return res.status(404).json({ error: "Invalid or disabled QR code" });
+
+  const activeShift = db.prepare("SELECT * FROM shift_sessions WHERE employee_id = ? AND status IN ('active','on_break') ORDER BY checked_in_at DESC LIMIT 1").get(req.user.userId);
+
+  let shiftData = null;
+  let active = false;
+  let sameSite = false;
+
+  if (activeShift) {
+    active = true;
+    sameSite = activeShift.site_id === site.id;
+    const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(activeShift.id);
+    const serverNow = new Date().toISOString();
+    const effectiveEnd = activeShift.checked_out_at || serverNow;
+    const liveTotalSeconds = calculateTotalSeconds(activeShift.checked_in_at, effectiveEnd);
+    const liveBreakSeconds = calculateBreakSeconds(events, effectiveEnd);
+    const livePayableSeconds = calculatePayableSeconds(activeShift.checked_in_at, effectiveEnd, liveBreakSeconds);
+    const liveEstimatedGrossPay = calculateGrossPay(livePayableSeconds, activeShift.hourly_rate_snapshot);
+
+    shiftData = {
+      id: activeShift.id,
+      status: activeShift.status,
+      checkedInAt: activeShift.checked_in_at,
+      checkedOutAt: activeShift.checked_out_at,
+      hourlyRateSnapshot: activeShift.hourly_rate_snapshot,
+      liveTotalSeconds,
+      liveBreakSeconds,
+      livePayableSeconds,
+      liveEstimatedGrossPay,
+      serverNow,
+    };
+  }
+
+  const payRule = getActivePayRule(db);
+
+  res.json({
+    valid: true,
+    qr: { token: qrToken, name: "Main Entry" },
+    site: { id: site.id, name: site.name, address: site.address, timezone: site.timezone },
+    activeShift: { active, status: activeShift?.status || null, sameSite, shift: shiftData },
+    payRule: payRule ? {
+      ordinary_hours_per_day: payRule.ordinary_hours_per_day,
+      overtime_daily_after_hours: payRule.overtime_daily_after_hours,
+      overtime_rate_multiplier: payRule.overtime_rate_multiplier,
+      double_time_after_hours: payRule.double_time_after_hours,
+      double_time_multiplier: payRule.double_time_multiplier,
+    } : null,
+  });
+});
+
+// POST /api/realtime-timesheets/qr/:qrToken/action — check-in, check-out, break
+router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
+  try {
+  const db = getDb();
+  const { qrToken } = req.params;
+  const { action } = req.body || {};
+
+  if (!action || !["check_in", "check_out", "start_break", "end_break"].includes(action)) {
+    return res.status(400).json({ error: "Invalid action. Must be: check_in, check_out, start_break, end_break" });
+  }
+
+  const site = db.prepare("SELECT id, name, address, timezone FROM work_sites WHERE qr_token = ? AND qr_enabled = 1 AND is_active = 1").get(qrToken);
+  if (!site) return res.status(404).json({ error: "Invalid or disabled QR code" });
+
+  const userId = req.user.userId;
+  const now = new Date().toISOString();
+
+  if (action === "check_in") {
+    // Block client
+    if (req.user.role === "client") return res.status(403).json({ error: "Access denied" });
+    // Block must_change_password
+    if (req.user.mustChangePassword) return res.status(403).json({ error: "Password change required" });
+    // Check disabled user
+    const user = db.prepare("SELECT status, hourly_rate FROM users WHERE id = ?").get(userId);
+    if (user?.status === "disabled") return res.status(403).json({ error: "Account disabled" });
+    // Check hourly rate
+    if (!user?.hourly_rate || user.hourly_rate <= 0) return res.status(400).json({ error: "Hourly rate is not configured. Please contact admin before checking in." });
+    // Check existing active shift
+    const existingActive = db.prepare("SELECT * FROM shift_sessions WHERE employee_id = ? AND status IN ('active','on_break') LIMIT 1").get(userId);
+    if (existingActive) {
+      if (existingActive.site_id === site.id) {
+        return res.status(400).json({ error: "You are already checked in at this site" });
+      }
+      const currSite = existingActive.site_id ? db.prepare("SELECT name FROM work_sites WHERE id = ?").get(existingActive.site_id) : null;
+      return res.status(400).json({ error: `You are already checked in at ${currSite?.name || "another site"}. Check out first.` });
+    }
+
+    const shiftId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+
+    db.prepare(`
+      INSERT INTO shift_sessions (id, employee_id, site_id, status, checked_in_at, hourly_rate_snapshot, timezone, created_at, updated_at)
+      VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)
+    `).run(shiftId, userId, site.id, now, user.hourly_rate, site.timezone, now, now);
+
+    db.prepare(`
+      INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
+      VALUES (?, ?, ?, 'check_in', ?, 'kiosk', ?)
+    `).run(eventId, shiftId, userId, now, now);
+
+    createAuditLog({ userId, action: "qr_check_in", entityType: "shift_session", entityId: shiftId, metadata: { siteId: site.id, qrToken }, ip: req.ip, userAgent: req.headers["user-agent"] });
+
+    return res.status(201).json({
+      success: true,
+      action: "checked_in",
+      shift: {
+        id: shiftId, status: "active", checkedInAt: now, checkedOutAt: null,
+        hourlyRateSnapshot: user.hourly_rate, serverNow: now,
+      },
+    });
+  }
+
+  // For non check-in actions, find active shift
+  const activeShift = db.prepare("SELECT * FROM shift_sessions WHERE employee_id = ? AND status IN ('active','on_break') ORDER BY checked_in_at DESC LIMIT 1").get(userId);
+  if (!activeShift) return res.status(400).json({ error: "No active shift found" });
+  const shiftId = activeShift.id;
+  const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(shiftId);
+
+  if (action === "check_out") {
+    // Calculate break with checkout time as effective end
+    let breakSeconds = calculateBreakSeconds(events, now);
+    const totalSeconds = calculateTotalSeconds(activeShift.checked_in_at, now);
+    const payableSeconds = calculatePayableSeconds(activeShift.checked_in_at, now, breakSeconds);
+    const grossPay = calculateGrossPay(payableSeconds, activeShift.hourly_rate_snapshot);
+    const payRule = getActivePayRule(db);
+    const breakdown = calculatePayBreakdownServer(payableSeconds, activeShift.hourly_rate_snapshot, payRule);
+
+    // End break implicitly if on break
+    if (activeShift.status === "on_break") {
+      db.prepare(`
+        INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
+      VALUES (?, ?, ?, 'break_end', ?, 'kiosk', ?)
+    `).run(crypto.randomUUID(), shiftId, userId, now, now);
+    }
+
+    db.prepare(`
+      UPDATE shift_sessions SET status = 'pending_approval', checked_out_at = ?, total_seconds = ?, break_seconds = ?,
+        payable_seconds = ?, estimated_gross_pay = ?,
+        base_seconds = ?, overtime_seconds = ?, double_time_seconds = ?,
+        base_pay = ?, overtime_pay = ?, double_time_pay = ?,
+        updated_at = datetime('now') WHERE id = ?
+    `).run(now, totalSeconds, breakSeconds, payableSeconds, grossPay,
+      breakdown.baseSeconds, breakdown.overtimeSeconds, breakdown.doubleTimeSeconds,
+      breakdown.basePay, breakdown.overtimePay, breakdown.doubleTimePay, shiftId);
+
+    db.prepare(`
+      INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
+      VALUES (?, ?, ?, 'check_out', ?, 'kiosk', ?)
+    `).run(crypto.randomUUID(), shiftId, userId, now, now);
+
+    createAuditLog({ userId, action: "qr_check_out", entityType: "shift_session", entityId: shiftId, metadata: { siteId: activeShift.site_id }, ip: req.ip, userAgent: req.headers["user-agent"] });
+
+    return res.json({ success: true, action: "checked_out", status: "pending_approval" });
+  }
+
+  if (action === "start_break") {
+    if (activeShift.status !== "active") return res.status(400).json({ error: "Shift is not active" });
+    db.prepare("UPDATE shift_sessions SET status = 'on_break', updated_at = datetime('now') WHERE id = ?").run(shiftId);
+    db.prepare(`
+      INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
+      VALUES (?, ?, ?, 'break_start', ?, 'kiosk', ?)
+    `).run(crypto.randomUUID(), shiftId, userId, now, now);
+    createAuditLog({ userId, action: "qr_break_start", entityType: "shift_session", entityId: shiftId, metadata: {}, ip: req.ip, userAgent: req.headers["user-agent"] });
+    return res.json({ success: true, action: "break_started", status: "on_break", serverNow: now });
+  }
+
+  if (action === "end_break") {
+    if (activeShift.status !== "on_break") return res.status(400).json({ error: "Shift is not on break" });
+    db.prepare("UPDATE shift_sessions SET status = 'active', updated_at = datetime('now') WHERE id = ?").run(shiftId);
+    db.prepare(`
+      INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
+      VALUES (?, ?, ?, 'break_end', ?, 'kiosk', ?)
+    `).run(crypto.randomUUID(), shiftId, userId, now, now);
+    const recalculated = recalculateShift(db, shiftId);
+    createAuditLog({ userId, action: "qr_break_end", entityType: "shift_session", entityId: shiftId, metadata: {}, ip: req.ip, userAgent: req.headers["user-agent"] });
+    return res.json({ success: true, action: "break_ended", status: "active", breakSeconds: recalculated?.break_seconds || 0, serverNow: now });
+  }
+  } catch (err) {
+    console.error("QR action error:", err.message, err.stack);
+    return res.status(500).json({ error: err.message, stack: err.stack?.split("\n").slice(0,5).join("\n") });
+  }
 });
 
 export default router;

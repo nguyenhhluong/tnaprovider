@@ -52,6 +52,7 @@ import { AdminSiteQR } from "./pages/platform/AdminSiteQR";
 import { PayRules } from "./pages/platform/PayRules";
 import { PayrollSummary } from "./pages/platform/PayrollSummary";
 import { QRSiteCheckIn } from "./pages/platform/QRSiteCheckIn";
+import { QRQuickAction } from "./pages/platform/QRQuickAction";
 import { WorkerProfile } from "./pages/platform/WorkerProfile";
 import { isAppHost, isMainHost } from "./utils/host";
 
@@ -181,6 +182,7 @@ const router = createBrowserRouter([
       { path: "pay-rules", element: <ProtectedRoute roles={["owner", "admin"]}><PayRules /></ProtectedRoute> },
       { path: "payroll-summary", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><PayrollSummary /></ProtectedRoute> },
       { path: "qr-check-in/:qrToken", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><QRSiteCheckIn /></ProtectedRoute> },
+      { path: "qr/:qrToken", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><QRQuickAction /></ProtectedRoute> },
       { path: "client-portal", element: <ClientPortal /> },
       { path: "maintenance", element: <Maintenance /> },
       { path: "analytics", element: <Analytics /> },
