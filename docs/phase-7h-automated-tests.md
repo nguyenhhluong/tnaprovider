@@ -75,13 +75,13 @@ Why this works:
 ### How `withServer` Works Now
 
 ```js
-export async function withServer({ dbPath, setupEnv }, fn)
+export async function withServer({ dbPath, setupEnv, setupUsers }, fn)
 ```
 
 1. **Delete old DB** — removes the previous test DB file so each run starts fresh.
 2. **Check port** — calls `ensurePortFree(3007)` to avoid conflicting with another server.
 3. **Build env** — merges `DATABASE_URL`, `APP_ENV=test`, `SESSION_SECRET`, `MAIL_PROVIDER=mock`, `HOST`, `PORT` into the child environment.
-4. **Setup** — spawns `node --input-type=module` with migrate (+ seed if `setupEnv` provided) piped to stdin. The child process creates the schema and optionally seeds an owner user.
+4. **Setup** — spawns `node --input-type=module` with migrate (+ seed if `setupEnv` provided, + extra users if `setupUsers` provided) piped to stdin. The child process creates the schema, optionally seeds an owner user, and creates any additional test users directly (bypassing invite flow). Users are specified as an array of `{ email, password, name, role, mustChangePassword? }` objects.
 5. **Start server** — spawns `node server.js` with the test env vars. Waits up to 30 s for the server to respond to `GET /`.
 6. **Run tests** — invokes the user-supplied `fn` callback with the server ready.
 7. **Stop server** — sends `SIGTERM` and polls for the port to be released (up to 5 s).
@@ -186,12 +186,22 @@ But the preferred approach is always `spawn` with stdin as described above.
 - Expected data types (arrays are arrays, objects are objects)
 
 ### Role Access Matrix
-- Owner/admin: full access
-- Manager: reports + admin realtime allowed; users/pay-rules blocked
-- Worker: own realtime allowed; admin realtime/reports/quotes/documents/pay-rules blocked
-- Client: client portal allowed; all business APIs blocked
-- Forced-password-change: auth/me allowed; business APIs return 403
-- Unauthenticated: all protected APIs return 401
+
+All 6 role users are **created directly** (owner via seed, admin/manager/worker/client/must-change via `setupUsers`). No role tests are skipped. 58 assertions total.
+
+| Role | Endpoint | Expected |
+|------|----------|----------|
+| Owner | reports, quotes, tasks, documents, pay-rules, users, admin-tools | 200 |
+| Admin | reports, quotes, tasks, documents, pay-rules, users, admin-tools | 200 |
+| Manager | reports, quotes, tasks, documents, admin-realtime | 200 |
+| Manager | pay-rules, users, admin-tools, employee-rates, site-qr | 403 |
+| Worker | my-realtime | 200 |
+| Worker | admin-realtime, reports, quotes, documents, pay-rules, payroll-summary, users, admin-tools | 403 |
+| Client | client-portal projects, documents (client-safe) | 200 |
+| Client | reports, quotes, tasks, realtime, pay-rules, payroll-summary, users, admin-tools | 403 |
+| Forced-change | auth/me | 200 |
+| Forced-change | reports, quotes, tasks, documents, realtime, pay-rules | 403 |
+| Unauthenticated | all protected APIs | 401 |
 
 ### Pay Rules
 - Create rule with `double_time_after_hours`
@@ -214,4 +224,4 @@ But the preferred approach is always `spawn` with stdin as described above.
 - Tests require the server to bind to `127.0.0.1:3007`
 - Test databases are ephemeral and prefixed with `test-` for gitignore safety
 - `MAIL_PROVIDER` must stay `mock` — tests fail if provider is real/smtp
-- Role-access secondary users (manager, worker, client) are not created by the seed and use a SKIP path instead of failing
+- Client-visible document endpoints return 200 for clients (they only see client-safe documents)

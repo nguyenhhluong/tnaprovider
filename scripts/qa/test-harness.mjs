@@ -16,7 +16,7 @@ export async function ensurePortFree(port = 3007) {
   });
 }
 
-export async function withServer({ dbPath, setupEnv }, fn) {
+export async function withServer({ dbPath, setupEnv, setupUsers }, fn) {
   const finalDb = resolve(ROOT, dbPath || "data/test-phase7h-harness.db");
 
   // Delete old DB before setup
@@ -37,11 +37,36 @@ export async function withServer({ dbPath, setupEnv }, fn) {
     PORT: "3007",
   };
 
-  // Run setup (migrate + seed) as child process to avoid module cache issues
-  const setupCode = setupEnv
-    ? `import {migrate} from "./server/db/migrate.js"; import {seed} from "./server/db/seed.js"; migrate(); seed();`
-    : `import {migrate} from "./server/db/migrate.js"; migrate();`;
+  // Build setup code: migrate, optionally seed, then create extra users
+  let setupCode = `import {migrate} from "./server/db/migrate.js"; migrate();`;
+  if (setupEnv) {
+    setupCode = `import {migrate} from "./server/db/migrate.js"; import {seed} from "./server/db/seed.js"; migrate(); seed();`;
+  }
   const childEnv = { ...baseEnv, ...(setupEnv || {}) };
+  if (setupUsers && setupUsers.length > 0) {
+    const usersB64 = Buffer.from(JSON.stringify(setupUsers.map(u => ({
+      email: u.email,
+      password: u.password,
+      name: u.name,
+      role: u.role,
+      mustChangePassword: u.mustChangePassword || false,
+      hourlyRate: u.hourlyRate || 38.5,
+    })))).toString("base64");
+    childEnv.SETUP_USERS_B64 = usersB64;
+    setupCode += `
+import {getDb, closeDb} from "./server/db/database.js";
+import bcrypt from "bcrypt";
+import crypto from "crypto";
+const _raw = JSON.parse(Buffer.from("${usersB64}", "base64").toString());
+const _db = getDb();
+const _now = new Date().toISOString();
+for (const _u of _raw) {
+  _db.prepare("DELETE FROM users WHERE email = ?").run(_u.email);
+  const _hash = bcrypt.hashSync(_u.password, 12);
+  _db.prepare("INSERT INTO users (id, email, name, role, password_hash, status, must_change_password, hourly_rate, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)").run(crypto.randomUUID(), _u.email, _u.name, _u.role, _hash, _u.mustChangePassword ? 1 : 0, _u.hourlyRate, _now, _now);
+}
+closeDb();`;
+  }
   const proc = spawn("node", ["--input-type=module"], { cwd: ROOT, stdio: ["pipe", "pipe", "pipe"], env: childEnv });
   proc.stdin.write(setupCode);
   proc.stdin.end();
