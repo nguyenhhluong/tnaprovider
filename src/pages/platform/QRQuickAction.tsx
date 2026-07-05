@@ -52,8 +52,12 @@ export function QRQuickAction() {
   const al = (a: string) => actionLoading === a;
   const [completedAction, setCompletedAction] = useState<string | null>(null);
   const timerRef = useRef<any>(null);
-  const [liveSecs, setLiveSecs] = useState(0);
-  const [liveBreakSecs, setLiveBreakSecs] = useState(0);
+  // Live timer state
+  const [liveShift, setLiveShift] = useState<any>(null);
+  const [liveStartAt, setLiveStartAt] = useState<number>(0);
+  const [liveOffset, setLiveOffset] = useState<number>(0);
+  const [liveBreakStartAt, setLiveBreakStartAt] = useState<number>(0);
+  const [now, setNow] = useState(Date.now());
 
   const fetchQR = async () => {
     setLoading(true); setError(null);
@@ -63,32 +67,57 @@ export function QRQuickAction() {
       if (!res.ok) { const d = await res.json(); setError(d.error || "Invalid QR code"); return; }
       const d = await res.json();
       setData(d);
-      if (d.activeShift?.active && d.activeShift?.shift) {
-        setLiveBreakSecs(d.activeShift.shift.liveBreakSeconds || 0);
-      }
+      initTimer(d);
     } catch { setError("Network error"); }
     finally { setLoading(false); }
   };
 
+  function initTimer(d: any) {
+    if (!d?.activeShift?.active || !d?.activeShift?.shift) return;
+    const s = d.activeShift.shift;
+    setLiveShift(s);
+    setLiveStartAt(new Date(s.checkedInAt).getTime());
+    setLiveOffset(Date.now() - new Date(s.serverNow).getTime());
+    setLiveBreakStartAt(s.currentBreakStartedAt ? new Date(s.currentBreakStartedAt).getTime() + (Date.now() - new Date(s.serverNow).getTime()) : 0);
+  }
+
   useEffect(() => { fetchQR(); }, [qrToken]);
 
-  // Live timer
+  // Live timer - ticks every 1s
   useEffect(() => {
-    if (!data?.activeShift?.active || !data?.activeShift?.shift) return;
-    const shift = data.activeShift.shift;
-    const checkedIn = new Date(shift.checkedInAt).getTime();
-    const serverNow = new Date(shift.serverNow).getTime();
-    const offset = Date.now() - serverNow;
-
-    const tick = () => {
-      const now = Date.now() - offset;
-      const totalSecs = Math.max(0, Math.floor((now - checkedIn) / 1000));
-      setLiveSecs(totalSecs);
-    };
+    if (!liveStartAt) return;
+    const tick = () => { setNow(Date.now()); };
     tick();
     timerRef.current = setInterval(tick, 1000);
     return () => clearInterval(timerRef.current);
-  }, [data?.activeShift?.active, data?.activeShift?.shift?.id]);
+  }, [liveStartAt, liveShift?.id]);
+
+  // Compute live values for display
+  const getLiveValues = () => {
+    if (!liveStartAt) return { totalSecs: 0, breakSecs: 0, paySecs: 0, livePay: 0 };
+
+    const effectiveNow = now - liveOffset;
+    const checkedAt = liveStartAt;
+    const totalSecs = Math.max(0, Math.floor((effectiveNow - checkedAt) / 1000));
+
+    // Break completed from server
+    const serverBreakSecs = liveShift?.liveBreakSeconds || 0;
+    // If currently on break, add elapsed current break
+    const isOnBreak = data?.activeShift?.status === "on_break";
+    let breakSecs = serverBreakSecs;
+    let paySecs = Math.max(0, totalSecs - serverBreakSecs);
+
+    if (isOnBreak && liveBreakStartAt > 0) {
+      breakSecs = serverBreakSecs + Math.max(0, Math.floor((effectiveNow - liveBreakStartAt) / 1000));
+      // Paid duration freezes during break (use value at break start)
+      paySecs = Math.max(0, Math.floor((liveBreakStartAt - checkedAt) / 1000) - serverBreakSecs);
+    }
+
+    const hr = liveShift?.hourlyRateSnapshot || 0;
+    const pr = data?.payRule || {};
+    const livePay = calculateLivePay(paySecs, hr, pr).total;
+    return { totalSecs, breakSecs, paySecs, livePay };
+  };
 
   const doAction = async (action: string) => {
     setActionLoading(action); setError(null);
@@ -99,13 +128,25 @@ export function QRQuickAction() {
       const d = await res.json();
       if (!res.ok) { setError(d.error || "Action failed"); return; }
       setCompletedAction(action);
-      if (action !== "check_out") {
-        // Refetch to get updated state
+      if (action === "check_in" && d.shift) {
+        // Immediately start timer with returned shift data
+        const shiftData = { ...d.shift, liveBreakSeconds: 0, currentBreakStartedAt: null };
+        const fakeData = { ...data, activeShift: { active: true, status: "active", sameSite: true, shift: shiftData } };
+        setData(fakeData);
+        liveTimerForShift(shiftData);
+      } else if (action !== "check_out") {
         setTimeout(() => { setCompletedAction(null); fetchQR(); }, 1500);
       }
     } catch { setError("Network error"); }
     finally { setActionLoading(null); }
   };
+
+  function liveTimerForShift(s: any) {
+    setLiveShift(s);
+    setLiveStartAt(new Date(s.checkedInAt).getTime());
+    setLiveOffset(Date.now() - new Date(s.serverNow).getTime());
+    setLiveBreakStartAt(0);
+  }
 
   if (loading) {
     return (
@@ -137,12 +178,12 @@ export function QRQuickAction() {
   const isCheckedIn = data.activeShift?.active;
   const isOnBreak = data.activeShift?.status === "on_break";
 
-  // Calculate live values
-  const totalSecs = isCheckedIn ? liveSecs : (shift?.liveTotalSeconds || 0);
-  const breakSecs = isCheckedIn ? (isOnBreak ? (liveSecs - liveBreakSecs) : (shift?.liveBreakSeconds || 0)) : (shift?.liveBreakSeconds || 0);
-  const paySecs = Math.max(0, totalSecs - breakSecs);
-  const payRule = data.payRule || {};
-  const live = calculateLivePay(paySecs, shift?.hourlyRateSnapshot || 0, payRule);
+  // Use live timer values
+  const lv = getLiveValues();
+  const totalSecs = (isCheckedIn || completedAction === "check_in") ? lv.totalSecs : (shift?.liveTotalSeconds || 0);
+  const breakSecs = (isCheckedIn || completedAction === "check_in") ? lv.breakSecs : (shift?.liveBreakSeconds || 0);
+  const paySecs = (isCheckedIn || completedAction === "check_in") ? lv.paySecs : (shift?.payableSeconds || 0);
+  const livePay = (isCheckedIn || completedAction === "check_in") ? lv.livePay : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center p-4">
@@ -160,7 +201,7 @@ export function QRQuickAction() {
               <div className="flex justify-between"><span className="text-gray-400">Checked in at</span><span className="font-medium">{fmtHour(shift?.checkedInAt)}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Checked out at</span><span className="font-medium">{fmtHour(new Date().toISOString())}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Final paid duration</span><span className="font-medium">{fmtDuration(paySecs)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Estimated earning</span><span className="font-medium text-green-600">{fmtMoney(live.total)}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Estimated earning</span><span className="font-medium text-green-600">{fmtMoney(livePay)}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Status</span><span className="px-2 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 text-xs font-semibold rounded-full">Pending approval</span></div>
             </div>
             <Link to={appPath("/platform/dashboard")} className="block w-full py-3 bg-brand-accent text-white rounded-xl font-medium hover:bg-brand-accent/90 transition-colors text-center">
@@ -181,11 +222,11 @@ export function QRQuickAction() {
             </div>
             <div className="space-y-1">
               <p className="text-sm text-gray-400">Current paid duration</p>
-              <p className="text-2xl font-mono font-bold text-brand-accent">{fmtDuration(0)}</p>
+              <p className="text-2xl font-mono font-bold text-brand-accent">{fmtDuration(paySecs)}</p>
             </div>
             <div className="space-y-1">
               <p className="text-sm text-gray-400">Estimated earning</p>
-              <p className="text-2xl font-bold text-green-600">{fmtMoney(0)}</p>
+              <p className="text-2xl font-bold text-green-600">{fmtMoney(livePay)}</p>
             </div>
             <p className="text-sm text-gray-500">{data.site?.name}</p>
             <div className="space-y-2 pt-2">
@@ -246,7 +287,7 @@ export function QRQuickAction() {
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-gray-400">Estimated earning</p>
-                <p className="text-2xl font-bold text-green-600">{fmtMoney(live.total)}</p>
+                <p className="text-2xl font-bold text-green-600">{fmtMoney(livePay)}</p>
               </div>
               <div className="space-y-2 pt-2">
                 <button onClick={() => doAction("check_out")} disabled={al("check_out")} className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 disabled:opacity-50 transition-colors">
@@ -277,7 +318,7 @@ export function QRQuickAction() {
                 <p className="text-2xl font-bold text-brand-dark dark:text-white">{fmtHour(shift?.checkedInAt)}</p>
               </div>
               <div className="text-sm text-gray-400">Current paid duration <span className="font-mono font-bold text-brand-dark dark:text-white">{fmtDuration(paySecs)}</span></div>
-              <div className="text-sm text-gray-400">Estimated earning <span className="font-bold text-green-600">{fmtMoney(live.total)}</span></div>
+              <div className="text-sm text-gray-400">Estimated earning <span className="font-bold text-green-600">{fmtMoney(livePay)}</span></div>
               <div className="text-sm text-gray-400">Break time <span className="font-mono font-bold text-amber-600">{fmtDuration(breakSecs)}</span></div>
               <div className="space-y-2 pt-2">
                 <button onClick={() => doAction("end_break")} disabled={al("end_break")} className="w-full flex items-center justify-center gap-2 py-3 bg-brand-accent text-white rounded-xl font-medium hover:bg-brand-accent/90 disabled:opacity-50 transition-colors">

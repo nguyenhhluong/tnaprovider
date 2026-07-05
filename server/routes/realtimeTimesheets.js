@@ -646,7 +646,7 @@ router.post("/check-in-by-qr", (req, res) => {
 
   db.prepare(`
     INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-    VALUES (?, ?, ?, 'check_in', ?, 'kiosk', ?)
+    VALUES (?, ?, ?, 'check_in', ?, 'qr', ?)
   `).run(eventId, shiftId, req.user.userId, now, now);
 
   res.status(201).json({
@@ -1102,7 +1102,7 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
 
     db.prepare(`
       INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-      VALUES (?, ?, ?, 'check_in', ?, 'kiosk', ?)
+      VALUES (?, ?, ?, 'check_in', ?, 'qr', ?)
     `).run(eventId, shiftId, userId, now, now);
 
     createAuditLog({ userId, action: "qr_check_in", entityType: "shift_session", entityId: shiftId, metadata: { siteId: site.id, qrToken }, ip: req.ip, userAgent: req.headers["user-agent"] });
@@ -1120,6 +1120,13 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
   // For non check-in actions, find active shift
   const activeShift = db.prepare("SELECT * FROM shift_sessions WHERE employee_id = ? AND status IN ('active','on_break') ORDER BY checked_in_at DESC LIMIT 1").get(userId);
   if (!activeShift) return res.status(400).json({ error: "No active shift found" });
+
+  // Block wrong-site actions
+  if (activeShift.site_id !== site.id) {
+    const currSite = activeShift.site_id ? db.prepare("SELECT name FROM work_sites WHERE id = ?").get(activeShift.site_id) : null;
+    return res.status(400).json({ error: `You are checked in at ${currSite?.name || "another site"}. Please use the correct QR code or open Timesheet.` });
+  }
+
   const shiftId = activeShift.id;
   const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(shiftId);
 
@@ -1136,7 +1143,7 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
     if (activeShift.status === "on_break") {
       db.prepare(`
         INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-      VALUES (?, ?, ?, 'break_end', ?, 'kiosk', ?)
+      VALUES (?, ?, ?, 'break_end', ?, 'qr', ?)
     `).run(crypto.randomUUID(), shiftId, userId, now, now);
     }
 
@@ -1152,7 +1159,7 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
 
     db.prepare(`
       INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-      VALUES (?, ?, ?, 'check_out', ?, 'kiosk', ?)
+      VALUES (?, ?, ?, 'check_out', ?, 'qr', ?)
     `).run(crypto.randomUUID(), shiftId, userId, now, now);
 
     createAuditLog({ userId, action: "qr_check_out", entityType: "shift_session", entityId: shiftId, metadata: { siteId: activeShift.site_id }, ip: req.ip, userAgent: req.headers["user-agent"] });
@@ -1165,7 +1172,7 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
     db.prepare("UPDATE shift_sessions SET status = 'on_break', updated_at = datetime('now') WHERE id = ?").run(shiftId);
     db.prepare(`
       INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-      VALUES (?, ?, ?, 'break_start', ?, 'kiosk', ?)
+      VALUES (?, ?, ?, 'break_start', ?, 'qr', ?)
     `).run(crypto.randomUUID(), shiftId, userId, now, now);
     createAuditLog({ userId, action: "qr_break_start", entityType: "shift_session", entityId: shiftId, metadata: {}, ip: req.ip, userAgent: req.headers["user-agent"] });
     return res.json({ success: true, action: "break_started", status: "on_break", serverNow: now });
@@ -1176,15 +1183,15 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
     db.prepare("UPDATE shift_sessions SET status = 'active', updated_at = datetime('now') WHERE id = ?").run(shiftId);
     db.prepare(`
       INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-      VALUES (?, ?, ?, 'break_end', ?, 'kiosk', ?)
+      VALUES (?, ?, ?, 'break_end', ?, 'qr', ?)
     `).run(crypto.randomUUID(), shiftId, userId, now, now);
     const recalculated = recalculateShift(db, shiftId);
     createAuditLog({ userId, action: "qr_break_end", entityType: "shift_session", entityId: shiftId, metadata: {}, ip: req.ip, userAgent: req.headers["user-agent"] });
     return res.json({ success: true, action: "break_ended", status: "active", breakSeconds: recalculated?.break_seconds || 0, serverNow: now });
   }
   } catch (err) {
-    console.error("QR action error:", err.message, err.stack);
-    return res.status(500).json({ error: err.message, stack: err.stack?.split("\n").slice(0,5).join("\n") });
+    console.error("QR action error:", err.message);
+    return res.status(500).json({ error: "QR action failed" });
   }
 });
 
