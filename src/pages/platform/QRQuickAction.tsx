@@ -56,7 +56,6 @@ export function QRQuickAction() {
   const [liveShift, setLiveShift] = useState<any>(null);
   const [liveStartAt, setLiveStartAt] = useState<number>(0);
   const [liveOffset, setLiveOffset] = useState<number>(0);
-  const [liveBreakStartAt, setLiveBreakStartAt] = useState<number>(0);
   const [now, setNow] = useState(Date.now());
 
   const fetchQR = async () => {
@@ -78,7 +77,6 @@ export function QRQuickAction() {
     setLiveShift(s);
     setLiveStartAt(new Date(s.checkedInAt).getTime());
     setLiveOffset(Date.now() - new Date(s.serverNow).getTime());
-    setLiveBreakStartAt(s.currentBreakStartedAt ? new Date(s.currentBreakStartedAt).getTime() + (Date.now() - new Date(s.serverNow).getTime()) : 0);
   }
 
   useEffect(() => { fetchQR(); }, [qrToken]);
@@ -100,17 +98,17 @@ export function QRQuickAction() {
     const checkedAt = liveStartAt;
     const totalSecs = Math.max(0, Math.floor((effectiveNow - checkedAt) / 1000));
 
-    // Break completed from server
-    const serverBreakSecs = liveShift?.liveBreakSeconds || 0;
-    // If currently on break, add elapsed current break
+    const completedBreakSecs = liveShift?.liveBreakSeconds || 0;
     const isOnBreak = data?.activeShift?.status === "on_break";
-    let breakSecs = serverBreakSecs;
-    let paySecs = Math.max(0, totalSecs - serverBreakSecs);
+    let breakSecs = completedBreakSecs;
+    let paySecs = Math.max(0, totalSecs - completedBreakSecs);
 
-    if (isOnBreak && liveBreakStartAt > 0) {
-      breakSecs = serverBreakSecs + Math.max(0, Math.floor((effectiveNow - liveBreakStartAt) / 1000));
-      // Paid duration freezes during break (use value at break start)
-      paySecs = Math.max(0, Math.floor((liveBreakStartAt - checkedAt) / 1000) - serverBreakSecs);
+    if (isOnBreak && liveShift?.currentBreakStartedAt) {
+      const breakStartedAt = Date.parse(liveShift.currentBreakStartedAt);
+      const currentBreakElapsed = Math.max(0, Math.floor((effectiveNow - breakStartedAt) / 1000));
+      breakSecs = completedBreakSecs + currentBreakElapsed;
+      // Paid duration freezes when current break started
+      paySecs = Math.max(0, Math.floor((breakStartedAt - checkedAt) / 1000) - completedBreakSecs);
     }
 
     const hr = liveShift?.hourlyRateSnapshot || 0;
@@ -145,7 +143,7 @@ export function QRQuickAction() {
     setLiveShift(s);
     setLiveStartAt(new Date(s.checkedInAt).getTime());
     setLiveOffset(Date.now() - new Date(s.serverNow).getTime());
-    setLiveBreakStartAt(0);
+    // break start handled via currentBreakStartedAt from server
   }
 
   if (loading) {

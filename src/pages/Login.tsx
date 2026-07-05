@@ -9,7 +9,8 @@ export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/platform";
+  const redirectParam = new URLSearchParams(location.search).get("redirect");
+  const from = redirectParam || (location.state as { from?: { pathname: string } })?.from?.pathname || "/platform";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

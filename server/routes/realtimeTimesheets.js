@@ -1024,12 +1024,17 @@ router.get("/qr/:qrToken", requireAuth, (req, res) => {
     const livePayableSeconds = calculatePayableSeconds(activeShift.checked_in_at, effectiveEnd, liveBreakSeconds);
     const liveEstimatedGrossPay = calculateGrossPay(livePayableSeconds, activeShift.hourly_rate_snapshot);
 
+    const currentBreakStartedAt = activeShift.status === "on_break"
+      ? [...events].reverse().find(e => e.event_type === "break_start")?.event_time || null
+      : null;
+
     shiftData = {
       id: activeShift.id,
       status: activeShift.status,
       checkedInAt: activeShift.checked_in_at,
       checkedOutAt: activeShift.checked_out_at,
       hourlyRateSnapshot: activeShift.hourly_rate_snapshot,
+      currentBreakStartedAt,
       liveTotalSeconds,
       liveBreakSeconds,
       livePayableSeconds,

@@ -23,6 +23,11 @@ export function ProtectedRoute({ children, roles }: Props) {
   }
 
   if (!user) {
+    // QR routes need /login?redirect=/qr/... so the login page can redirect back
+    if (location.pathname.startsWith("/qr/") || location.pathname.startsWith("/platform/qr/")) {
+      const redirect = encodeURIComponent(location.pathname + location.search);
+      return <Navigate to={`/login?redirect=${redirect}`} replace />;
+    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

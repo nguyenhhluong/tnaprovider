@@ -138,18 +138,13 @@ await withServer({
       const hasQrSource = detail.data?.events?.some(e => e.source === "qr");
       chk("event source is qr", !!hasQrSource, true);
     }
-    // Test wrong-site blocking for other actions
-    // Create another site
-    const sitesList = await apiGet("/api/realtime-timesheets/sites/admin", cO);
-    if (sitesList.data?.length >= 1) {
-      // Generate a second QR token on the same site (simulate wrong QR by using different site)
-      // Since we only have one site, let's make a different QR that won't match
-      r = await api("POST", `/api/realtime-timesheets/qr/wrong-site-token/action`, { action: "check_out" }, cQE);
-      chk("wrong-site check_out blocked", r.status, 404);
+    // Wrong-site test: check into site A, try actions with non-matching QR
+    // Use a QR token that does NOT match the active shift's site
+    r = await api("POST", `/api/realtime-timesheets/qr/wrong/nonexistent/action`, { action: "check_out" }, cQE);
+    chk("wrong-site check_out blocked 404", r.status, 404);
 
-      // Check error does not return stack trace
-      chk("error no stack trace", !r.data?.stack, true);
-    }
+    // Check error does not return stack trace
+    chk("error no stack trace", !r.data?.stack, true);
   }
 
   // ── Duplicate check-in blocked for actively checked-in worker ──
@@ -178,6 +173,27 @@ await withServer({
     r = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, { action: "check_out" }, cBC);
     chk("checkout while on break", r.status, 200);
     chkVal("checkout sets pending", r.data?.status, "pending_approval");
+  }
+
+  // ── Wrong-site test with invalid QR (nonexistent site) ──
+  r = await api("POST", "/api/platform/users", { email: "wrong-site-wkr@test.com", name: "Wrong Site Wkr", role: "worker", password: "WsWkr1234!", hourlyRate: 35, mustChangePassword: false }, cO);
+  const wsId = r.data?.id;
+  if (wsId) {
+    const cWS = await mustGetCookie("wrong-site-wkr@test.com", "WsWkr1234!", "wrong-site-wkr");
+    // Check in using the seeded QR
+    r = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, { action: "check_in" }, cWS);
+    chk("wrong-site: check in ok", r.status, 201);
+
+    // Try actions with a nonexistent QR (different site)
+    const badQr = "nonexistent-site-token";
+    r = await api("POST", `/api/realtime-timesheets/qr/${badQr}/action`, { action: "check_out" }, cWS);
+    chk("wrong-site check_out 404", r.status, 404);
+
+    r = await api("POST", `/api/realtime-timesheets/qr/${badQr}/action`, { action: "start_break" }, cWS);
+    chk("wrong-site start_break 404", r.status, 404);
+
+    r = await api("POST", `/api/realtime-timesheets/qr/${badQr}/action`, { action: "end_break" }, cWS);
+    chk("wrong-site end_break 404", r.status, 404);
   }
 
   // ── Worker Profile route hotfix preserved ──
