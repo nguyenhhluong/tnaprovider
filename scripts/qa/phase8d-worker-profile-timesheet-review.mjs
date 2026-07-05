@@ -1,7 +1,12 @@
-import { withServer, mustGetCookie, auth } from "./test-harness.mjs";
+import { withServer, mustGetCookie } from "./test-harness.mjs";
 
 const BASE = "http://127.0.0.1:3007";
 let pass = 0, fail = 0;
+
+function chkNear(label, actual, expected, tolerance = 0.01) {
+  if (Math.abs(actual - expected) <= tolerance) pass++;
+  else { fail++; console.error(`FAIL ${label}: expected ~${expected} got ${actual}`); }
+}
 
 async function api(method, path, body, cookie) {
   const opts = { method, headers: { "Content-Type": "application/json" } };
@@ -155,6 +160,59 @@ await withServer({
   // ── Worker timesheet endpoint blocked for non-owner ──
   r = await apiGet(`/api/platform/users/${worker.id}/timesheet-week?weekStart=2026-06-29`, cA);
   chk("admin timesheet blocked 403", r.status, 403);
+
+  // ── Shift detail rejects mismatched userId ──
+  if (shiftId && admin) {
+    r = await apiGet(`/api/platform/users/${admin.id}/shifts/${shiftId}`, cO);
+    chk("mismatched userId+shiftId rejected", r.status, 404);
+  }
+
+  // ── Manual shift creates check_in AND check_out events ──
+  if (shiftId) {
+    const detail = await apiGet(`/api/platform/users/${worker.id}/shifts/${shiftId}`, cO);
+    const eventTypes = detail.data?.events?.map(e => e.event_type) || [];
+    chk("manual shift has check_in event", eventTypes.includes("check_in"), true);
+    chk("manual shift has check_out event", eventTypes.includes("check_out"), true);
+    // Check source
+    const hasAdminSource = detail.data?.events?.some(e => e.source === "admin");
+    chk("manual shift events source admin", hasAdminSource, true);
+  }
+
+  // ── Owner can adjust shift with reason ──
+  if (shiftId) {
+    r = await api("PATCH", `/api/platform/users/${worker.id}/shifts/${shiftId}`, {
+      startTime: "2026-06-29T08:00", endTime: "2026-06-29T16:00", breakDuration: "45", reason: "Shift adjusted for testing",
+    }, cO);
+    chk("owner adjust shift with reason", r.status, 200);
+
+    // ── Adjust shift without reason returns 400 ──
+    r = await api("PATCH", `/api/platform/users/${worker.id}/shifts/${shiftId}`, {
+      startTime: "2026-06-29T08:00", endTime: "2026-06-29T16:00", reason: "",
+    }, cO);
+    chk("adjust shift without reason 400", r.status, 400);
+
+    // ── Adjustment recalculates total_seconds and payable_seconds ──
+    const detail2 = await apiGet(`/api/platform/users/${worker.id}/shifts/${shiftId}`, cO);
+    if (detail2.data?.shift) {
+      chk("adjustment sets total_seconds > 0", detail2.data.shift.total_seconds > 0, true);
+      chk("adjustment sets payable_seconds", detail2.data.shift.payable_seconds > 0, true);
+      chk("adjustment sets base_seconds", detail2.data.shift.base_seconds > 0, true);
+      chk("adjustment sets base_pay", detail2.data.shift.base_pay > 0, true);
+    }
+
+    // ── Adjustment recalculates approved final_gross_pay ──
+    // The shift was approved earlier, so final_gross_pay should be recalculated
+    if (detail2.data?.shift) {
+      chk("adjustment updates final_gross_pay", detail2.data.shift.final_gross_pay > 0, true);
+    }
+
+    // ── Weekly pay updates after approved shift adjustment ──
+    const week3 = await apiGet(`/api/platform/users/${worker.id}/timesheet-week?weekStart=2026-06-29`, cO);
+    const adjDay = week3.data?.days?.find(d => d.shiftId === shiftId);
+    if (adjDay) {
+      chk("adjusted day pay > 0", adjDay.pay > 0, true);
+    }
+  }
 });
 
 const total = pass + fail;

@@ -718,8 +718,18 @@ router.get("/users/:userId/timesheet-week", requireRole("owner"), (req, res) => 
         const ps = s.payable_seconds || 0;
         totalPaidSeconds += ps;
 
-        const finalPay = s.final_gross_pay || s.estimated_gross_pay || 0;
-        totalPay += finalPay;
+        // Labor pay: use final_gross_pay if approved, else estimated_gross_pay, else computed from breakdown
+        let laborPay = s.final_gross_pay || s.estimated_gross_pay || 0;
+        if (laborPay === 0 && s.base_pay != null) {
+          laborPay = (s.base_pay || 0) + (s.overtime_pay || 0) + (s.double_time_pay || 0);
+        }
+        // Allowance pay
+        let allowancePay = s.allowance_pay || 0;
+        if (!allowancePay) {
+          const al = db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM shift_allowances WHERE shift_session_id = ?").get(s.id);
+          allowancePay = al?.total || 0;
+        }
+        totalPay += laborPay + allowancePay;
 
         // Pick latest status for display
         if (s.status === "pending_approval") combinedStatus = "pending_approval";
@@ -778,15 +788,15 @@ router.get("/users/:userId/timesheet-week", requireRole("owner"), (req, res) => 
 // GET /api/platform/users/:userId/shifts/:shiftId
 router.get("/users/:userId/shifts/:shiftId", requireRole("owner"), (req, res) => {
   const db = getDb();
-  const { shiftId } = req.params;
+  const { userId, shiftId } = req.params;
 
   const shift = db.prepare(`
     SELECT s.*, u.name as employee_name, u.email as employee_email, w.name as site_name
     FROM shift_sessions s
     JOIN users u ON u.id = s.employee_id
     LEFT JOIN work_sites w ON w.id = s.site_id
-    WHERE s.id = ?
-  `).get(shiftId);
+    WHERE s.id = ? AND s.employee_id = ?
+  `).get(shiftId, userId);
   if (!shift) return res.status(404).json({ error: "Shift not found" });
 
   const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(shiftId);
@@ -834,6 +844,13 @@ router.post("/users/:userId/manual-shift", requireRole("owner"), (req, res) => {
       VALUES (?, ?, ?, 'check_in', ?, 'admin', ?)
     `).run(eventId, shiftId, userId, checkedInAt.toISOString(), now);
 
+    // Add check_out event
+    const checkOutEventId = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
+      VALUES (?, ?, ?, 'check_out', ?, 'admin', ?)
+    `).run(checkOutEventId, shiftId, userId, checkedOutAt.toISOString(), now);
+
     audit(res, "worker_manual_shift_created", "shift_session", shiftId, { workerId: userId, date, start: startTime, end: endTime, breakSeconds: breakSecs, siteId, reason });
     res.status(201).json({ id: shiftId, status: "pending_approval" });
   } catch (err) {
@@ -869,13 +886,38 @@ router.patch("/users/:userId/shifts/:shiftId", requireRole("owner"), (req, res) 
   const now = new Date().toISOString();
   const totalSeconds = checkedOutAt ? Math.max(0, Math.floor((checkedOutAt.getTime() - checkedInAt.getTime()) / 1000)) : (shift.total_seconds || 0);
   const payableSeconds = Math.max(0, totalSeconds - newBreakSecs);
-  const grossPay = payableSeconds / 3600 * shift.hourly_rate_snapshot;
 
-  db.prepare(`
-    UPDATE shift_sessions SET checked_in_at = ?, checked_out_at = ?, site_id = ?, total_seconds = ?, break_seconds = ?, payable_seconds = ?, estimated_gross_pay = ?, updated_at = datetime('now') WHERE id = ?
-  `).run(checkedInAt.toISOString(), checkedOutAt?.toISOString() || null, newSiteId || null, totalSeconds, newBreakSecs, payableSeconds, grossPay, shiftId);
+  // Calculate full pay breakdown
+  const payRule = db.prepare("SELECT * FROM company_pay_rules WHERE is_active = 1 ORDER BY id ASC LIMIT 1").get();
+  const breakdown = calculatePayBreakdownServer(payableSeconds, shift.hourly_rate_snapshot, payRule);
+  const allowanceTotal = db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM shift_allowances WHERE shift_session_id = ?").get(shiftId)?.total || 0;
 
-  // Add adjustment event
+  if (shift.status === "approved") {
+    const finalPay = breakdown.basePay + breakdown.overtimePay + breakdown.doubleTimePay;
+    db.prepare(`
+      UPDATE shift_sessions SET checked_in_at = ?, checked_out_at = ?, site_id = ?, total_seconds = ?, break_seconds = ?, payable_seconds = ?,
+        base_seconds = ?, overtime_seconds = ?, double_time_seconds = ?,
+        base_pay = ?, overtime_pay = ?, double_time_pay = ?,
+        final_gross_pay = ?, allowance_pay = ?,
+        updated_at = datetime('now') WHERE id = ?
+    `).run(checkedInAt.toISOString(), checkedOutAt?.toISOString() || null, newSiteId || null, totalSeconds, newBreakSecs, payableSeconds,
+      breakdown.baseSeconds, breakdown.overtimeSeconds, breakdown.doubleTimeSeconds,
+      breakdown.basePay, breakdown.overtimePay, breakdown.doubleTimePay,
+      finalPay, allowanceTotal, shiftId);
+  } else {
+    const estPay = breakdown.basePay + breakdown.overtimePay + breakdown.doubleTimePay;
+    db.prepare(`
+      UPDATE shift_sessions SET checked_in_at = ?, checked_out_at = ?, site_id = ?, total_seconds = ?, break_seconds = ?, payable_seconds = ?,
+        base_seconds = ?, overtime_seconds = ?, double_time_seconds = ?,
+        base_pay = ?, overtime_pay = ?, double_time_pay = ?,
+        estimated_gross_pay = ?, allowance_pay = ?,
+        updated_at = datetime('now') WHERE id = ?
+    `).run(checkedInAt.toISOString(), checkedOutAt?.toISOString() || null, newSiteId || null, totalSeconds, newBreakSecs, payableSeconds,
+      breakdown.baseSeconds, breakdown.overtimeSeconds, breakdown.doubleTimeSeconds,
+      breakdown.basePay, breakdown.overtimePay, breakdown.doubleTimePay,
+      estPay, allowanceTotal, shiftId);
+  }
+
   const eventId = crypto.randomUUID();
   db.prepare(`
     INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
