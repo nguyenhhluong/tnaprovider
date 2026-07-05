@@ -22,7 +22,8 @@
     "test:roles": "node scripts/qa/role-access.mjs",
     "test:payroll": "node scripts/qa/payroll-rules.mjs",
     "test:phase7h": "npm run test:routes && npm run test:api && npm run test:roles && npm run test:payroll",
-    "test:phase8b": "node scripts/qa/phase8b-user-rates-timesheet-consistency.mjs"
+    "test:phase8b": "node scripts/qa/phase8b-user-rates-timesheet-consistency.mjs",
+    "test:phase8d": "node scripts/qa/phase8d-worker-profile-timesheet-review.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate, Link } from "react-router-dom";
+import { appPath } from "../../utils/host";
 import { SEO } from "../../components/SEO";
 import { PageHeader } from "../../components/shared/PageHeader";
 import { LoadingState } from "../../components/shared/LoadingState";
@@ -25,6 +26,7 @@ const ROLES = ["admin", "manager", "worker", "client"];
 const isOwner = (role?: string) => role === "owner";
 
 export function Users() {
+  const navigate = useNavigate();
   const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<PlatformUser[]>([]);
@@ -235,7 +237,7 @@ export function Users() {
   return (
     <div className="min-h-screen">
       <SEO title="Users | TNA Provider Platform" description="User management." canonical="https://tnaprovider.com.au/platform/users" />
-      <PageHeader title="Users" description="Manage platform users, roles, and invites." onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Users" description="Manage platform users, roles, and invites. Click a name to view profile and timesheet." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
         <div>
@@ -365,7 +367,7 @@ export function Users() {
           <div key={u.id} className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-4">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <p className="font-semibold text-brand-dark dark:text-white">{u.name}</p>
+                <Link to={appPath(`/platform/worker-profile/${u.id}`)} className="font-semibold text-brand-dark dark:text-white hover:text-brand-accent transition-colors">{u.name}</Link>
                 <p className="text-xs text-gray-500">{u.email}</p>
               </div>
               {statusBadge(u.status)}
@@ -441,7 +443,9 @@ export function Users() {
               )}
               {users.map((u) => (
                 <tr key={u.id} className="border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30">
-                  <td className="px-6 py-4 text-sm font-semibold text-brand-dark dark:text-white">{u.name}</td>
+                  <td className="px-6 py-4">
+                    <Link to={appPath(`/platform/worker-profile/${u.id}`)} className="text-sm font-semibold text-brand-dark dark:text-white hover:text-brand-accent transition-colors">{u.name}</Link>
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{u.email}</td>
                   <td className="px-6 py-4">
                     <select

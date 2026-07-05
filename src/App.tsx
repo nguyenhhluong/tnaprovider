@@ -52,6 +52,7 @@ import { AdminSiteQR } from "./pages/platform/AdminSiteQR";
 import { PayRules } from "./pages/platform/PayRules";
 import { PayrollSummary } from "./pages/platform/PayrollSummary";
 import { QRSiteCheckIn } from "./pages/platform/QRSiteCheckIn";
+import { WorkerProfile } from "./pages/platform/WorkerProfile";
 import { isAppHost, isMainHost } from "./utils/host";
 
 function RouteErrorFallback() {
@@ -195,6 +196,7 @@ const router = createBrowserRouter([
       { path: "notifications", element: <ProtectedRoute><Notifications /></ProtectedRoute> },
       { path: "reports", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Reports /></ProtectedRoute> },
       { path: "profile", element: <Profile /> },
+      { path: "worker-profile/:userId", element: <ProtectedRoute roles={["owner"]}><WorkerProfile /></ProtectedRoute> },
     ],
   },
   { path: "/login", element: <AppLogin /> },

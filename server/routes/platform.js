@@ -9,6 +9,7 @@ import { validate, schemas } from "../middleware/validate.js";
 import { hashPassword } from "../auth/hash.js";
 import { generateToken, hashToken } from "../auth/tokens.js";
 import { revokeAllUserSessions } from "../auth/session.js";
+import { calculatePayBreakdownServer } from "./realtimeTimesheets.js";
 
 const router = Router();
 
@@ -598,6 +599,352 @@ router.get("/audit", requireRole("owner", "admin"), (req, res) => {
 
   const logs = db.prepare(query).all(...params);
   res.json(logs);
+});
+
+// ── Phase 8D: Worker Profile APIs (owner only) ──
+
+function formatDurationLabel(seconds) {
+  if (!seconds || seconds <= 0) return "0h 0m";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+function getDayName(dateStr) {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return days[new Date(dateStr).getDay()];
+}
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+// GET /api/platform/users/:userId/profile
+router.get("/users/:userId/profile", requireRole("owner"), (req, res) => {
+  const db = getDb();
+  const { userId } = req.params;
+  const user = db.prepare("SELECT id, email, name, role, status, hourly_rate, must_change_password, created_at, last_login_at FROM users WHERE id = ?").get(userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const activeShift = db.prepare("SELECT COUNT(*) as c FROM shift_sessions WHERE employee_id = ? AND status IN ('active','on_break')").get(userId);
+
+  res.json({
+    worker: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      hourlyRate: user.hourly_rate,
+      mustChangePassword: !!user.must_change_password,
+      lastLoginAt: user.last_login_at,
+      createdAt: user.created_at,
+    },
+    activeShift: { active: activeShift.c > 0 },
+  });
+});
+
+// GET /api/platform/users/:userId/timesheet-week?weekStart=YYYY-MM-DD
+router.get("/users/:userId/timesheet-week", requireRole("owner"), (req, res) => {
+  const db = getDb();
+  const { userId } = req.params;
+  const weekStartStr = req.query.weekStart;
+  if (!weekStartStr) return res.status(400).json({ error: "weekStart is required (YYYY-MM-DD)" });
+
+  const user = db.prepare("SELECT id, email, name, role, hourly_rate FROM users WHERE id = ?").get(userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const monday = getMonday(new Date(weekStartStr));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+
+  const weekStart = monday.toISOString().split("T")[0];
+  const weekEnd = sunday.toISOString().split("T")[0];
+
+  const shifts = db.prepare(`
+    SELECT * FROM shift_sessions
+    WHERE employee_id = ? AND checked_in_at >= ? AND checked_in_at <= ?
+    ORDER BY checked_in_at ASC
+  `).all(userId, weekStart + "T00:00:00", weekEnd + "T23:59:59");
+
+  const siteNames = {};
+  function getSiteName(siteId) {
+    if (!siteId) return null;
+    if (!siteNames[siteId]) {
+      const s = db.prepare("SELECT name FROM work_sites WHERE id = ?").get(siteId);
+      siteNames[siteId] = s?.name || null;
+    }
+    return siteNames[siteId];
+  }
+
+  const activePayRule = db.prepare("SELECT * FROM company_pay_rules WHERE is_active = 1 ORDER BY id ASC LIMIT 1").get();
+
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + i);
+    const dateStr = date.toISOString().split("T")[0];
+    const dayShifts = shifts.filter(s => s.checked_in_at && s.checked_in_at.startsWith(dateStr));
+
+    if (dayShifts.length === 0) {
+      days.push({
+        day: getDayName(dateStr),
+        date: dateStr,
+        shiftId: null,
+        start: "Set",
+        end: "Set",
+        paidSeconds: 0,
+        paidLabel: "0h 0m",
+        pay: 0,
+        payLabel: "$0",
+        status: "missing",
+        hasShift: false,
+      });
+    } else {
+      // Use the first shift for primary display, combine pay
+      const primary = dayShifts[0];
+      const endTime = primary.checked_out_at || primary.checked_in_at;
+      let totalPay = 0;
+      let totalPaidSeconds = 0;
+      let combinedStatus = primary.status;
+
+      for (const s of dayShifts) {
+        const ps = s.payable_seconds || 0;
+        totalPaidSeconds += ps;
+
+        const finalPay = s.final_gross_pay || s.estimated_gross_pay || 0;
+        totalPay += finalPay;
+
+        // Pick latest status for display
+        if (s.status === "pending_approval") combinedStatus = "pending_approval";
+        if (s.status === "approved") combinedStatus = "approved";
+        if (s.status === "rejected") combinedStatus = "rejected";
+      }
+
+      const startLabel = new Date(primary.checked_in_at).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true });
+      const endLabel = primary.checked_out_at
+        ? new Date(primary.checked_out_at).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true })
+        : primary.status === "active" ? "Now" : primary.status === "on_break" ? "On break" : "-";
+
+      days.push({
+        day: getDayName(dateStr),
+        date: dateStr,
+        shiftId: primary.id,
+        start: startLabel,
+        end: endLabel,
+        paidSeconds: totalPaidSeconds,
+        paidLabel: formatDurationLabel(totalPaidSeconds),
+        pay: Math.round(totalPay * 100) / 100,
+        payLabel: `$${(Math.round(totalPay * 100) / 100).toFixed(2)}`,
+        status: combinedStatus,
+        hasShift: true,
+        shiftCount: dayShifts.length,
+      });
+    }
+  }
+
+  const totalPaidSeconds = days.reduce((s, d) => s + d.paidSeconds, 0);
+  const totalPay = days.reduce((s, d) => s + d.pay, 0);
+
+  res.json({
+    worker: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      hourlyRate: user.hourly_rate,
+    },
+    week: {
+      start: weekStart,
+      end: weekEnd,
+      label: `${new Date(weekStart).toLocaleDateString("en-AU", { day: "numeric", month: "short" })} – ${new Date(weekEnd).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`,
+    },
+    days,
+    totals: {
+      paidSeconds: totalPaidSeconds,
+      paidLabel: formatDurationLabel(totalPaidSeconds),
+      pay: Math.round(totalPay * 100) / 100,
+      payLabel: `$${(Math.round(totalPay * 100) / 100).toFixed(2)}`,
+    },
+  });
+});
+
+// GET /api/platform/users/:userId/shifts/:shiftId
+router.get("/users/:userId/shifts/:shiftId", requireRole("owner"), (req, res) => {
+  const db = getDb();
+  const { shiftId } = req.params;
+
+  const shift = db.prepare(`
+    SELECT s.*, u.name as employee_name, u.email as employee_email, w.name as site_name
+    FROM shift_sessions s
+    JOIN users u ON u.id = s.employee_id
+    LEFT JOIN work_sites w ON w.id = s.site_id
+    WHERE s.id = ?
+  `).get(shiftId);
+  if (!shift) return res.status(404).json({ error: "Shift not found" });
+
+  const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(shiftId);
+  const allowances = db.prepare("SELECT * FROM shift_allowances WHERE shift_session_id = ? ORDER BY created_at ASC").all(shiftId);
+
+  res.json({ shift, events, allowances });
+});
+
+// POST /api/platform/users/:userId/manual-shift
+router.post("/users/:userId/manual-shift", requireRole("owner"), (req, res) => {
+  try {
+    const db = getDb();
+    const { userId } = req.params;
+    const { date, startTime, endTime, breakDuration, siteId, reason } = req.body;
+
+    if (!reason || !reason.trim()) return res.status(400).json({ error: "Reason is required for manual shift creation" });
+    if (!date || !startTime || !endTime) return res.status(400).json({ error: "Date, startTime, and endTime are required" });
+
+    const user = db.prepare("SELECT id, hourly_rate FROM users WHERE id = ?").get(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (!user.hourly_rate) return res.status(400).json({ error: "User has no hourly rate configured" });
+
+    const checkedInAt = new Date(`${date}T${startTime}`);
+    const checkedOutAt = new Date(`${date}T${endTime}`);
+    if (isNaN(checkedInAt.getTime()) || isNaN(checkedOutAt.getTime())) return res.status(400).json({ error: "Invalid date/time format" });
+    if (checkedOutAt <= checkedInAt) return res.status(400).json({ error: "End time must be after start time" });
+
+    const totalSeconds = Math.max(0, Math.floor((checkedOutAt.getTime() - checkedInAt.getTime()) / 1000));
+    const breakSecs = (parseInt(breakDuration) || 0) * 60;
+    const payableSeconds = Math.max(0, totalSeconds - breakSecs);
+    const hourlyRate = user.hourly_rate;
+    const estimatedGrossPay = payableSeconds / 3600 * hourlyRate;
+
+    const shiftId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO shift_sessions (id, employee_id, site_id, status, checked_in_at, checked_out_at, hourly_rate_snapshot, total_seconds, break_seconds, payable_seconds, estimated_gross_pay, timezone, created_at, updated_at)
+      VALUES (?, ?, ?, 'pending_approval', ?, ?, ?, ?, ?, ?, ?, 'Australia/Sydney', ?, ?)
+    `).run(shiftId, userId, siteId || null, checkedInAt.toISOString(), checkedOutAt.toISOString(), hourlyRate, totalSeconds, breakSecs, payableSeconds, estimatedGrossPay, now, now);
+
+    const eventId = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
+      VALUES (?, ?, ?, 'check_in', ?, 'admin', ?)
+    `).run(eventId, shiftId, userId, checkedInAt.toISOString(), now);
+
+    audit(res, "worker_manual_shift_created", "shift_session", shiftId, { workerId: userId, date, start: startTime, end: endTime, breakSeconds: breakSecs, siteId, reason });
+    res.status(201).json({ id: shiftId, status: "pending_approval" });
+  } catch (err) {
+    console.error("Manual shift error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/platform/users/:userId/shifts/:shiftId
+router.patch("/users/:userId/shifts/:shiftId", requireRole("owner"), (req, res) => {
+  const db = getDb();
+  const { userId, shiftId } = req.params;
+  const { startTime, endTime, breakDuration, siteId, reason } = req.body;
+
+  if (!reason || !reason.trim()) return res.status(400).json({ error: "Reason is required for shift adjustment" });
+
+  const shift = db.prepare("SELECT * FROM shift_sessions WHERE id = ? AND employee_id = ?").get(shiftId, userId);
+  if (!shift) return res.status(404).json({ error: "Shift not found" });
+
+  const oldCheckedInAt = shift.checked_in_at;
+  const oldCheckedOutAt = shift.checked_out_at;
+  const oldBreakSeconds = shift.break_seconds;
+  const oldSiteId = shift.site_id;
+
+  const checkedInAt = startTime ? new Date(startTime) : new Date(oldCheckedInAt);
+  const checkedOutAt = endTime ? new Date(endTime) : (oldCheckedOutAt ? new Date(oldCheckedOutAt) : null);
+  if (isNaN(checkedInAt.getTime())) return res.status(400).json({ error: "Invalid start time" });
+  if (checkedOutAt && isNaN(checkedOutAt.getTime())) return res.status(400).json({ error: "Invalid end time" });
+
+  const newBreakSecs = breakDuration !== undefined ? (parseInt(breakDuration) || 0) * 60 : (oldBreakSeconds || 0);
+  const newSiteId = siteId !== undefined ? siteId : oldSiteId;
+
+  const now = new Date().toISOString();
+  const totalSeconds = checkedOutAt ? Math.max(0, Math.floor((checkedOutAt.getTime() - checkedInAt.getTime()) / 1000)) : (shift.total_seconds || 0);
+  const payableSeconds = Math.max(0, totalSeconds - newBreakSecs);
+  const grossPay = payableSeconds / 3600 * shift.hourly_rate_snapshot;
+
+  db.prepare(`
+    UPDATE shift_sessions SET checked_in_at = ?, checked_out_at = ?, site_id = ?, total_seconds = ?, break_seconds = ?, payable_seconds = ?, estimated_gross_pay = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(checkedInAt.toISOString(), checkedOutAt?.toISOString() || null, newSiteId || null, totalSeconds, newBreakSecs, payableSeconds, grossPay, shiftId);
+
+  // Add adjustment event
+  const eventId = crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
+    VALUES (?, ?, ?, 'correction_requested', ?, 'admin', ?)
+  `).run(eventId, shiftId, userId, now, now);
+
+  audit(res, "worker_shift_adjusted", "shift_session", shiftId, {
+    workerId: userId,
+    oldCheckedInAt, newCheckedInAt: checkedInAt.toISOString(),
+    oldCheckedOutAt, newCheckedOutAt: checkedOutAt?.toISOString() || null,
+    oldBreakSeconds, newBreakSeconds: newBreakSecs,
+    oldSiteId, newSiteId,
+    reason,
+  });
+
+  res.json({ success: true, shiftId });
+});
+
+// POST /api/platform/users/:userId/shifts/:shiftId/approve
+router.post("/users/:userId/shifts/:shiftId/approve", requireRole("owner"), (req, res) => {
+  const db = getDb();
+  const { userId, shiftId } = req.params;
+
+  const shift = db.prepare("SELECT * FROM shift_sessions WHERE id = ? AND employee_id = ?").get(shiftId, userId);
+  if (!shift) return res.status(404).json({ error: "Shift not found" });
+  if (shift.status !== "pending_approval") return res.status(400).json({ error: "Only pending-approval shifts can be approved" });
+
+  const now = new Date().toISOString();
+  const eventId = crypto.randomUUID();
+
+  // Calculate pay breakdown
+  const payRule = db.prepare("SELECT * FROM company_pay_rules WHERE is_active = 1 ORDER BY id ASC LIMIT 1").get();
+  const breakdown = calculatePayBreakdownServer(shift.payable_seconds || 0, shift.hourly_rate_snapshot, payRule);
+  const allowanceTotal = db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM shift_allowances WHERE shift_session_id = ?").get(shiftId)?.total || 0;
+  const finalGrossPay = breakdown.basePay + breakdown.overtimePay + breakdown.doubleTimePay;
+
+  db.prepare(`
+    UPDATE shift_sessions SET status = 'approved', final_gross_pay = ?, base_seconds = ?, overtime_seconds = ?, double_time_seconds = ?, base_pay = ?, overtime_pay = ?, double_time_pay = ?, allowance_pay = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(finalGrossPay, breakdown.baseSeconds, breakdown.overtimeSeconds, breakdown.doubleTimeSeconds, breakdown.basePay, breakdown.overtimePay, breakdown.doubleTimePay, allowanceTotal, shiftId);
+
+  db.prepare(`
+    INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
+    VALUES (?, ?, ?, 'admin_approved', ?, 'admin', ?)
+  `).run(eventId, shiftId, userId, now, now);
+
+  audit(res, "worker_shift_approved_from_profile", "shift_session", shiftId, { workerId: userId });
+  res.json({ success: true, approved: true });
+});
+
+// POST /api/platform/users/:userId/shifts/:shiftId/reject
+router.post("/users/:userId/shifts/:shiftId/reject", requireRole("owner"), (req, res) => {
+  const db = getDb();
+  const { userId, shiftId } = req.params;
+
+  const shift = db.prepare("SELECT * FROM shift_sessions WHERE id = ? AND employee_id = ?").get(shiftId, userId);
+  if (!shift) return res.status(404).json({ error: "Shift not found" });
+  if (shift.status !== "pending_approval") return res.status(400).json({ error: "Only pending-approval shifts can be rejected" });
+
+  const now = new Date().toISOString();
+  const eventId = crypto.randomUUID();
+
+  db.prepare("UPDATE shift_sessions SET status = 'rejected', updated_at = datetime('now') WHERE id = ?").run(shiftId);
+  db.prepare(`
+    INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
+    VALUES (?, ?, ?, 'admin_rejected', ?, 'admin', ?)
+  `).run(eventId, shiftId, userId, now, now);
+
+  audit(res, "worker_shift_rejected_from_profile", "shift_session", shiftId, { workerId: userId });
+  res.json({ success: true, rejected: true });
 });
 
 export default router;
