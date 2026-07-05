@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { useAuth } from "../../context/AuthContext";
 import { inviteUser, disableUser, enableUser, changeUserRole, forcePasswordChange, resendInvite } from "../../utils/authApi";
@@ -139,7 +139,7 @@ export function Users() {
   if (loading) {
     return (
       <div className="min-h-screen">
-        <PlatformHeader title="Users" onMenuClick={() => setSidebarOpen(true)} />
+        <PageHeader title="Users" description="Manage platform users, roles, and invites." onMenuClick={() => setSidebarOpen(true)} />
         <div className="p-8 flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-brand-accent" />
         </div>
@@ -150,11 +150,10 @@ export function Users() {
   return (
     <div className="min-h-screen">
       <SEO title="Users | TNA Provider Platform" description="User management." canonical="https://tnaprovider.com.au/platform/users" />
-      <PlatformHeader title="Users" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Users" description="Manage platform users, roles, and invites." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-1">Users</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">{users.length} user{users.length !== 1 ? "s" : ""}</p>
         </div>
         <Button onClick={() => setShowInvite(!showInvite)}>

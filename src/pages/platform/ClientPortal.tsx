@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
+import { LoadingState } from "../../components/shared/LoadingState";
+import { EmptyState } from "../../components/shared/EmptyState";
 import { useAuth } from "../../context/AuthContext";
-import { MessageSquare, Plus, Send, CheckCircle2, XCircle, Clock, AlertCircle, UserPlus, UserMinus, Users as UsersIcon } from "lucide-react";
-import { Button } from "../../components/ui/Button";
+import { MessageSquare, Plus, Send, CheckCircle2, XCircle, Clock, AlertCircle, UserPlus, UserMinus, Users as UsersIcon, FolderOpen } from "lucide-react";
 
 interface Project {
   id: string;
@@ -182,17 +183,15 @@ export function ClientPortal() {
   if (loading) {
     return (
       <>
-        <PlatformHeader title="Client Portal" onMenuClick={() => setSidebarOpen(true)} />
-        <div className="p-8 flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-brand-accent border-t-transparent rounded-full animate-spin" />
-        </div>
+        <PageHeader title="Client Portal" description="View your projects, progress updates, variations, and messages." onMenuClick={() => setSidebarOpen(true)} />
+        <LoadingState message="Loading your projects..." />
       </>
     );
   }
 
   return (
     <>
-      <PlatformHeader title="Client Portal" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Client Portal" description="View your projects, progress updates, variations, and messages." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-6">
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
@@ -202,19 +201,13 @@ export function ClientPortal() {
         )}
 
         {projects.length === 0 && !error ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
-              <Clock className="w-8 h-8 text-gray-400" />
-            </div>
-            <h3 className="text-xl font-display font-bold text-brand-dark dark:text-white mb-2">
-              No Projects Yet
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 max-w-md">
-              {user?.role === "client"
-                ? "You don't have any assigned projects yet. Your project manager will grant you access when your project starts."
-                : "No projects with client access assigned. Grant client access from a project to get started."}
-            </p>
-          </div>
+          <EmptyState
+            icon={FolderOpen}
+            title="No Projects Yet"
+            message={user?.role === "client"
+              ? "You don't have any assigned projects yet. Your project manager will grant you access when your project starts."
+              : "No projects available. Assign client access from a project to get started."}
+          />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1 space-y-3">
@@ -240,8 +233,9 @@ export function ClientPortal() {
                     <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-6">
                       <div className="flex items-center gap-2 mb-4">
                         <UsersIcon className="w-5 h-5 text-brand-accent" />
-                        <h3 className="text-lg font-display font-bold text-brand-dark dark:text-white">Client Access</h3>
+                        <h3 className="text-lg font-display font-bold text-brand-dark dark:text-white">Client Access (Admin)</h3>
                       </div>
+                      <p className="text-sm text-gray-500 mb-3">Grant or remove client access to this project.</p>
                       {accessMsg && (
                         <p className={`text-sm mb-3 ${accessMsg.includes("denied") || accessMsg.includes("Failed") ? "text-red-500" : "text-green-600 dark:text-green-400"}`}>
                           {accessMsg}
@@ -260,7 +254,6 @@ export function ClientPortal() {
                           <UserPlus className="w-4 h-4" />
                         </button>
                       </div>
-                      {/* Current access list */}
                       {assignedClients.length > 0 && (
                         <div className="space-y-2 mt-2">
                           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Currently Assigned</p>

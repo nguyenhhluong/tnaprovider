@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
 import { SEO } from "../../components/SEO";
 import {
   Bell,
@@ -210,7 +210,7 @@ export default function LeadAutomation() {
   if (loadingLeads) {
     return (
       <>
-        <PlatformHeader title="Lead Automation" onMenuClick={() => setSidebarOpen(true)} />
+        <PageHeader title="Lead Automation" description="Automate lead follow-ups and activities." onMenuClick={() => setSidebarOpen(true)} />
         <div className="p-8 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-brand-accent animate-spin" />
         </div>
@@ -225,7 +225,7 @@ export default function LeadAutomation() {
         description="Automate follow-ups and track lead activity"
         canonical="/platform/lead-automation"
       />
-      <PlatformHeader title="Lead Automation" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Lead Automation" description="Automate lead follow-ups and activities." onMenuClick={() => setSidebarOpen(true)} />
 
       <div className="p-4 md:p-6 space-y-6">
         {error && (

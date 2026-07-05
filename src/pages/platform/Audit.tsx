@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
 import { Shield, AlertCircle, Search, Calendar, Filter, X } from "lucide-react";
 
 interface AuditEntry {
@@ -87,15 +87,8 @@ export function Audit() {
   return (
     <>
       <SEO title="Audit Log | TNA Provider Platform" description="Platform audit log." canonical="https://tnaprovider.com.au/platform/audit" />
-      <PlatformHeader title="Audit Log" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Audit Log" description="View platform audit trail." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-8">
-      <div className="flex items-center gap-3 mb-6">
-        <Shield className="w-6 h-6 text-brand-accent shrink-0" />
-        <div>
-          <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-1">Audit Log</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{logs.length} entries</p>
-        </div>
-      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">

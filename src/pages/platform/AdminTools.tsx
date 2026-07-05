@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import {
   Shield,
@@ -123,13 +123,10 @@ export function AdminTools() {
   return (
     <>
       <SEO title="Admin Tools | TNA Provider Platform" description="Backup, export, and system administration." canonical="https://tnaprovider.com.au/platform/admin-tools" />
-      <PlatformHeader title="Admin Tools" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Admin Tools" description="Backup, export, and system administration." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-8 max-w-4xl">
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-1">Admin Tools</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Backup, export, and system administration</p>
-        </div>
+        <div />
         <button onClick={() => { fetchHealth(); fetchStorage(); fetchBackups(); }} className="p-2 text-gray-500 hover:text-brand-accent hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors" title="Refresh">
           <RefreshCw className="w-5 h-5" />
         </button>

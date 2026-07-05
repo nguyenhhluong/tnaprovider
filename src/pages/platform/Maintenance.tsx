@@ -1,20 +1,26 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
+import { LoadingState } from "../../components/shared/LoadingState";
+import { EmptyState } from "../../components/shared/EmptyState";
+import { ErrorState } from "../../components/shared/ErrorState";
 import { MaintenanceTicketList } from "../../components/platform/MaintenanceTicketList";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Wrench } from "lucide-react";
 
 export function Maintenance() {
   const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchTickets = async () => {
     try {
       const res = await fetch("/api/platform/maintenance", { credentials: "include" });
       if (res.ok) setTickets(await res.json());
-    } catch { /* ignore */ }
+    } catch {
+      setError("Failed to load maintenance requests");
+    }
     finally { setLoading(false); }
   };
 
@@ -22,10 +28,11 @@ export function Maintenance() {
 
   return (
     <>
-      <PlatformHeader title="Maintenance" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Maintenance" description="Track and manage maintenance requests." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-6 space-y-6">
+        {error && <ErrorState message={error} />}
         {loading ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-brand-accent" /></div>
+          <LoadingState message="Loading maintenance requests..." />
         ) : (
           <>
             <div className="flex justify-end">
@@ -35,7 +42,7 @@ export function Maintenance() {
             </div>
             {showForm && <p className="text-sm text-gray-500 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">Ticket creation form coming soon.</p>}
             {tickets.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">No maintenance tickets yet.</p>
+              <EmptyState icon={Wrench} title="No maintenance tickets" message="No maintenance tickets yet. New requests will appear here." />
             ) : (
               <div className="space-y-3">
                 {tickets.map((t) => (

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
 import {
   Plus, X, Loader2, AlertCircle, MessageSquare, UserPlus,
   Calendar, ArrowRight, ChevronDown, List, Columns, LayoutTemplate,
@@ -317,7 +317,7 @@ export default function Tasks() {
   if (loading) {
     return (
       <>
-        <PlatformHeader title="Tasks" onMenuClick={() => setSidebarOpen(true)} />
+        <PageHeader title="Tasks" description="Manage and track project tasks." onMenuClick={() => setSidebarOpen(true)} />
         <div className="p-8 flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-brand-accent" />
         </div>
@@ -328,12 +328,11 @@ export default function Tasks() {
   return (
     <>
       <SEO title="Tasks | TNA Provider Platform" description="Task management board." canonical="https://tnaprovider.com.au/platform/tasks" />
-      <PlatformHeader title="Tasks" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Tasks" description="Manage and track project tasks." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-8">
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-1">Tasks</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">{tasks.length} task{tasks.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex items-center gap-2">

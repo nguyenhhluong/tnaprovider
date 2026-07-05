@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react"
-import { PlatformHeader } from "../../components/platform/PlatformHeader"
+import { PageHeader } from "../../components/shared/PageHeader"
+import { LoadingState } from "../../components/shared/LoadingState"
+import { ErrorState } from "../../components/shared/ErrorState"
 import { ShiftTimeline } from "../../components/timesheet/ShiftTimeline"
 import { useOutletContext } from "react-router-dom"
 import { formatDurationShort, formatMoney, formatShiftDate } from "../../lib/timesheet/calculate"
-import { Users, Clock, CheckCircle, XCircle, Eye } from "lucide-react"
+import { Users, Clock, CheckCircle, XCircle, Eye, AlertCircle } from "lucide-react"
 
 export function AdminRealtimeTimesheets() {
   const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>()
@@ -12,12 +14,14 @@ export function AdminRealtimeTimesheets() {
   const [selectedShift, setSelectedShift] = useState<any>(null)
   const [selectedEvents, setSelectedEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState("")
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null)
   const [tab, setTab] = useState<"pending" | "active">("pending")
 
   const fetchData = useCallback(async () => {
+    setError(null)
     try {
       const [activeRes, pendingRes] = await Promise.all([
         fetch("/api/realtime-timesheets/admin/active"),
@@ -25,7 +29,7 @@ export function AdminRealtimeTimesheets() {
       ])
       if (activeRes.ok) setActiveWorkers(await activeRes.json())
       if (pendingRes.ok) setPendingShifts(await pendingRes.json())
-    } catch {}
+    } catch { setError("Failed to load timesheet data") }
   }, [])
 
   useEffect(() => {
@@ -84,17 +88,24 @@ export function AdminRealtimeTimesheets() {
   if (loading) {
     return (
       <>
-        <PlatformHeader title="Timesheet Admin" onMenuClick={() => setSidebarOpen(true)} />
-        <div className="p-4 md:p-6 flex items-center justify-center min-h-[400px]">
-          <div className="animate-spin w-8 h-8 border-2 border-brand-accent border-t-transparent rounded-full" />
-        </div>
+        <PageHeader title="Timesheet Admin" description="Review and approve worker timesheets." onMenuClick={() => setSidebarOpen(true)} />
+        <LoadingState message="Loading timesheets..." />
       </>
     )
   }
 
   return (
     <>
-      <PlatformHeader title="Timesheet Admin" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Timesheet Admin" description="Review and approve worker timesheets." onMenuClick={() => setSidebarOpen(true)} />
+      {error && (
+        <div className="p-4 md:p-6 pb-0">
+          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {error}
+            <button onClick={fetchData} className="ml-auto text-sm font-medium underline hover:no-underline">Retry</button>
+          </div>
+        </div>
+      )}
       <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
         <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 pb-2">
           <button

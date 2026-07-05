@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import {
   Bell,
@@ -350,13 +350,8 @@ export function Notifications() {
   return (
     <>
       <SEO title="Notifications | TNA Provider Platform" description="Manage notifications, preferences, and reminder rules." canonical="https://tnaprovider.com.au/platform/notifications" />
-      <PlatformHeader title="Notifications" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Notifications" description="Manage your notifications and preferences." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-8 max-w-4xl">
-
-      <div className="mb-6">
-        <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-1">Notifications</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Stay up to date with platform activity.</p>
-      </div>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-white dark:bg-gray-900 rounded-xl p-1 shadow-sm border border-gray-100 dark:border-gray-800 overflow-x-auto">

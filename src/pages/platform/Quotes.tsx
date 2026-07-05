@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
 import { StatusBadge } from "../../components/platform/StatusBadge";
 import { SEO } from "../../components/SEO";
 import {
@@ -966,7 +966,7 @@ export default function Quotes() {
   return (
     <>
       <SEO title="Quotes | TNA Provider Platform" description="Manage quotes and quote requests." canonical="https://tnaprovider.com.au/platform/quotes" />
-      <PlatformHeader title="Quotes &amp; Estimations" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Quotes &amp; Estimations" description="Manage quotes, estimations, and quote requests." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-6">
         {renderTabNav()}
 

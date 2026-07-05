@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useOutletContext } from "react-router-dom";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
 import { SEO } from "../../components/SEO";
 import { cn } from "../../utils/cn";
 import {
@@ -340,7 +340,7 @@ export default function Reports() {
         description="Business reports and analytics for TNA Provider platform"
         canonical="/platform/reports"
       />
-      <PlatformHeader title="Reports" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Reports" description="View business reports and analytics." onMenuClick={() => setSidebarOpen(true)} />
 
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">

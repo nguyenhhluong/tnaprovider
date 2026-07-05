@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react"
-import { PlatformHeader } from "../../components/platform/PlatformHeader"
+import { PageHeader } from "../../components/shared/PageHeader"
+import { LoadingState } from "../../components/shared/LoadingState"
+import { EmptyState } from "../../components/shared/EmptyState"
 import { useOutletContext } from "react-router-dom"
 import { Plus, Save, Trash2, AlertCircle, Check } from "lucide-react"
 
@@ -194,8 +196,8 @@ export function PayRules() {
 
   return (
     <>
-      <PlatformHeader title="Pay Rules" onMenuClick={() => setSidebarOpen(true)} />
-      <div className="p-6 max-w-4xl mx-auto space-y-6">
+      <PageHeader title="Pay Rules" description="Configure overtime, double time, and ordinary hours for payroll calculations." onMenuClick={() => setSidebarOpen(true)} />
+      <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
         {errors.length > 0 && (
           <div className="flex flex-col gap-1 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
             {errors.map((e, i) => (
@@ -226,17 +228,18 @@ export function PayRules() {
         {showNewForm && (
           <div className="bg-white dark:bg-brand-darker rounded-xl border border-gray-200 dark:border-gray-800 p-6 space-y-4">
             <h3 className="font-semibold text-brand-dark dark:text-white">{editingId ? "Edit Rule" : "New Rule"}</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
                 <input type="text" value={form.name} onChange={(e) => updateField("name", e.target.value)} className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-brand-dark dark:text-white" />
               </div>
-              <NumericInput label="Ordinary Hours/Day" field="ordinary_hours_per_day" />
+              <NumericInput label="Ordinary Hours / Day" field="ordinary_hours_per_day" />
               <NumericInput label="OT After (hours)" field="overtime_daily_after_hours" />
               <NumericInput label="OT Multiplier" field="overtime_rate_multiplier" />
-              <NumericInput label="Double Time After" field="double_time_after_hours" placeholder="Leave empty to disable" />
+              <NumericInput label="Double Time After (hours)" field="double_time_after_hours" placeholder="Leave empty to disable" />
               <NumericInput label="DT Multiplier" field="double_time_multiplier" />
             </div>
+            <p className="text-xs text-gray-400">Double Time After: overtime shifts to double time after this many hours. Leave empty to disable double time.</p>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="is_active_form" checked={form.is_active} onChange={(e) => updateField("is_active", e.target.checked)} className="rounded border-gray-300 dark:border-gray-600" />
               <label htmlFor="is_active_form" className="text-sm font-medium text-gray-600 dark:text-gray-400">Set as active rule</label>
@@ -253,18 +256,16 @@ export function PayRules() {
           </div>
         )}
 
-        {loading && <p className="text-gray-500">Loading rules...</p>}
+        {loading && <LoadingState message="Loading pay rules..." />}
 
         {!loading && rules.length === 0 && !showNewForm && (
-          <div className="bg-white dark:bg-brand-darker rounded-xl border border-gray-200 dark:border-gray-800 p-12 text-center">
-            <p className="text-gray-500">No pay rules configured yet.</p>
-          </div>
+          <EmptyState icon={Plus} title="No pay rules" message="No pay rules configured yet. Create one to get started." action={{ label: "Create Rule", onClick: () => { resetForm(); setShowNewForm(true) } }} />
         )}
 
         <div className="space-y-3">
           {rules.map((rule) => (
             <div key={rule.id} className={`bg-white dark:bg-brand-darker rounded-xl border p-5 ${rule.is_active ? "border-brand-accent/30 ring-1 ring-brand-accent/20" : "border-gray-200 dark:border-gray-800"}`}>
-              <div className="flex items-start justify-between mb-3">
+              <div className="flex items-start justify-between mb-3 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-brand-dark dark:text-white">{rule.name}</h3>
                   {rule.is_active && <span className="text-xs bg-brand-accent/10 text-brand-accent px-2 py-0.5 rounded-full font-medium">Active</span>}
@@ -283,7 +284,7 @@ export function PayRules() {
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                 <div><span className="text-gray-400">Ordinary:</span> <span className="text-brand-dark dark:text-white font-medium">{rule.ordinary_hours_per_day}h/day</span></div>
                 <div><span className="text-gray-400">Overtime:</span> <span className="text-brand-dark dark:text-white font-medium">×{rule.overtime_rate_multiplier} after {rule.overtime_daily_after_hours}h</span></div>
                 <div><span className="text-gray-400">Double Time:</span> <span className="text-brand-dark dark:text-white font-medium">{rule.double_time_after_hours ? `×${rule.double_time_multiplier} after ${rule.double_time_after_hours}h` : "Not set"}</span></div>

@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react"
-import { PlatformHeader } from "../../components/platform/PlatformHeader"
+import { PageHeader } from "../../components/shared/PageHeader"
+import { LoadingState } from "../../components/shared/LoadingState"
+import { ErrorState } from "../../components/shared/ErrorState"
+import { EmptyState } from "../../components/shared/EmptyState"
 import { useOutletContext } from "react-router-dom"
 import { formatDurationShort, formatMoney } from "../../lib/timesheet/calculate"
 import { Download, ChevronLeft, ChevronRight, FileText } from "lucide-react"
@@ -86,21 +89,19 @@ export function PayrollSummary() {
 
   return (
     <>
-      <PlatformHeader title="Payroll Summary" onMenuClick={() => setSidebarOpen(true)} />
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <PageHeader title="Payroll Summary" description="Weekly payroll breakdown by employee with base, overtime, and double time pay." onMenuClick={() => setSidebarOpen(true)} />
+      <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
-            {error}
-          </div>
+          <ErrorState message={error} onRetry={fetchSummary} />
         )}
         {success && (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 text-sm text-green-600 dark:text-green-400">
+          <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 text-sm text-green-600 dark:text-green-400">
             {success}
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <button onClick={() => setWeekOffset(weekOffset - 1)} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
               <ChevronLeft className="w-4 h-4 text-gray-500" />
             </button>
@@ -124,11 +125,11 @@ export function PayrollSummary() {
           </button>
         </div>
 
-        {loading && <p className="text-gray-500">Loading...</p>}
+        {loading && <LoadingState message="Loading payroll summary..." />}
 
         {data && !loading && (
           <>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white dark:bg-brand-darker rounded-xl border border-gray-200 dark:border-gray-800 p-4">
                 <p className="text-sm text-gray-400">Total Shifts</p>
                 <p className="text-2xl font-bold text-brand-dark dark:text-white mt-1">{data.totalShifts}</p>
@@ -144,8 +145,8 @@ export function PayrollSummary() {
             </div>
 
             {data.employees?.length > 0 && (
-              <div className="bg-white dark:bg-brand-darker rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="bg-white dark:bg-brand-darker rounded-xl border border-gray-200 dark:border-gray-800 overflow-x-auto">
+                <table className="w-full text-sm min-w-[640px]">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
                       <th className="text-left px-4 py-3 font-medium text-gray-500">Employee</th>
@@ -188,7 +189,7 @@ export function PayrollSummary() {
                   Detailed Shift List ({data.shifts.length})
                 </summary>
                 <div className="border-t border-gray-200 dark:border-gray-800 overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[600px]">
                     <thead>
                       <tr className="bg-gray-50 dark:bg-gray-900/50">
                         <th className="text-left px-3 py-2 font-medium text-gray-500">Employee</th>
@@ -221,10 +222,7 @@ export function PayrollSummary() {
             )}
 
             {data.employees?.length === 0 && !loading && (
-              <div className="bg-white dark:bg-brand-darker rounded-xl border border-gray-200 dark:border-gray-800 p-12 text-center">
-                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">No approved shifts for this week.</p>
-              </div>
+              <EmptyState icon={FileText} title="No approved shifts" message="No approved shifts for this week. Timesheets must be approved before they appear here." />
             )}
           </>
         )}

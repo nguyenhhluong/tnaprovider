@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { SEO } from "../../components/SEO";
-import { PlatformHeader } from "../../components/platform/PlatformHeader";
+import { PageHeader } from "../../components/shared/PageHeader";
 import {
   FileText,
   Folder,
@@ -370,14 +370,8 @@ export default function Documents() {
   return (
     <>
       <SEO title="Documents | TNA Provider Platform" description="Document management and proposals." canonical="https://tnaprovider.com.au/platform/documents" />
-      <PlatformHeader title="Documents" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Documents" description="Manage documents, folders, and proposals." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-brand-dark dark:text-white mb-1">Documents</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Manage documents, templates, and proposals</p>
-        </div>
-      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">

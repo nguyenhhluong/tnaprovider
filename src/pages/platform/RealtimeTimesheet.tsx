@@ -2,9 +2,12 @@ import { useState, useEffect, useCallback } from "react"
 import { CheckInPanel } from "../../components/timesheet/CheckInPanel"
 import { LiveMoneyMeter } from "../../components/timesheet/LiveMoneyMeter"
 import { CheckOutSummaryModal } from "../../components/timesheet/CheckOutSummaryModal"
-import { PlatformHeader } from "../../components/platform/PlatformHeader"
+import { PageHeader } from "../../components/shared/PageHeader"
+import { LoadingState } from "../../components/shared/LoadingState"
+import { ErrorState } from "../../components/shared/ErrorState"
 import { useOutletContext } from "react-router-dom"
 import { useLiveTimer } from "../../hooks/useLiveTimer"
+import { AlertCircle } from "lucide-react"
 
 interface WorkSite {
   id: string
@@ -49,7 +52,7 @@ export function RealtimeTimesheet() {
           setSelectedSiteId(data[0].id)
         }
       }
-    } catch {}
+    } catch { setError("Failed to load sites") }
   }, [selectedSiteId])
 
   const fetchActiveShift = useCallback(async () => {
@@ -63,7 +66,7 @@ export function RealtimeTimesheet() {
           setActiveShift(null)
         }
       }
-    } catch {}
+    } catch { setError("Failed to load active shift") }
   }, [])
 
   useEffect(() => {
@@ -165,13 +168,19 @@ export function RealtimeTimesheet() {
     }
   }
 
+  const ErrorBanner = () =>
+    error ? (
+      <div className="max-w-md mx-auto mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg text-sm flex items-center gap-2">
+        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+        {error}
+      </div>
+    ) : null
+
   if (loading) {
     return (
       <>
-        <PlatformHeader title="Timesheet" onMenuClick={() => setSidebarOpen(true)} />
-        <div className="p-4 md:p-6 flex items-center justify-center min-h-[400px]">
-          <div className="animate-spin w-8 h-8 border-2 border-brand-accent border-t-transparent rounded-full" />
-        </div>
+        <PageHeader title="Timesheet" description="Check in, track your time, and manage your shifts." onMenuClick={() => setSidebarOpen(true)} />
+        <LoadingState message="Loading your timesheet..." />
       </>
     )
   }
@@ -179,7 +188,7 @@ export function RealtimeTimesheet() {
   if (completedShift) {
     return (
       <>
-        <PlatformHeader title="Timesheet" onMenuClick={() => setSidebarOpen(true)} />
+        <PageHeader title="Timesheet" description="Check in, track your time, and manage your shifts." onMenuClick={() => setSidebarOpen(true)} />
         <div className="p-4 md:p-6 max-w-md mx-auto mt-8 text-center space-y-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
             <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">Shift Complete</h2>
@@ -199,11 +208,9 @@ export function RealtimeTimesheet() {
   if (!activeShift) {
     return (
       <>
-        <PlatformHeader title="Timesheet" onMenuClick={() => setSidebarOpen(true)} />
+        <PageHeader title="Timesheet" description="Check in, track your time, and manage your shifts." onMenuClick={() => setSidebarOpen(true)} />
         <div className="p-4 md:p-6">
-          {error && (
-            <div className="max-w-md mx-auto mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">{error}</div>
-          )}
+          <ErrorBanner />
           <CheckInPanel
             sites={sites}
             selectedSiteId={selectedSiteId}
@@ -218,11 +225,9 @@ export function RealtimeTimesheet() {
 
   return (
     <>
-      <PlatformHeader title="Live Shift" onMenuClick={() => setSidebarOpen(true)} />
+      <PageHeader title="Live Shift" description="Your current shift is active." onMenuClick={() => setSidebarOpen(true)} />
       <div className="p-4 md:p-6">
-        {error && (
-          <div className="max-w-md mx-auto mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">{error}</div>
-        )}
+        <ErrorBanner />
         <LiveMoneyMeter
           shift={activeShift}
           onStartBreak={handleStartBreak}
