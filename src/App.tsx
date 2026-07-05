@@ -162,6 +162,7 @@ const router = createBrowserRouter([
       { path: "notifications", element: <ProtectedRoute><Notifications /></ProtectedRoute> },
       { path: "reports", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Reports /></ProtectedRoute> },
       { path: "profile", element: <Profile /> },
+      { path: "worker-profile/:userId", element: <ProtectedRoute roles={["owner"]}><WorkerProfile /></ProtectedRoute> },
     ],
   },
   {
