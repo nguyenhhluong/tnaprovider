@@ -82,10 +82,10 @@ function recalculateShift(db, shiftId) {
   return { ...shift, total_seconds: totalSeconds, break_seconds: breakSeconds, payable_seconds: payableSeconds, estimated_gross_pay: estimatedGrossPay, ...breakdown };
 }
 
-function calculateBreakSeconds(events) {
+function calculateBreakSeconds(events, effectiveEndTime) {
   let breakSeconds = 0;
   let breakStartedAt = null;
-  const now = new Date();
+  const endTime = effectiveEndTime ? new Date(effectiveEndTime) : new Date();
 
   for (const event of events) {
     if (event.event_type === "break_start") {
@@ -97,7 +97,7 @@ function calculateBreakSeconds(events) {
   }
 
   if (breakStartedAt) {
-    breakSeconds += Math.max(0, (now.getTime() - breakStartedAt.getTime()) / 1000);
+    breakSeconds += Math.max(0, (endTime.getTime() - breakStartedAt.getTime()) / 1000);
   }
 
   return Math.floor(breakSeconds);
@@ -282,7 +282,8 @@ router.post("/:shiftId/check-out", (req, res) => {
 
   const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(shiftId);
 
-  let breakSeconds = calculateBreakSeconds(events);
+  // Calculate break using checkout time as the effective end (important for check-out while on break)
+  let breakSeconds = calculateBreakSeconds(events, now);
 
   const totalSeconds = calculateTotalSeconds(shift.checked_in_at, now);
   const payableSeconds = calculatePayableSeconds(shift.checked_in_at, now, breakSeconds);
@@ -407,6 +408,7 @@ router.post("/admin/:shiftId/approve", requireRole("owner", "admin", "manager"),
 
   const shift = db.prepare("SELECT * FROM shift_sessions WHERE id = ?").get(shiftId);
   if (!shift) return res.status(404).json({ error: "Shift not found" });
+  if (shift.status !== "pending_approval") return res.status(400).json({ error: "Only pending-approval shifts can be approved" });
 
   const events = db.prepare("SELECT * FROM shift_events WHERE shift_session_id = ? ORDER BY event_time ASC").all(shiftId);
   const breakSeconds = calculateBreakSeconds(events);
@@ -456,6 +458,7 @@ router.post("/admin/:shiftId/reject", requireRole("owner", "admin", "manager"), 
 
   const shift = db.prepare("SELECT * FROM shift_sessions WHERE id = ?").get(shiftId);
   if (!shift) return res.status(404).json({ error: "Shift not found" });
+  if (shift.status !== "pending_approval") return res.status(400).json({ error: "Only pending-approval shifts can be rejected" });
 
   const now = new Date().toISOString();
   const eventId = crypto.randomUUID();

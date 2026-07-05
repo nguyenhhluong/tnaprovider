@@ -31,13 +31,29 @@ function audit(res, action, entityType, entityId, metadata) {
 
 router.get("/users", requireRole("owner", "admin"), (req, res) => {
   const db = getDb();
-  const users = db.prepare("SELECT id, email, name, role, status, must_change_password, invited_at, disabled_at, disabled_by, password_changed_at, created_at, last_login_at FROM users ORDER BY created_at DESC").all();
+  const users = db.prepare("SELECT id, email, name, role, status, hourly_rate, must_change_password, invited_at, disabled_at, disabled_by, password_changed_at, created_at, updated_at, last_login_at FROM users ORDER BY created_at DESC").all();
   res.json(users);
 });
 
-router.post("/users", requireRole("owner", "admin"), validate(schemas.createUser), (req, res) => {
+router.post("/users", requireRole("owner"), validate(schemas.createUser), (req, res) => {
   const db = getDb();
-  const { email, name, role, password } = req.body;
+  const { email, name, role, password, hourlyRate, mustChangePassword } = req.body;
+
+  // Role-specific checks
+  if (role === "owner" || role === "admin") {
+    return res.status(400).json({ error: "Direct creation of owner/admin users is not allowed. Use the invite flow instead." });
+  }
+
+  // Validate hourly rate for non-client roles
+  if (role !== "client") {
+    if (hourlyRate === undefined || hourlyRate === null || hourlyRate === "") {
+      return res.status(400).json({ error: "hourlyRate is required for this role" });
+    }
+    const rate = Number(hourlyRate);
+    if (!Number.isFinite(rate) || rate <= 0 || rate > 300) {
+      return res.status(400).json({ error: "hourlyRate must be a number between 0.01 and 300" });
+    }
+  }
 
   const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email.toLowerCase().trim());
   if (existing) return res.status(409).json({ error: "Email already exists" });
@@ -45,11 +61,44 @@ router.post("/users", requireRole("owner", "admin"), validate(schemas.createUser
   const id = crypto.randomUUID();
   const password_hash = hashPassword(password);
   const now = new Date().toISOString();
+  const mustChange = mustChangePassword !== false;
+  const rate = role !== "client" ? Math.round(Number(hourlyRate) * 100) / 100 : null;
 
-  db.prepare("INSERT INTO users (id, email, name, role, password_hash, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'active', ?, ?)").run(id, email.toLowerCase().trim(), name, role, password_hash, now, now);
+  db.prepare("INSERT INTO users (id, email, name, role, password_hash, status, hourly_rate, must_change_password, password_changed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)").run(
+    id, email.toLowerCase().trim(), name, role, password_hash,
+    rate, mustChange ? 1 : 0, mustChange ? null : now, now, now
+  );
 
-  audit(res, "user_created", "user", id, { email, role });
-  res.status(201).json({ id, email, name, role });
+  audit(res, "user_created_direct", "user", id, { email, role, hourlyRateProvided: rate !== null, mustChangePassword: mustChange });
+  res.status(201).json({ id, email, name, role, hourlyRate: rate, mustChangePassword: mustChange });
+});
+
+// ── Owner-only: Set hourly rate ──
+
+router.patch("/users/:id/hourly-rate", requireRole("owner"), (req, res) => {
+  const db = getDb();
+  const { id } = req.params;
+  const { hourlyRate } = req.body;
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (user.role === "client") return res.status(400).json({ error: "Cannot set hourly rate for client users" });
+
+  if (hourlyRate === undefined || hourlyRate === null || hourlyRate === "") {
+    return res.status(400).json({ error: "hourlyRate is required" });
+  }
+  const rate = Number(hourlyRate);
+  if (!Number.isFinite(rate) || rate <= 0 || rate > 300) {
+    return res.status(400).json({ error: "hourlyRate must be a number between 0.01 and 300" });
+  }
+
+  const roundedRate = Math.round(rate * 100) / 100;
+  const oldRate = user.hourly_rate;
+
+  db.prepare("UPDATE users SET hourly_rate = ?, updated_at = datetime('now') WHERE id = ?").run(roundedRate, id);
+
+  audit(res, "user_hourly_rate_changed", "user", id, { oldRate, newRate: roundedRate, targetEmail: user.email, targetRole: user.role });
+  res.json({ success: true, userId: id, hourlyRate: roundedRate });
 });
 
 router.patch("/users/:id", requireRole("owner", "admin"), (req, res) => {
