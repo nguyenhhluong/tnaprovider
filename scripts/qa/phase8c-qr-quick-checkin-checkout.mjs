@@ -32,6 +32,15 @@ function chkVal(label, actual, expected) {
   else { fail++; console.error(`FAIL ${label}: expected ${JSON.stringify(expected)} got ${JSON.stringify(actual)}`); }
 }
 
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 const USERS = [
   { email: "owner@test.com", password: "ChangeMe123!", name: "Test Owner", role: "owner" },
   { email: "wkr@test.com", password: "WkrPass1!", name: "Test Worker", role: "worker", mustChangePassword: false },
@@ -116,7 +125,8 @@ await withServer({
   const usersList = await apiGet("/api/platform/users", cO);
   const worker = usersList.data?.find((u) => u.email === "wkr@test.com");
   if (worker) {
-    const weekView = await apiGet(`/api/platform/users/${worker.id}/timesheet-week?weekStart=2026-07-05`, cO);
+    const monday = getMonday(new Date()).toISOString().split("T")[0];
+    const weekView = await apiGet(`/api/platform/users/${worker.id}/timesheet-week?weekStart=${monday}`, cO);
     const hasShiftToday = weekView.data?.days?.some((d) => d.hasShift);
     chk("worker profile sees QR shift", !!hasShiftToday, true);
   }
