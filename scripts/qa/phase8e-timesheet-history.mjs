@@ -218,6 +218,56 @@ await withServer({
   // ── 20. Role protection: unauthenticated blocked ──
   r = await apiGet(`/api/platform/users/${worker.id}/timesheet-weeks`);
   chk("unauthenticated blocked from timesheet-weeks 401", r.status, 401);
+
+  // ── 21. Offset direction: selecting a previous week loads that week, not a future week ──
+  // Compute this Monday and last Monday
+  const today2 = new Date();
+  const dayOfWeek = today2.getDay();
+  const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const thisMonday2 = new Date(today2);
+  thisMonday2.setDate(today2.getDate() + diffToMon);
+  const thisMonStr = thisMonday2.toISOString().split("T")[0];
+  const lastMonday = new Date(thisMonday2);
+  lastMonday.setDate(thisMonday2.getDate() - 7);
+  const lastMonStr = lastMonday.toISOString().split("T")[0];
+
+  // Create a shift in the previous week
+  r = await api("POST", `/api/platform/users/${worker.id}/manual-shift`, {
+    date: lastMonStr, startTime: "08:00", endTime: "16:00", breakDuration: "30", reason: "Offset test - previous week",
+  }, cO);
+  chk("create shift in previous week", r.status, 201);
+
+  // Fetch timesheet-week for previous week — must return previous week, not current/future
+  r = await apiGet(`/api/platform/users/${worker.id}/timesheet-week?weekStart=${lastMonStr}`, cO);
+  chk("previous week timesheet fetch succeeds", r.status, 200);
+  chk("previous week start matches request", r.data?.week?.start, lastMonStr);
+  chk("previous week has shift", r.data?.days?.some((d) => d.hasShift), true);
+
+  // Verify we did NOT load the current week or a future week
+  const returnedWeekStart = r.data?.week?.start;
+  chk("returned week is not current week", returnedWeekStart === lastMonStr, true);
+  if (returnedWeekStart) {
+    chk("returned week is not future", returnedWeekStart <= thisMonStr, true);
+  }
+
+  // ── 22. Offset direction: current week selection returns offset 0 ──
+  r = await apiGet(`/api/platform/users/${worker.id}/timesheet-week?weekStart=${thisMonStr}`, cO);
+  chk("current week timesheet fetch succeeds", r.status, 200);
+  chk("current week start matches request", r.data?.week?.start, thisMonStr);
+
+  // ── 23. History list shows both current and previous week ──
+  r = await apiGet(`/api/platform/users/${worker.id}/timesheet-weeks`, cO);
+  const currentInHistory = r.data?.weeks?.some((w) => w.weekStart === thisMonStr);
+  const previousInHistory = r.data?.weeks?.some((w) => w.weekStart === lastMonStr);
+  chk("history includes current week", !!currentInHistory, true);
+  chk("history includes previous week", !!previousInHistory, true);
+
+  // ── 24. Previous week's timesheet data is correct (not polluted by current week shifts) ──
+  r = await apiGet(`/api/platform/users/${worker.id}/timesheet-week?weekStart=${lastMonStr}`, cO);
+  chk("previous week returns exactly 7 days", r.data?.days?.length, 7);
+  // The shift we created in the previous week should be there
+  const prevDayWithShift = r.data?.days?.filter((d) => d.hasShift);
+  chk("previous week has exactly 1 shift day", prevDayWithShift?.length, 1);
 });
 
 const total = pass + fail;

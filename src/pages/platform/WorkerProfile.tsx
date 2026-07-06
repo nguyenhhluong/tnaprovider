@@ -118,7 +118,7 @@ export function WorkerProfile() {
     const today = new Date();
     const todayMonday = getMonday(today);
     const targetMonday = new Date(weekStart + "T00:00:00");
-    const diffDays = Math.round((todayMonday.getTime() - targetMonday.getTime()) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.round((targetMonday.getTime() - todayMonday.getTime()) / (1000 * 60 * 60 * 24));
     return Math.round(diffDays / 7);
   };
 
