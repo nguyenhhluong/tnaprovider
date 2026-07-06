@@ -785,6 +785,97 @@ router.get("/users/:userId/timesheet-week", requireRole("owner"), (req, res) => 
   });
 });
 
+// GET /api/platform/users/:userId/timesheet-weeks?limit=26
+router.get("/users/:userId/timesheet-weeks", requireRole("owner"), (req, res) => {
+  const db = getDb();
+  const { userId } = req.params;
+  const limit = Math.min(parseInt(req.query.limit) || 26, 52);
+
+  const user = db.prepare("SELECT id, email, name, role, hourly_rate FROM users WHERE id = ?").get(userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const currentMonday = getMonday(new Date());
+  const weeks = [];
+
+  for (let i = 0; i < limit; i++) {
+    const monday = new Date(currentMonday);
+    monday.setDate(monday.getDate() - i * 7);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    const weekStart = monday.toISOString().split("T")[0];
+    const weekEnd = sunday.toISOString().split("T")[0];
+
+    const shifts = db.prepare(`
+      SELECT * FROM shift_sessions
+      WHERE employee_id = ? AND checked_in_at >= ? AND checked_in_at <= ?
+      ORDER BY checked_in_at ASC
+    `).all(userId, weekStart + "T00:00:00", weekEnd + "T23:59:59");
+
+    if (shifts.length === 0) {
+      weeks.push({
+        weekStart,
+        weekEnd,
+        totalSeconds: 0,
+        totalPay: 0,
+        shiftCount: 0,
+        approvedCount: 0,
+        pendingCount: 0,
+        rejectedCount: 0,
+        missingCount: 7,
+      });
+      continue;
+    }
+
+    let totalSeconds = 0;
+    let totalPay = 0;
+    let approvedCount = 0;
+    let pendingCount = 0;
+    let rejectedCount = 0;
+    const daysWithShifts = new Set();
+
+    for (const s of shifts) {
+      totalSeconds += s.payable_seconds || 0;
+
+      let laborPay = s.final_gross_pay || s.estimated_gross_pay || 0;
+      if (laborPay === 0 && s.base_pay != null) {
+        laborPay = (s.base_pay || 0) + (s.overtime_pay || 0) + (s.double_time_pay || 0);
+      }
+      let allowancePay = s.allowance_pay || 0;
+      if (!allowancePay) {
+        const al = db.prepare("SELECT COALESCE(SUM(amount), 0) as total FROM shift_allowances WHERE shift_session_id = ?").get(s.id);
+        allowancePay = al?.total || 0;
+      }
+      totalPay += laborPay + allowancePay;
+
+      if (s.status === "approved") approvedCount++;
+      else if (s.status === "pending_approval") pendingCount++;
+      else if (s.status === "rejected") rejectedCount++;
+
+      if (s.checked_in_at) {
+        daysWithShifts.add(s.checked_in_at.substring(0, 10));
+      }
+    }
+
+    weeks.push({
+      weekStart,
+      weekEnd,
+      totalSeconds,
+      totalPay: Math.round(totalPay * 100) / 100,
+      shiftCount: shifts.length,
+      approvedCount,
+      pendingCount,
+      rejectedCount,
+      missingCount: 7 - daysWithShifts.size,
+    });
+  }
+
+  // Filter out empty future weeks (i === 0 is current week, keep it; i > 0 with no shifts should only be kept if past weeks)
+  // Actually keep all computed weeks within the range — current week is i=0 and should always be shown
+  res.json({ weeks });
+});
+
 // GET /api/platform/users/:userId/shifts/:shiftId
 router.get("/users/:userId/shifts/:shiftId", requireRole("owner"), (req, res) => {
   const db = getDb();

@@ -6,7 +6,7 @@ import { LoadingState } from "../../components/shared/LoadingState";
 import { ErrorState } from "../../components/shared/ErrorState";
 import { useAuth } from "../../context/AuthContext";
 import { appPath } from "../../utils/host";
-import { ArrowLeft, ChevronLeft, ChevronRight, DollarSign, Clock, User, Mail, Shield, Calendar, Save, X, AlertCircle, CheckCircle2, XCircle, Eye, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, DollarSign, Clock, User, Mail, Shield, Calendar, Save, X, AlertCircle, CheckCircle2, XCircle, Eye, ExternalLink } from "lucide-react";
 
 interface WorkerData {
   id: string;
@@ -63,6 +63,11 @@ export function WorkerProfile() {
   const [shiftDetail, setShiftDetail] = useState<any>(null);
   const [shiftLoading, setShiftLoading] = useState(false);
 
+  // Timesheet history dropdown
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyWeeks, setHistoryWeeks] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   // Manual shift / adjustment
   const [showManualShift, setShowManualShift] = useState(false);
   const [manualForm, setManualForm] = useState({ date: "", startTime: "", endTime: "", breakDuration: "0", siteId: "", reason: "" });
@@ -100,6 +105,36 @@ export function WorkerProfile() {
       const res = await fetch(`/api/platform/users/${userId}/timesheet-week?weekStart=${ws}`);
       if (res.ok) setWeekData(await res.json());
     } catch {}
+  };
+
+  const formatDuration = (seconds: number) => {
+    if (!seconds || seconds <= 0) return "0h 0m";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}h ${m}m`;
+  };
+
+  const getOffsetFromWeekStart = (weekStart: string) => {
+    const today = new Date();
+    const todayMonday = getMonday(today);
+    const targetMonday = new Date(weekStart + "T00:00:00");
+    const diffDays = Math.round((todayMonday.getTime() - targetMonday.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.round(diffDays / 7);
+  };
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/platform/users/${userId}/timesheet-weeks`);
+      if (res.ok) setHistoryWeeks((await res.json()).weeks);
+    } catch {}
+    finally { setHistoryLoading(false); }
+  };
+
+  const selectHistoryWeek = (week: any) => {
+    const offset = getOffsetFromWeekStart(week.weekStart);
+    setWeekOffset(offset);
+    setShowHistory(false);
   };
 
   useEffect(() => { setLoading(true); Promise.all([fetchProfile(), fetchWeek(0)]).finally(() => setLoading(false)); }, [userId]);
@@ -249,7 +284,14 @@ export function WorkerProfile() {
               <button onClick={() => setWeekOffset(weekOffset - 1)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                 <ChevronLeft className="w-5 h-5 text-gray-500" />
               </button>
-              <span className="text-sm font-semibold text-brand-dark dark:text-white min-w-[160px] text-center">{weekData?.week.label || "Loading..."}</span>
+              <button
+                onClick={() => { setShowHistory(!showHistory); if (!showHistory && historyWeeks.length === 0) loadHistory(); }}
+                className="text-sm font-semibold text-brand-dark dark:text-white min-w-[160px] text-center cursor-pointer hover:text-brand-accent transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/50 rounded px-2 py-1"
+                aria-label="Open timesheet history"
+              >
+                {weekData?.week.label || "Loading..."}
+                <ChevronDown className="w-3.5 h-3.5 inline-block ml-1 opacity-50" />
+              </button>
               <button onClick={() => setWeekOffset(weekOffset + 1)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                 <ChevronRight className="w-5 h-5 text-gray-500" />
               </button>
@@ -261,6 +303,47 @@ export function WorkerProfile() {
               <button onClick={() => setShowManualShift(true)} className="text-xs px-3 py-1.5 bg-brand-accent text-white rounded-lg hover:bg-brand-accent/90 transition-colors">+ Manual Shift</button>
             )}
           </div>
+
+          {/* Timesheet History Dropdown */}
+          {showHistory && (
+            <div className="border-b border-gray-100 dark:border-gray-800 max-h-72 overflow-y-auto bg-white dark:bg-brand-darker">
+              {historyLoading ? (
+                <div className="p-4 text-center text-sm text-gray-400">Loading history...</div>
+              ) : historyWeeks.length === 0 ? (
+                <div className="p-4 text-center text-sm text-gray-400">No timesheet history available</div>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {historyWeeks.map((week) => {
+                    const label = `${new Date(week.weekStart).toLocaleDateString("en-AU", { day: "numeric", month: "short" })} – ${new Date(week.weekEnd).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`;
+                    const hrsLabel = formatDuration(week.totalSeconds);
+                    const payLabel = `$${week.totalPay.toFixed(2)}`;
+                    const isCurrent = week.weekStart === weekData?.week.start;
+                    let summary;
+                    if (week.shiftCount === 0) {
+                      summary = `${hrsLabel} · ${payLabel} · 0 shifts · ${week.missingCount} missing`;
+                    } else {
+                      const parts = [];
+                      if (week.approvedCount > 0) parts.push(`${week.approvedCount} approved`);
+                      if (week.pendingCount > 0) parts.push(`${week.pendingCount} pending`);
+                      if (week.rejectedCount > 0) parts.push(`${week.rejectedCount} rejected`);
+                      if (week.missingCount > 0) parts.push(`${week.missingCount} missing`);
+                      summary = `${hrsLabel} · ${payLabel} · ${week.shiftCount} shifts · ${parts.join(", ") || "All shifts"}`;
+                    }
+                    return (
+                      <button
+                        key={week.weekStart}
+                        onClick={() => selectHistoryWeek(week)}
+                        className={`w-full text-left px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/30 ${isCurrent ? "bg-brand-accent/5" : ""}`}
+                      >
+                        <div className="text-sm font-semibold text-brand-dark dark:text-white">{label}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{summary}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Day Rows */}
           <div className="divide-y divide-gray-100 dark:divide-gray-800">
