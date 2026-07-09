@@ -54,7 +54,7 @@ function fmtDateShort(iso: string | null) {
 export function QuoteRequests() {
   const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [data, setData] = useState<{ requests: QuoteRequest[]; total: number } | null>(null);
+  const [data, setData] = useState<{ requests: QuoteRequest[]; total: number; summary: Record<string, number> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<QuoteRequest | null>(null);
@@ -94,10 +94,9 @@ export function QuoteRequests() {
     setSearchParams(params, { replace: true });
   }, [search, statusFilter]);
 
-  const statusCounts = (status: string) => data?.requests?.filter((r) => r.status === status).length || 0;
   const summaryCards = ["new", "contacted", "quoted", "won", "lost"].map((s) => ({
     label: STATUS_LABELS[s] || s,
-    count: search || priorityFilter ? statusCounts(s) : (data?.total !== undefined ? undefined : statusCounts(s)),
+    count: data?.summary?.[s] ?? ((statusFilter === s) ? data?.requests?.filter((r) => r.status === s).length : 0),
     status: s,
     color: STATUS_COLORS[s]?.split(" ")[0] || "bg-gray-100",
   }));

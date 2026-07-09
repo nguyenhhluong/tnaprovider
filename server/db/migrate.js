@@ -772,8 +772,8 @@ export function migrate() {
         if (Array.isArray(submissions) && submissions.length > 0) {
           const insert = db.prepare(`
             INSERT OR IGNORE INTO contact_requests
-              (id, first_name, last_name, email, phone, service, location, budget, target_date, message, request_callback, callback_time, privacy_consent, source, status, priority, received_at, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'normal', ?, ?, ?)
+              (id, first_name, last_name, email, phone, service, location, budget, target_date, message, request_callback, callback_time, privacy_consent, project_id, source, status, priority, received_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'normal', ?, ?, ?)
           `);
           let imported = 0;
           for (const s of submissions) {
@@ -784,7 +784,8 @@ export function migrate() {
               const now = new Date().toISOString();
               const firstName = s.firstName || s.first_name || "";
               const lastName = s.lastName || s.last_name || "";
-              insert.run(hash, firstName, lastName, s.email || "", s.phone || "", s.service || "", s.location || "", s.budget || null, s.targetDate || s.target_date || null, s.message || "", s.requestCallback ? 1 : 0, s.callbackTime || null, s.privacyConsent ? 1 : 0, "contact_form", receivedAt, now, now);
+              const finalSource = s.source || "contact_form";
+              insert.run(hash, firstName, lastName, s.email || "", s.phone || "", s.service || "", s.location || "", s.budget || null, s.targetDate || s.target_date || null, s.message || "", s.requestCallback ? 1 : 0, s.callbackTime || null, s.privacyConsent ? 1 : 0, s.projectId || s.project_id || null, finalSource, receivedAt, now, now);
               imported++;
             }
           }

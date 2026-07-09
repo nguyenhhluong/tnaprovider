@@ -124,6 +124,19 @@ await withServer({
   r = await api("POST", "/api/contact", { ...VALID_CONTACT, message: "X".repeat(5001) }, cO);
   chk("long message rejected", r.status === 400, 400, r.status);
 
+  // Invalid phone format (letters only)
+  r = await api("POST", "/api/contact", { ...VALID_CONTACT, phone: "abcabcabc" }, cO);
+  chk("invalid phone format rejected", r.status === 400, 400, r.status);
+  chk("invalid phone error message", r.data?.error?.includes("phone"), true, r.data?.error?.includes("phone"));
+
+  // projectId and source stored
+  r = await api("POST", "/api/contact", { ...VALID_CONTACT, firstName: "Proj", lastName: "Test", email: "proj@test.com", phone: "0412345678", projectId: "project-123", source: "landing-page" }, cO);
+  chk("contact with projectId succeeds", r.status === 200, 200, r.status);
+  // Verify in list
+  const projList = await api("GET", "/api/platform/quote-requests?search=proj@test.com", null, cO);
+  chk("projectId stored in DB", projList.data?.requests?.[0]?.project_id === "project-123", "project-123", projList.data?.requests?.[0]?.project_id);
+  chk("source stored in DB", projList.data?.requests?.[0]?.source === "landing-page", "landing-page", projList.data?.requests?.[0]?.source);
+
   // ── 3. GET /api/platform/quote-requests role checks ──
   r = await api("GET", "/api/platform/quote-requests", null, cO);
   chk("owner allowed to list", r.status === 200, 200, r.status);
@@ -157,13 +170,25 @@ await withServer({
   r = await api("GET", "/api/platform/quote-requests?limit=1&offset=0", null, cO);
   chk("pagination works", r.status === 200, 200, r.status);
 
+  // ── 6b. Summary counts returned ──
+  r = await api("GET", "/api/platform/quote-requests", null, cO);
+  chk("summary counts returned", r.data?.summary !== undefined, true, r.data?.summary !== undefined);
+  if (r.data?.summary) {
+    chk("summary has new count", typeof r.data.summary.new === "number", true, typeof r.data.summary.new === "number");
+    chk("summary has contacted count", typeof r.data.summary.contacted === "number", true, typeof r.data.summary.contacted === "number");
+    chk("summary has quoted count", typeof r.data.summary.quoted === "number", true, typeof r.data.summary.quoted === "number");
+    chk("summary has won count", typeof r.data.summary.won === "number", true, typeof r.data.summary.won === "number");
+    chk("summary has lost count", typeof r.data.summary.lost === "number", true, typeof r.data.summary.lost === "number");
+    chk("summary has archived count", typeof r.data.summary.archived === "number", true, typeof r.data.summary.archived === "number");
+  }
+
   // ── 7. GET detail works ──
   const list = await api("GET", "/api/platform/quote-requests", null, cO);
   if (list.data?.requests?.length > 0) {
     const id = list.data.requests[0].id;
     r = await api("GET", `/api/platform/quote-requests/${id}`, null, cO);
     chk("detail endpoint works", r.status === 200, 200, r.status);
-    chk("detail returns email", r.data?.email === "jane@example.com", "jane@example.com", r.data?.email);
+    chk("detail returns email from first request", r.data?.email === list.data.requests[0].email, list.data.requests[0].email, r.data?.email);
 
     // ── 8. PATCH status works ──
     r = await api("PATCH", `/api/platform/quote-requests/${id}`, { status: "contacted" }, cO);
@@ -217,6 +242,12 @@ await withServer({
     const content = readFileSync(jsonPath, "utf-8");
     const submissions = JSON.parse(content);
     chk("JSON backup exists and has submissions", Array.isArray(submissions) && submissions.length > 0, true, Array.isArray(submissions) && submissions.length > 0);
+    // Check latest submission has projectId and source
+    const last = submissions[submissions.length - 1];
+    if (last) {
+      chk("JSON backup includes projectId", "projectId" in last, true, "projectId" in last);
+      chk("JSON backup includes source", "source" in last, true, "source" in last);
+    }
   }
 });
 
@@ -241,6 +272,9 @@ chk("server contact endpoint stores in SQLite", serverSrc.includes("INSERT INTO 
 chk("server contact endpoint has validation", serverSrc.includes("if (!firstName || typeof firstName !== 'string' || firstName.length > 80)"), true, serverSrc.includes("firstName.length > 80"));
 chk("server contact endpoint validates email", serverSrc.includes("/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/"), true, serverSrc.includes("test(email)"));
 chk("server contact endpoint preserves JSON backup", serverSrc.includes("contact-submissions.json"), true, serverSrc.includes("contact-submissions.json"));
+chk("server contact reads projectId", serverSrc.includes("projectId"), true, serverSrc.includes("projectId"));
+chk("server contact reads source", serverSrc.includes(", source"), true, serverSrc.includes(", source"));
+chk("server contact validates phone regex", serverSrc.includes("/^[\\d\\s+()-]{8,20}$/"), true, serverSrc.includes("8,20}"));
 
 // Restore original JSON backup
 if (jsonBackup !== null) {

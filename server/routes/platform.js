@@ -1113,7 +1113,19 @@ router.get("/quote-requests", requireRole("owner", "admin", "manager"), (req, re
     const count = db.prepare(`SELECT COUNT(*) as cnt FROM contact_requests qr WHERE ${whereClause}`).get(...params);
     const rows = db.prepare(`SELECT qr.*, u.name as assigned_to_name FROM contact_requests qr LEFT JOIN users u ON u.id = qr.assigned_to_user_id WHERE ${whereClause} ORDER BY qr.received_at DESC LIMIT ? OFFSET ?`).all(...params, lim, off);
 
-    res.json({ requests: rows, total: count.cnt, limit: lim, offset: off });
+    // Summary counts across all records (ignoring filters)
+    const summary = db.prepare(`
+      SELECT
+        SUM(CASE WHEN status = 'new' THEN 1 ELSE 0 END) as new,
+        SUM(CASE WHEN status = 'contacted' THEN 1 ELSE 0 END) as contacted,
+        SUM(CASE WHEN status = 'quoted' THEN 1 ELSE 0 END) as quoted,
+        SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) as won,
+        SUM(CASE WHEN status = 'lost' THEN 1 ELSE 0 END) as lost,
+        SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) as archived
+      FROM contact_requests
+    `).get();
+
+    res.json({ requests: rows, total: count.cnt, summary, limit: lim, offset: off });
   } catch (err) {
     console.error("Error listing quote requests:", err.message);
     res.status(500).json({ error: "Failed to list quote requests" });

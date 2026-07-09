@@ -65,13 +65,13 @@ import { getDb } from './server/db/database.js';
 
 app.post('/api/contact', (req, res) => {
   try {
-    const { firstName, lastName, email, phone, service, location, budget, targetDate, message, requestCallback, callbackTime, privacyConsent } = req.body || {};
+    const { firstName, lastName, email, phone, service, location, budget, targetDate, message, requestCallback, callbackTime, privacyConsent, projectId, source } = req.body || {};
 
     // Validation
     if (!firstName || typeof firstName !== 'string' || firstName.length > 80) return res.status(400).json({ error: 'First name is required (max 80 characters)' });
     if (!lastName || typeof lastName !== 'string' || lastName.length > 80) return res.status(400).json({ error: 'Last name is required (max 80 characters)' });
     if (!email || typeof email !== 'string' || email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Valid email is required' });
-    if (!phone || typeof phone !== 'string' || phone.length > 40) return res.status(400).json({ error: 'Phone is required (max 40 characters)' });
+    if (!phone || typeof phone !== 'string' || !/^[\d\s+()-]{8,20}$/.test(phone)) return res.status(400).json({ error: 'Valid phone number is required (8-20 digits, spaces, +, (, ), -)' });
     if (!service || typeof service !== 'string' || service.length > 120) return res.status(400).json({ error: 'Service type is required (max 120 characters)' });
     if (!location || typeof location !== 'string' || location.length > 160) return res.status(400).json({ error: 'Location is required (max 160 characters)' });
     if (budget && (typeof budget !== 'string' || budget.length > 120)) return res.status(400).json({ error: 'Budget too long (max 120 characters)' });
@@ -81,13 +81,14 @@ app.post('/api/contact', (req, res) => {
 
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
+    const finalSource = source || "contact_form";
 
     // Store in SQLite
     const db = getDb();
     db.prepare(`
-      INSERT INTO contact_requests (id, first_name, last_name, email, phone, service, location, budget, target_date, message, request_callback, callback_time, privacy_consent, source, status, priority, received_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'contact_form', 'new', 'normal', ?, ?, ?)
-    `).run(id, firstName, lastName, email, phone, service, location, budget || null, targetDate || null, message, requestCallback ? 1 : 0, callbackTime || null, privacyConsent ? 1 : 0, now, now, now);
+      INSERT INTO contact_requests (id, first_name, last_name, email, phone, service, location, budget, target_date, message, request_callback, callback_time, privacy_consent, project_id, source, status, priority, received_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'normal', ?, ?, ?)
+    `).run(id, firstName, lastName, email, phone, service, location, budget || null, targetDate || null, message, requestCallback ? 1 : 0, callbackTime || null, privacyConsent ? 1 : 0, projectId || null, finalSource, now, now, now);
 
     // Also append to JSON backup file
     const logDir = path.join(__dirname, 'data');
@@ -97,7 +98,7 @@ app.post('/api/contact', (req, res) => {
     if (fs.existsSync(logFile)) {
       try { submissions = JSON.parse(fs.readFileSync(logFile, 'utf-8')); } catch {}
     }
-    submissions.push({ id, firstName, lastName, email, phone, service, location, budget, targetDate, message, requestCallback, callbackTime, privacyConsent, receivedAt: now });
+    submissions.push({ id, firstName, lastName, email, phone, service, location, budget, targetDate, message, requestCallback, callbackTime, privacyConsent, projectId: projectId || null, source: finalSource, receivedAt: now });
     fs.writeFileSync(logFile, JSON.stringify(submissions, null, 2));
 
     res.json({ success: true });
