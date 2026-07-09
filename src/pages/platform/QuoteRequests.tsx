@@ -77,11 +77,16 @@ export function QuoteRequests() {
       if (priorityFilter) params.set("priority", priorityFilter);
       params.set("limit", String(pageSize));
       params.set("offset", String(page * pageSize));
-      const res = await fetch(`/api/platform/quote-requests?${params}`);
-      if (!res.ok) { setError("Failed to load"); return; }
-      const d = await res.json();
+      const res = await fetch(`/api/platform/quote-requests?${params}`, { credentials: "same-origin" });
+      if (res.status === 401) { setError("Your session expired. Please log in again."); return; }
+      if (res.status === 403) { setError("You do not have permission to view quote requests."); return; }
+      if (res.status === 404) { setError("Quote request API is not deployed."); return; }
+      if (res.status >= 500) { setError("Server error loading quote requests."); return; }
+      if (!res.ok) { setError("Failed to load quote requests."); return; }
+      let d;
+      try { d = await res.json(); } catch { setError("Could not reach the server. Please refresh or check connection."); return; }
       setData(d);
-    } catch { setError("Network error"); }
+    } catch { setError("Could not reach the server. Please refresh or check connection."); }
     finally { setLoading(false); }
   }, [search, statusFilter, priorityFilter, page]);
 
@@ -112,7 +117,7 @@ export function QuoteRequests() {
     setSaving(true);
     try {
       const res = await fetch(`/api/platform/quote-requests/${id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates),
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updates), credentials: "same-origin",
       });
       if (!res.ok) return;
       await fetchData();
@@ -123,7 +128,7 @@ export function QuoteRequests() {
   const handleArchive = async (id: string) => {
     setSaving(true);
     try {
-      await fetch(`/api/platform/quote-requests/${id}/archive`, { method: "POST" });
+      await fetch(`/api/platform/quote-requests/${id}/archive`, { method: "POST", credentials: "same-origin" });
       await fetchData();
       setSelected(null); setDetailOpen(false);
     } finally { setSaving(false); }
@@ -132,7 +137,7 @@ export function QuoteRequests() {
   const handleRestore = async (id: string) => {
     setSaving(true);
     try {
-      await fetch(`/api/platform/quote-requests/${id}/restore`, { method: "POST" });
+      await fetch(`/api/platform/quote-requests/${id}/restore`, { method: "POST", credentials: "same-origin" });
       await fetchData();
       if (selected?.id === id) setSelected((prev) => prev ? { ...prev, status: "new", archived_at: null } : prev);
     } finally { setSaving(false); }

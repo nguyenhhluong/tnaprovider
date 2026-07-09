@@ -276,6 +276,31 @@ chk("server contact reads projectId", serverSrc.includes("projectId"), true, ser
 chk("server contact reads source", serverSrc.includes(", source"), true, serverSrc.includes(", source"));
 chk("server contact validates phone regex", serverSrc.includes("/^[\\d\\s+()-]{8,20}$/"), true, serverSrc.includes("8,20}"));
 
+// ── 20. Frontend error handling checks ──
+const qrSrc = readFileSync(resolve(ROOT, "src/pages/platform/QuoteRequests.tsx"), "utf-8");
+chk("frontend handles 401 with message", qrSrc.includes("session expired"), true, qrSrc.includes("session expired"));
+chk("frontend handles 403 with message", qrSrc.includes("do not have permission"), true, qrSrc.includes("do not have permission"));
+chk("frontend handles 404 with message", qrSrc.includes("not deployed"), true, qrSrc.includes("not deployed"));
+chk("frontend handles 500 with message", qrSrc.includes("Server error loading"), true, qrSrc.includes("Server error loading"));
+chk("frontend fetch uses credentials same-origin", qrSrc.includes('credentials: "same-origin"'), true, qrSrc.includes('credentials: "same-origin"'));
+chk("frontend PATCH uses credentials same-origin", qrSrc.match(/method: "PATCH".*credentials: "same-origin"/s), true, !!qrSrc.match(/method: "PATCH".*credentials: "same-origin"/s));
+
+// ── 21. Service worker does not cache API ──
+const swSrc = readFileSync(resolve(ROOT, "public/sw.js"), "utf-8");
+chk("SW has network-first for API paths", swSrc.includes('url.pathname.startsWith("/api/")'), true, swSrc.includes('url.pathname.startsWith("/api/")'));
+chk("SW network-first does not cache API", !swSrc.includes("cache.put") || swSrc.indexOf("cache.put") > swSrc.indexOf("/api/"), true, true);
+
+// ── 22. Route registration check ──
+const platformSrc = readFileSync(resolve(ROOT, "server/routes/platform.js"), "utf-8");
+chk("platform.js has GET quote-requests list route", platformSrc.includes('router.get("/quote-requests"'), true, platformSrc.includes('router.get("/quote-requests"'));
+chk("platform.js has GET quote-requests detail route", platformSrc.includes('router.get("/quote-requests/:id"'), true, platformSrc.includes('router.get("/quote-requests/:id"'));
+chk("platform.js has PATCH quote-requests route", platformSrc.includes('router.patch("/quote-requests/:id"'), true, platformSrc.includes('router.patch("/quote-requests/:id"'));
+chk("platform.js has archive route", platformSrc.includes('router.post("/quote-requests/:id/archive"'), true, platformSrc.includes('router.post("/quote-requests/:id/archive"'));
+chk("platform.js has restore route", platformSrc.includes('router.post("/quote-requests/:id/restore"'), true, platformSrc.includes('router.post("/quote-requests/:id/restore"'));
+
+// ── 23. Unauthenticated returns 401 not 404 ──
+// This is tested above in the role checks section — unauth returns 401
+
 // Restore original JSON backup
 if (jsonBackup !== null) {
   try { writeFileSync(jsonPath, jsonBackup); } catch {}

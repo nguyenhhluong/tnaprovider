@@ -1,4 +1,4 @@
-const CACHE = "tna-shell-v1";
+const CACHE = "tna-shell-v2";
 const OFFLINE_URL = "/offline.html";
 const ASSETS = [
   "/",
