@@ -319,6 +319,31 @@ export function QuoteRequests() {
               )}
             </div>
 
+            {/* Create quote from request */}
+            <button onClick={async () => {
+              setSaving(true);
+              try {
+                const res = await fetch("/api/quotes", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    client_name: `${selected.first_name} ${selected.last_name}`,
+                    client_email: selected.email,
+                    client_phone: selected.phone,
+                    project_name: selected.service,
+                    project_location: selected.location,
+                    scope: selected.message,
+                  }),
+                  credentials: "same-origin",
+                });
+                if (res.ok) {
+                  window.open("/quote-requests", "_blank");
+                }
+              } finally { setSaving(false); }
+            }} disabled={saving} className="w-full py-2 border border-green-500 text-green-600 rounded-xl text-sm font-medium hover:bg-green-50">
+              Create Quote From Request
+            </button>
+
             {/* Mark contacted */}
             <button onClick={() => handleUpdate(selected.id, { status: "contacted", last_contacted_at: new Date().toISOString() })} disabled={saving} className="w-full py-2 border border-brand-accent text-brand-accent rounded-xl text-sm font-medium hover:bg-brand-accent/5">
               Mark as Contacted

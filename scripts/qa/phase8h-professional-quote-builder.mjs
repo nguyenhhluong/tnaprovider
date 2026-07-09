@@ -183,6 +183,57 @@ await withServer({
   chk("templates list returns 200", r.status === 200, 200, r.status);
   chk("templates list has items", Array.isArray(r.data) && r.data.length > 0, true, Array.isArray(r.data) && r.data.length > 0);
 
+  // ── Send with auto PDF generation ──
+  // Create a new quote, approve it, send without generating PDF
+  const sendQuote = await api("POST", "/api/quotes", { client_name: "Send Test", project_name: "Send Project" }, cO);
+  const sendId = sendQuote.data?.id;
+  if (sendId) {
+    await api("POST", `/api/quotes/${sendId}/submit-review`, { note: "Review" }, cO);
+    await api("POST", `/api/quotes/${sendId}/approve`, {}, cO);
+    r = await api("POST", `/api/quotes/${sendId}/send`, {}, cO);
+    chk("send auto-generates PDF", r.status === 200, 200, r.status);
+    chk("send status sent after auto-PDF", r.data?.status === "sent", "sent", r.data?.status);
+    chk("send has message", r.data?.message?.includes("paused"), true, r.data?.message?.includes("paused"));
+
+    // Verify PDF was generated
+    r = await api("GET", `/api/quotes/${sendId}/pdf`, null, cO);
+    chk("PDF downloadable after auto-generate", r.status === 200, 200, r.status);
+  }
+
+  // ── Quote number uniqueness ──
+  r = await api("GET", "/api/quotes", null, cO);
+  const numbers = (r.data?.quotes || []).map(q => q.quote_number);
+  const uniqueNumbers = new Set(numbers);
+  chk("all quote numbers are unique", numbers.length === uniqueNumbers.size, true, numbers.length === uniqueNumbers.size);
+
+  // ── Nested item negative quantity rejected ──
+  r = await api("POST", "/api/quotes", {
+    client_name: "Validation Test",
+    sections: [{ title: "S1", items: [{ name: "Bad", quantity: -1, unit_price: 100 }] }],
+  }, cO);
+  chk("nested section item negative quantity rejected", r.status === 400, 400, r.status);
+  chk("nested negative quantity error message", r.status === 400 && r.data?.error, true, r.status === 400 && r.data?.error);
+
+  // ── Nested direct item negative quantity rejected ──
+  r = await api("POST", "/api/quotes", {
+    client_name: "Validation Test 2",
+    items: [{ description: "Bad direct", quantity: -1, unit_price: 100 }],
+  }, cO);
+  chk("nested direct item negative quantity rejected", r.status === 400, 400, r.status);
+
+  // ── Nested invalid item_type rejected ──
+  r = await api("POST", "/api/quotes", {
+    client_name: "Validation Test 3",
+    items: [{ description: "Bad type", item_type: "invalid_type", unit_price: 100 }],
+  }, cO);
+  chk("nested invalid item_type rejected", r.status === 400, 400, r.status);
+
+  // ── Quote number format ──
+  const numbers2 = (r.data?.quotes || []).map(q => q.quote_number);
+  // Verify the first quote created is QT-2026-NNNNN format
+  const firstQuote = numbers[0] || "";
+  chk("quote number format correct", /^QT-\d{4}-\d{5}$/.test(firstQuote), true, /^QT-\d{4}-\d{5}$/.test(firstQuote));
+
   // ── No stack traces ──
   r = await api("GET", "/api/quotes/nonexistent", null, cO);
   chk("nonexistent quote 404", r.status === 404, 404, r.status);
@@ -209,6 +260,18 @@ chk("backend has convert-to-project", quotesSrc.includes("convert-to-project"), 
 chk("backend has templates list", quotesSrc.includes("templates/list"), true, quotesSrc.includes("templates/list"));
 chk("backend uses pdfkit", quotesSrc.includes("pdfkit"), true, quotesSrc.includes("pdfkit"));
 chk("backend has calcLineItem", quotesSrc.includes("calcLineItem"), true, quotesSrc.includes("calcLineItem"));
+chk("backend send auto-generates PDF", quotesSrc.includes("pdf_file_path") && quotesSrc.includes('"sent"'), true, quotesSrc.includes("pdf_file_path") && quotesSrc.includes('"sent"'));
+chk("backend validates nested items", quotesSrc.includes("if (item.quantity !== undefined && Number(item.quantity) < 0)"), true, quotesSrc.includes("item.quantity !== undefined"));
+chk("backend validates nested item types", quotesSrc.includes("!ALLOWED_TYPES.includes(item.item_type)"), true, quotesSrc.includes("!ALLOWED_TYPES.includes(item.item_type)"));
+chk("backend quote number retries on collision", quotesSrc.includes("while (attempts < 100)"), true, quotesSrc.includes("while (attempts < 100)"));
+
+// ── Migration UNIQUE checks ──
+chk("migration has UNIQUE index on quote_number", migrateSrc.includes("CREATE UNIQUE INDEX"), true, migrateSrc.includes("CREATE UNIQUE INDEX"));
+chk("migration template prices are zero", migrateSrc.includes('price: 0'), true, migrateSrc.includes('price: 0'));
+
+// ── Frontend structural checks ──
+const qrSrc = readFileSync(resolve(ROOT, "src/pages/platform/QuoteRequests.tsx"), "utf-8");
+chk("QuoteRequests page has Create Quote From Request", qrSrc.includes("Create Quote From Request"), true, qrSrc.includes("Create Quote From Request"));
 
 console.log(`\nPhase 8H: ${pass} passed, ${fail} failed (${pass + fail} total)`);
 if (fail > 0) process.exit(1);

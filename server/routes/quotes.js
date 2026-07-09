@@ -29,9 +29,18 @@ function audit(res, action, entityType, entityId, metadata) {
 
 function generateQuoteNumber(db) {
   const year = new Date().getFullYear();
-  const max = db.prepare("SELECT MAX(CAST(SUBSTR(quote_number, 8) AS INTEGER)) as max_num FROM quotes WHERE quote_number LIKE ?").get(`QT-${year}-%`);
-  const next = (max?.max_num || 0) + 1;
-  return `QT-${year}-${String(next).padStart(5, "0")}`;
+  const prefix = `QT-${year}-`;
+  const max = db.prepare("SELECT MAX(CAST(SUBSTR(quote_number, ?) AS INTEGER)) as max_num FROM quotes WHERE quote_number LIKE ?").get(prefix.length + 1, `${prefix}%`);
+  let next = (max?.max_num || 0) + 1;
+  let attempts = 0;
+  while (attempts < 100) {
+    const num = `QT-${year}-${String(next).padStart(5, "0")}`;
+    const existing = db.prepare("SELECT id FROM quotes WHERE quote_number = ?").get(num);
+    if (!existing) return num;
+    next++;
+    attempts++;
+  }
+  throw new Error("Could not generate unique quote number");
 }
 
 function addReviewEvent(db, quoteId, fromStatus, toStatus, note, userId) {
@@ -106,6 +115,24 @@ router.post("/", (req, res) => {
     const db = getDb();
     const { template_id, sections, items, ...fields } = req.body;
     if (!fields.title && !fields.project_name) return res.status(400).json({ error: "title or project_name is required" });
+
+    // Validate nested items before transaction
+    const allItems = [];
+    if (Array.isArray(sections)) {
+      for (const sec of sections) {
+        if (Array.isArray(sec.items)) allItems.push(...sec.items);
+      }
+    }
+    if (Array.isArray(items)) allItems.push(...items);
+    for (const item of allItems) {
+      if (!item.description && !item.name) { return res.status(400).json({ error: "Each item must have a description or name" }); }
+      if (item.quantity !== undefined && Number(item.quantity) < 0) { return res.status(400).json({ error: `Negative quantity not allowed for item: ${item.description || item.name}` }); }
+      if (item.unit_cost !== undefined && Number(item.unit_cost) < 0) { return res.status(400).json({ error: `Negative unit cost not allowed for item: ${item.description || item.name}` }); }
+      if (item.unit_price !== undefined && Number(item.unit_price) < 0) { return res.status(400).json({ error: `Negative unit price not allowed for item: ${item.description || item.name}` }); }
+      if (item.item_type && !ALLOWED_TYPES.includes(item.item_type)) { return res.status(400).json({ error: `Invalid item type: ${item.item_type} for item: ${item.description || item.name}` }); }
+      if (item.discount_percent !== undefined && (Number(item.discount_percent) < 0 || Number(item.discount_percent) > 100)) { return res.status(400).json({ error: `Discount percent must be 0-100 for item: ${item.description || item.name}` }); }
+      if (item.markup_percent !== undefined && !Number.isFinite(Number(item.markup_percent))) { return res.status(400).json({ error: `Invalid markup percent for item: ${item.description || item.name}` }); }
+    }
 
     const id = crypto.randomUUID();
     const quoteNumber = generateQuoteNumber(db);
@@ -560,7 +587,7 @@ router.get("/:id/pdf", (req, res) => {
 });
 
 // ── Send quote ───────────────────────────────────────────────
-router.post("/:id/send", (req, res) => {
+router.post("/:id/send", async (req, res) => {
   try {
     if (!isMgmt(req.user)) return res.status(403).json({ error: "Access denied" });
     const db = getDb();
@@ -568,8 +595,25 @@ router.post("/:id/send", (req, res) => {
     if (!q) return res.status(404).json({ error: "Quote not found" });
     if (q.status !== "approved") return res.status(400).json({ error: "Only approved quotes can be sent" });
     const now = new Date().toISOString();
+    // Auto-generate PDF if missing
     if (!q.pdf_file_path) {
-      return res.status(400).json({ error: "Please generate PDF first before sending" });
+      const PDFDocument = require2("pdfkit");
+      const doc = new PDFDocument({ size: "A4", margin: 50 });
+      const pdfDir = path.join(__dirname, "..", "..", "data", "generated", "quotes");
+      if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
+      const fileName = `TNA-QUOTE-${q.quote_number}-R${q.revision_number || 1}.pdf`;
+      const filePath = path.join(pdfDir, fileName);
+      const writeStream = fs.createWriteStream(filePath);
+      doc.pipe(writeStream);
+      doc.fontSize(22).font("Helvetica-Bold").text("TNA Provider", 50, 50);
+      doc.fontSize(10).font("Helvetica").text(`Quote #: ${q.quote_number}`, 400, 50);
+      doc.fontSize(12).font("Helvetica-Bold").text(`Total: $${(q.total || 0).toFixed(2)}`, 50, 150);
+      doc.text("PDF auto-generated on send.");
+      doc.end();
+      await new Promise((resolve) => writeStream.on("finish", resolve));
+      const docId = crypto.randomUUID();
+      db.prepare("UPDATE quotes SET pdf_file_path = ?, pdf_generated_at = ?, updated_at = ? WHERE id = ?").run(filePath, now, now, req.params.id);
+      db.prepare("INSERT INTO quote_documents (id, quote_id, document_type, file_name, file_path, revision_number, generated_by, generated_at) VALUES (?, ?, 'pdf', ?, ?, ?, ?, ?)").run(docId, req.params.id, fileName, filePath, q.revision_number || 1, req.user.userId, now);
     }
     db.prepare("UPDATE quotes SET status = 'sent', sent_at = ?, sent_to_email = ?, updated_at = ? WHERE id = ?").run(now, q.client_email || null, now, req.params.id);
     addReviewEvent(db, req.params.id, "approved", "sent", "Quote sent via system", req.user.userId);
