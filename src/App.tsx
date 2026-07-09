@@ -40,7 +40,7 @@ import { Profile } from "./pages/platform/Profile";
 import { Security } from "./pages/platform/Security";
 import { AdminTools } from "./pages/platform/AdminTools";
 import LeadAutomation from "./pages/platform/LeadAutomation";
-import Quotes from "./pages/platform/Quotes";
+import { Quotes } from "./pages/platform/Quotes";
 import { QuoteRequests } from "./pages/platform/QuoteRequests";
 import Tasks from "./pages/platform/Tasks";
 import Documents from "./pages/platform/Documents";

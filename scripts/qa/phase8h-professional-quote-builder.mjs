@@ -249,21 +249,23 @@ chk("migration creates quote_review_events", migrateSrc.includes("CREATE TABLE q
 chk("migration creates quote_templates", migrateSrc.includes("CREATE TABLE quote_templates"), true, migrateSrc.includes("CREATE TABLE quote_templates"));
 chk("migration creates quote_template_items", migrateSrc.includes("CREATE TABLE quote_template_items"), true, migrateSrc.includes("CREATE TABLE quote_template_items"));
 
-const quotesSrc = readFileSync(resolve(ROOT, "server/routes/quotes.js"), "utf-8");
-chk("backend has atomic create", quotesSrc.includes("createTransaction"), true, quotesSrc.includes("createTransaction"));
-chk("backend has submit-review", quotesSrc.includes("submit-review"), true, quotesSrc.includes("submit-review"));
-chk("backend has approve", quotesSrc.includes("/approve"), true, quotesSrc.includes("/approve"));
-chk("backend has reject-review", quotesSrc.includes("reject-review"), true, quotesSrc.includes("reject-review"));
-chk("backend has generate-pdf", quotesSrc.includes("generate-pdf"), true, quotesSrc.includes("generate-pdf"));
-chk("backend has send endpoint", quotesSrc.includes("/send"), true, quotesSrc.includes("/send"));
-chk("backend has convert-to-project", quotesSrc.includes("convert-to-project"), true, quotesSrc.includes("convert-to-project"));
-chk("backend has templates list", quotesSrc.includes("templates/list"), true, quotesSrc.includes("templates/list"));
-chk("backend uses pdfkit", quotesSrc.includes("pdfkit"), true, quotesSrc.includes("pdfkit"));
-chk("backend has calcLineItem", quotesSrc.includes("calcLineItem"), true, quotesSrc.includes("calcLineItem"));
-chk("backend send auto-generates PDF", quotesSrc.includes("pdf_file_path") && quotesSrc.includes('"sent"'), true, quotesSrc.includes("pdf_file_path") && quotesSrc.includes('"sent"'));
-chk("backend validates nested items", quotesSrc.includes("if (item.quantity !== undefined && Number(item.quantity) < 0)"), true, quotesSrc.includes("item.quantity !== undefined"));
-chk("backend validates nested item types", quotesSrc.includes("!ALLOWED_TYPES.includes(item.item_type)"), true, quotesSrc.includes("!ALLOWED_TYPES.includes(item.item_type)"));
-chk("backend quote number retries on collision", quotesSrc.includes("while (attempts < 100)"), true, quotesSrc.includes("while (attempts < 100)"));
+const backendSrc = readFileSync(resolve(ROOT, "server/routes/quotes.js"), "utf-8");
+chk("backend has atomic create", backendSrc.includes("createTransaction"), true, backendSrc.includes("createTransaction"));
+chk("backend has submit-review", backendSrc.includes("submit-review"), true, backendSrc.includes("submit-review"));
+chk("backend has approve", backendSrc.includes("/approve"), true, backendSrc.includes("/approve"));
+chk("backend has reject-review", backendSrc.includes("reject-review"), true, backendSrc.includes("reject-review"));
+chk("backend has generate-pdf", backendSrc.includes("generate-pdf"), true, backendSrc.includes("generate-pdf"));
+chk("backend has send endpoint", backendSrc.includes("/send"), true, backendSrc.includes("/send"));
+chk("backend has convert-to-project", backendSrc.includes("convert-to-project"), true, backendSrc.includes("convert-to-project"));
+chk("backend has templates list", backendSrc.includes("templates/list"), true, backendSrc.includes("templates/list"));
+chk("backend uses pdfkit", backendSrc.includes("pdfkit"), true, backendSrc.includes("pdfkit"));
+chk("backend has calcLineItem", backendSrc.includes("calcLineItem"), true, backendSrc.includes("calcLineItem"));
+chk("backend send auto-generates PDF", backendSrc.includes("pdf_file_path") && backendSrc.includes('"sent"'), true, backendSrc.includes("pdf_file_path") && backendSrc.includes('"sent"'));
+chk("backend validates nested items", backendSrc.includes("if (item.quantity !== undefined && Number(item.quantity) < 0)"), true, backendSrc.includes("item.quantity !== undefined"));
+chk("backend validates nested item types", backendSrc.includes("!ALLOWED_TYPES.includes(item.item_type)"), true, backendSrc.includes("!ALLOWED_TYPES.includes(item.item_type)"));
+chk("backend quote number retries on collision", backendSrc.includes("while (attempts < 100)"), true, backendSrc.includes("while (attempts < 100)"));
+chk("Shared PDF generator function exists", backendSrc.includes("async function generateQuotePdf"), true, backendSrc.includes("async function generateQuotePdf"));
+chk("send uses shared PDF helper", backendSrc.includes("await generateQuotePdf(db, "), true, backendSrc.includes("await generateQuotePdf(db, "));
 
 // ── Migration UNIQUE checks ──
 chk("migration has UNIQUE index on quote_number", migrateSrc.includes("CREATE UNIQUE INDEX"), true, migrateSrc.includes("CREATE UNIQUE INDEX"));
@@ -272,6 +274,26 @@ chk("migration template prices are zero", migrateSrc.includes('price: 0'), true,
 // ── Frontend structural checks ──
 const qrSrc = readFileSync(resolve(ROOT, "src/pages/platform/QuoteRequests.tsx"), "utf-8");
 chk("QuoteRequests page has Create Quote From Request", qrSrc.includes("Create Quote From Request"), true, qrSrc.includes("Create Quote From Request"));
+
+const quotesSrc = readFileSync(resolve(ROOT, "src/pages/platform/Quotes.tsx"), "utf-8");
+chk("Quotes page has Builder tab", quotesSrc.includes('"builder"'), true, quotesSrc.includes('"builder"'));
+chk("Quotes page has Templates tab", quotesSrc.includes('"templates"'), true, quotesSrc.includes('"templates"'));
+chk("Quotes page has Sent/Accepted tab", quotesSrc.includes('"sent-accepted"'), true, quotesSrc.includes('"sent-accepted"'));
+chk("Client step exists", quotesSrc.includes('builderStep === "client"'), true, quotesSrc.includes('builderStep === "client"'));
+chk("Project step exists", quotesSrc.includes('builderStep === "project"'), true, quotesSrc.includes('builderStep === "project"'));
+chk("Scope step exists", quotesSrc.includes('builderStep === "scope"'), true, quotesSrc.includes('builderStep === "scope"'));
+chk("Line items step exists", quotesSrc.includes('builderStep === "items"'), true, quotesSrc.includes('builderStep === "items"'));
+chk("Terms step exists", quotesSrc.includes('builderStep === "terms"'), true, quotesSrc.includes('builderStep === "terms"'));
+chk("Review step exists", quotesSrc.includes('builderStep === "review"'), true, quotesSrc.includes('builderStep === "review"'));
+chk("Final PDF step exists", quotesSrc.includes('builderStep === "pdf"'), true, quotesSrc.includes('builderStep === "pdf"'));
+chk("Export PDF button exists", quotesSrc.includes("Export PDF"), true, quotesSrc.includes("Export PDF"));
+chk("Print button exists", quotesSrc.includes(".print"), true, quotesSrc.includes(".print"));
+chk("Submit for Review button exists", quotesSrc.includes("Submit for Review"), true, quotesSrc.includes("Submit for Review"));
+chk("Approve button exists", quotesSrc.includes('"approve"'), true, quotesSrc.includes('"approve"'));
+chk("Send Quote button gated by approved", quotesSrc.includes('"approved"') && quotesSrc.includes("send"), true, quotesSrc.includes('"approved"') && quotesSrc.includes("send"));
+chk("Templates UI can start quote from template", quotesSrc.includes("startFromTemplate"), true, quotesSrc.includes("startFromTemplate"));
+chk("Create Quote From Request prefills data", quotesSrc.includes("prefill"), true, quotesSrc.includes("prefill"));
+
 
 console.log(`\nPhase 8H: ${pass} passed, ${fail} failed (${pass + fail} total)`);
 if (fail > 0) process.exit(1);

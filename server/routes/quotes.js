@@ -392,183 +392,112 @@ router.post("/:id/reject-review", (req, res) => {
   } catch (err) { console.error("Error rejecting review:", err.message); res.status(500).json({ error: "Failed to reject review" }); }
 });
 
+// ── Shared PDF Generation ────────────────────────────────────
+async function generateQuotePdf(db, quoteId, userId) {
+  const quote = getFullQuote(db, quoteId);
+  if (!quote) throw new Error("Quote not found");
+
+  const PDFDocument = require2("pdfkit");
+  const doc = new PDFDocument({ size: "A4", margin: 50 });
+  const pdfDir = path.join(__dirname, "..", "..", "data", "generated", "quotes");
+  if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
+
+  const fileName = `TNA-QUOTE-${quote.quote_number}-R${quote.revision_number || 1}.pdf`;
+  const filePath = path.join(pdfDir, fileName);
+  const writeStream = fs.createWriteStream(filePath);
+  doc.pipe(writeStream);
+
+  doc.fontSize(22).font("Helvetica-Bold").text("TNA Provider", 50, 50);
+  doc.fontSize(10).font("Helvetica").text("ABN: 00 000 000 000", 50, 78).text("Unit 6, 7-9 Gibbon St, Wetherill Park NSW 2164", 50, 92).text("info@tnaprovider.com.au", 50, 106).text("1300 000 000", 50, 120);
+  doc.fontSize(14).font("Helvetica-Bold").text("QUOTE", 400, 50);
+  doc.fontSize(10).font("Helvetica").text(`Quote #: ${quote.quote_number}`, 400, 70).text(`Revision: ${quote.revision_number || 1}`, 400, 84).text(`Date: ${quote.quote_date ? new Date(quote.quote_date).toLocaleDateString("en-AU") : new Date().toLocaleDateString("en-AU")}`, 400, 98).text(`Valid Until: ${quote.valid_until ? new Date(quote.valid_until).toLocaleDateString("en-AU") : "30 days"}`, 400, 112);
+  doc.moveDown(2);
+  doc.fontSize(12).font("Helvetica-Bold").text("Bill To:");
+  doc.fontSize(10).font("Helvetica");
+  if (quote.client_name) doc.text(quote.client_name);
+  if (quote.client_company) doc.text(quote.client_company);
+  if (quote.client_address) doc.text(quote.client_address);
+  if (quote.client_email) doc.text(quote.client_email);
+  if (quote.client_phone) doc.text(quote.client_phone);
+  if (quote.project_name) { doc.moveDown(0.5); doc.fontSize(12).font("Helvetica-Bold").text("Project:"); doc.fontSize(10).font("Helvetica").text(quote.project_name); if (quote.project_location) doc.text(quote.project_location); }
+  if (quote.scope) { doc.moveDown(0.5); doc.fontSize(12).font("Helvetica-Bold").text("Scope of Works:"); doc.fontSize(10).font("Helvetica").text(quote.scope, { width: 495 }); }
+  doc.moveDown(1);
+
+  const tableTop = doc.y;
+  const colX = { item: 50, qty: 350, unit: 390, price: 430, total: 480 };
+  doc.fontSize(10).font("Helvetica-Bold");
+  doc.text("Description", colX.item, tableTop, { width: 300 });
+  doc.text("Qty", colX.qty, tableTop, { width: 40, align: "center" });
+  doc.text("Unit", colX.unit, tableTop, { width: 40, align: "center" });
+  doc.text("Price", colX.price, tableTop, { width: 50, align: "right" });
+  doc.text("Total", colX.total, tableTop, { width: 60, align: "right" });
+  doc.moveTo(50, doc.y + 5).lineTo(545, doc.y + 5).stroke("#cccccc");
+  doc.fontSize(9).font("Helvetica");
+  let y = doc.y + 10;
+
+  for (const section of quote.sections || []) {
+    const sectionItems = (quote.items || []).filter(i => i.section_id === section.id);
+    if (sectionItems.length === 0) continue;
+    doc.fontSize(10).font("Helvetica-Bold").text(section.title, 50, y);
+    y = doc.y + 8;
+    for (const item of sectionItems) {
+      const calc = calcLineItem(item);
+      if (y > 700) { doc.addPage(); y = 50; }
+      doc.fontSize(9).font("Helvetica");
+      doc.text(item.description || item.name || "", colX.item, y, { width: 300 });
+      doc.text(String(item.quantity || 1), colX.qty, y, { width: 40, align: "center" });
+      doc.text(item.unit || "each", colX.unit, y, { width: 40, align: "center" });
+      doc.text(`$${round(Number(item.unit_price) || 0).toFixed(2)}`, colX.price, y, { width: 50, align: "right" });
+      doc.text(`$${calc.subtotal.toFixed(2)}`, colX.total, y, { width: 60, align: "right" });
+      y = doc.y + 18;
+    }
+  }
+
+  y = Math.max(y + 10, doc.y + 20);
+  if (y > 720) { doc.addPage(); y = 50; }
+  doc.moveTo(350, y).lineTo(545, y).stroke("#cccccc"); y += 10;
+  doc.fontSize(10).font("Helvetica");
+  doc.text("Subtotal:", 350, y, { width: 145, align: "right" }); doc.text(`$${(quote.subtotal || 0).toFixed(2)}`, 350, y, { width: 195, align: "right" }); y += 16;
+  if (quote.discount_total > 0) { doc.text("Discount:", 350, y, { width: 145, align: "right" }); doc.text(`-$${(quote.discount_total || 0).toFixed(2)}`, 350, y, { width: 195, align: "right" }); y += 16; }
+  doc.text("GST:", 350, y, { width: 145, align: "right" }); doc.text(`$${(quote.gst || 0).toFixed(2)}`, 350, y, { width: 195, align: "right" }); y += 16;
+  doc.moveTo(350, y).lineTo(545, y).stroke("#cccccc"); y += 10;
+  doc.fontSize(12).font("Helvetica-Bold");
+  doc.text("Total:", 350, y, { width: 145, align: "right" }); doc.text(`$${(quote.total || 0).toFixed(2)}`, 350, y, { width: 195, align: "right" });
+  y = Math.max(y + 60, doc.y + 40);
+
+  if (quote.terms || quote.payment_terms) { doc.fontSize(12).font("Helvetica-Bold").text("Terms & Conditions", 50, y); y = doc.y + 10; doc.fontSize(9).font("Helvetica"); if (quote.payment_terms) doc.text(`Payment Terms: ${quote.payment_terms}`, 50, y, { width: 495 }); y = doc.y + 5; if (quote.terms) doc.text(quote.terms, 50, y, { width: 495 }); y = doc.y + 15; }
+  if (quote.inclusions) { doc.fontSize(10).font("Helvetica-Bold").text("Inclusions:", 50, y); y = doc.y + 5; doc.fontSize(9).font("Helvetica").text(quote.inclusions, 50, y, { width: 495 }); y = doc.y + 15; }
+  if (quote.exclusions) { doc.fontSize(10).font("Helvetica-Bold").text("Exclusions:", 50, y); y = doc.y + 5; doc.fontSize(9).font("Helvetica").text(quote.exclusions, 50, y, { width: 495 }); y = doc.y + 15; }
+  if (quote.warranty) { doc.fontSize(10).font("Helvetica-Bold").text("Warranty:", 50, y); y = doc.y + 5; doc.fontSize(9).font("Helvetica").text(quote.warranty, 50, y, { width: 495 }); y = doc.y + 15; }
+  if (quote.notes) { doc.fontSize(10).font("Helvetica-Bold").text("Notes:", 50, y); y = doc.y + 5; doc.fontSize(9).font("Helvetica").text(quote.notes, 50, y, { width: 495 }); y = doc.y + 15; }
+
+  y = Math.max(y + 20, doc.y + 20);
+  if (y > 700) { doc.addPage(); y = 50; }
+  doc.moveTo(50, y).lineTo(300, y).stroke(); y += 5;
+  doc.fontSize(10).font("Helvetica-Bold").text("Acceptance of Quote", 50, y); y += 16;
+  doc.fontSize(9).font("Helvetica").text("I/We accept the above quote and agree to the terms and conditions outlined.", 50, y, { width: 495 }); y += 20;
+  doc.text("Signed: ______________________________", 50, y); doc.text("Date: ______________________________", 280, y); y += 20;
+  doc.text("Name: ______________________________", 50, y); doc.text("Company: ______________________________", 280, y);
+  doc.fontSize(8).font("Helvetica").fillColor("#999999");
+  doc.text(`TNA Provider | ${quote.quote_number} | Revision ${quote.revision_number || 1}`, 50, 780, { align: "center", width: 495 });
+  doc.end();
+  await new Promise((resolve) => writeStream.on("finish", resolve));
+
+  const docId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  db.prepare("UPDATE quotes SET pdf_file_path = ?, pdf_generated_at = ?, updated_at = ? WHERE id = ?").run(filePath, now, now, quoteId);
+  db.prepare("INSERT INTO quote_documents (id, quote_id, document_type, file_name, file_path, revision_number, generated_by, generated_at) VALUES (?, ?, 'pdf', ?, ?, ?, ?, ?)").run(docId, quoteId, fileName, filePath, quote.revision_number || 1, userId, now);
+  return { documentId: docId, fileName, filePath, url: `/api/quotes/${quoteId}/pdf` };
+}
+
 // ── PDF Generation ───────────────────────────────────────────
 router.post("/:id/generate-pdf", async (req, res) => {
   try {
     if (!isMgmt(req.user)) return res.status(403).json({ error: "Access denied" });
     const db = getDb();
-    const quote = getFullQuote(db, req.params.id);
-    if (!quote) return res.status(404).json({ error: "Quote not found" });
-
-    const PDFDocument = require2("pdfkit");
-    const doc = new PDFDocument({ size: "A4", margin: 50 });
-    const pdfDir = path.join(__dirname, "..", "..", "data", "generated", "quotes");
-    if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
-
-    const fileName = `TNA-QUOTE-${quote.quote_number}-R${quote.revision_number || 1}.pdf`;
-    const filePath = path.join(pdfDir, fileName);
-    const writeStream = fs.createWriteStream(filePath);
-    doc.pipe(writeStream);
-
-    // Header
-    doc.fontSize(22).font("Helvetica-Bold").text("TNA Provider", 50, 50);
-    doc.fontSize(10).font("Helvetica").text("ABN: 00 000 000 000", 50, 78).text("Unit 6, 7-9 Gibbon St, Wetherill Park NSW 2164", 50, 92).text("info@tnaprovider.com.au", 50, 106).text("1300 000 000", 50, 120);
-
-    // Quote number / date block
-    doc.fontSize(14).font("Helvetica-Bold").text("QUOTE", 400, 50);
-    doc.fontSize(10).font("Helvetica").text(`Quote #: ${quote.quote_number}`, 400, 70).text(`Revision: ${quote.revision_number || 1}`, 400, 84).text(`Date: ${quote.quote_date ? new Date(quote.quote_date).toLocaleDateString("en-AU") : new Date().toLocaleDateString("en-AU")}`, 400, 98).text(`Valid Until: ${quote.valid_until ? new Date(quote.valid_until).toLocaleDateString("en-AU") : "30 days"}`, 400, 112);
-
-    doc.moveDown(2);
-
-    // Client details
-    doc.fontSize(12).font("Helvetica-Bold").text("Bill To:");
-    doc.fontSize(10).font("Helvetica");
-    if (quote.client_name) doc.text(quote.client_name);
-    if (quote.client_company) doc.text(quote.client_company);
-    if (quote.client_address) doc.text(quote.client_address);
-    if (quote.client_email) doc.text(quote.client_email);
-    if (quote.client_phone) doc.text(quote.client_phone);
-
-    // Project details
-    if (quote.project_name) {
-      doc.moveDown(0.5);
-      doc.fontSize(12).font("Helvetica-Bold").text("Project:");
-      doc.fontSize(10).font("Helvetica").text(quote.project_name);
-      if (quote.project_location) doc.text(quote.project_location);
-    }
-
-    // Scope
-    if (quote.scope) {
-      doc.moveDown(0.5);
-      doc.fontSize(12).font("Helvetica-Bold").text("Scope of Works:");
-      doc.fontSize(10).font("Helvetica").text(quote.scope, { width: 495 });
-    }
-
-    doc.moveDown(1);
-
-    // Line items table
-    const tableTop = doc.y;
-    const colX = { item: 50, qty: 350, unit: 390, price: 430, total: 480 };
-    const colWidths = { item: 300, qty: 40, unit: 40, price: 50, total: 60 };
-
-    doc.fontSize(10).font("Helvetica-Bold");
-    doc.text("Description", colX.item, tableTop, { width: colWidths.item });
-    doc.text("Qty", colX.qty, tableTop, { width: colWidths.qty, align: "center" });
-    doc.text("Unit", colX.unit, tableTop, { width: colWidths.unit, align: "center" });
-    doc.text("Price", colX.price, tableTop, { width: colWidths.price, align: "right" });
-    doc.text("Total", colX.total, tableTop, { width: colWidths.total, align: "right" });
-
-    doc.moveTo(50, doc.y + 5).lineTo(545, doc.y + 5).stroke("#cccccc");
-
-    doc.fontSize(9).font("Helvetica");
-    let y = doc.y + 10;
-    const sections = quote.sections || [];
-
-    for (const section of sections) {
-      const sectionItems = (quote.items || []).filter(i => i.section_id === section.id);
-      if (sectionItems.length === 0) continue;
-
-      // Section header
-      doc.fontSize(10).font("Helvetica-Bold").text(section.title, 50, y);
-      y = doc.y + 8;
-
-      for (const item of sectionItems) {
-        const calc = calcLineItem(item);
-        if (y > 700) { doc.addPage(); y = 50; }
-
-        doc.fontSize(9).font("Helvetica");
-        doc.text(item.description || item.name || "", colX.item, y, { width: colWidths.item });
-        doc.text(String(item.quantity || 1), colX.qty, y, { width: colWidths.qty, align: "center" });
-        doc.text(item.unit || "each", colX.unit, y, { width: colWidths.unit, align: "center" });
-        doc.text(`$${round(Number(item.unit_price) || 0).toFixed(2)}`, colX.price, y, { width: colWidths.price, align: "right" });
-        doc.text(`$${calc.subtotal.toFixed(2)}`, colX.total, y, { width: colWidths.total, align: "right" });
-        y = doc.y + 18;
-      }
-    }
-
-    // Totals
-    y = Math.max(y + 10, doc.y + 20);
-    if (y > 720) { doc.addPage(); y = 50; }
-
-    doc.moveTo(350, y).lineTo(545, y).stroke("#cccccc");
-    y += 10;
-
-    doc.fontSize(10).font("Helvetica");
-    doc.text("Subtotal:", 350, y, { width: 145, align: "right" });
-    doc.text(`$${(quote.subtotal || 0).toFixed(2)}`, 350, y, { width: 195, align: "right" });
-    y += 16;
-
-    if (quote.discount_total > 0) {
-      doc.text("Discount:", 350, y, { width: 145, align: "right" });
-      doc.text(`-$${(quote.discount_total || 0).toFixed(2)}`, 350, y, { width: 195, align: "right" });
-      y += 16;
-    }
-
-    doc.text("GST:", 350, y, { width: 145, align: "right" });
-    doc.text(`$${(quote.gst || 0).toFixed(2)}`, 350, y, { width: 195, align: "right" });
-    y += 16;
-
-    doc.moveTo(350, y).lineTo(545, y).stroke("#cccccc");
-    y += 10;
-
-    doc.fontSize(12).font("Helvetica-Bold");
-    doc.text("Total:", 350, y, { width: 145, align: "right" });
-    doc.text(`$${(quote.total || 0).toFixed(2)}`, 350, y, { width: 195, align: "right" });
-
-    y = Math.max(y + 60, doc.y + 40);
-
-    // Terms
-    if (quote.terms || quote.payment_terms) {
-      doc.fontSize(12).font("Helvetica-Bold").text("Terms & Conditions", 50, y);
-      y = doc.y + 10;
-      doc.fontSize(9).font("Helvetica");
-      if (quote.payment_terms) doc.text(`Payment Terms: ${quote.payment_terms}`, 50, y, { width: 495 });
-      y = doc.y + 5;
-      if (quote.terms) doc.text(quote.terms, 50, y, { width: 495 });
-      y = doc.y + 15;
-    }
-
-    // Inclusions / Exclusions
-    if (quote.inclusions) { doc.fontSize(10).font("Helvetica-Bold").text("Inclusions:", 50, y); y = doc.y + 5; doc.fontSize(9).font("Helvetica").text(quote.inclusions, 50, y, { width: 495 }); y = doc.y + 15; }
-    if (quote.exclusions) { doc.fontSize(10).font("Helvetica-Bold").text("Exclusions:", 50, y); y = doc.y + 5; doc.fontSize(9).font("Helvetica").text(quote.exclusions, 50, y, { width: 495 }); y = doc.y + 15; }
-
-    // Warranty
-    if (quote.warranty) { doc.fontSize(10).font("Helvetica-Bold").text("Warranty:", 50, y); y = doc.y + 5; doc.fontSize(9).font("Helvetica").text(quote.warranty, 50, y, { width: 495 }); y = doc.y + 15; }
-
-    // Notes
-    if (quote.notes) { doc.fontSize(10).font("Helvetica-Bold").text("Notes:", 50, y); y = doc.y + 5; doc.fontSize(9).font("Helvetica").text(quote.notes, 50, y, { width: 495 }); y = doc.y + 15; }
-
-    // Acceptance
-    y = Math.max(y + 20, doc.y + 20);
-    if (y > 700) { doc.addPage(); y = 50; }
-    doc.moveTo(50, y).lineTo(300, y).stroke();
-    y += 5;
-    doc.fontSize(10).font("Helvetica-Bold").text("Acceptance of Quote", 50, y);
-    y += 16;
-    doc.fontSize(9).font("Helvetica").text("I/We accept the above quote and agree to the terms and conditions outlined.", 50, y, { width: 495 });
-    y += 20;
-    doc.text("Signed: ______________________________", 50, y);
-    doc.text("Date: ______________________________", 280, y);
-    y += 20;
-    doc.text("Name: ______________________________", 50, y);
-    doc.text("Company: ______________________________", 280, y);
-
-    // Footer
-    doc.fontSize(8).font("Helvetica").fillColor("#999999");
-    doc.text(`TNA Provider | ${quote.quote_number} | Revision ${quote.revision_number || 1} | Page ${doc.bufferedPageRange().count}`, 50, 780, { align: "center", width: 495 });
-
-    doc.end();
-
-    await new Promise((resolve) => writeStream.on("finish", resolve));
-
-    // Record document
-    const docId = crypto.randomUUID();
-    const now = new Date().toISOString();
-    db.prepare("UPDATE quotes SET pdf_file_path = ?, pdf_generated_at = ?, updated_at = ? WHERE id = ?").run(filePath, now, now, req.params.id);
-    db.prepare("INSERT INTO quote_documents (id, quote_id, document_type, file_name, file_path, revision_number, generated_by, generated_at) VALUES (?, ?, 'pdf', ?, ?, ?, ?, ?)").run(docId, req.params.id, fileName, filePath, quote.revision_number || 1, req.user.userId, now);
-
-    audit(res, "quote_pdf_generated", "quote", req.params.id, { fileName });
-    res.json({ documentId: docId, fileName, url: `/api/quotes/${req.params.id}/pdf` });
+    const result = await generateQuotePdf(db, req.params.id, req.user.userId);
+    audit(res, "quote_pdf_generated", "quote", req.params.id, { fileName: result.fileName });
+    res.json(result);
   } catch (err) { console.error("Error generating PDF:", err.message); res.status(500).json({ error: "Failed to generate PDF" }); }
 });
 
@@ -595,25 +524,9 @@ router.post("/:id/send", async (req, res) => {
     if (!q) return res.status(404).json({ error: "Quote not found" });
     if (q.status !== "approved") return res.status(400).json({ error: "Only approved quotes can be sent" });
     const now = new Date().toISOString();
-    // Auto-generate PDF if missing
+    // Auto-generate full professional PDF if missing
     if (!q.pdf_file_path) {
-      const PDFDocument = require2("pdfkit");
-      const doc = new PDFDocument({ size: "A4", margin: 50 });
-      const pdfDir = path.join(__dirname, "..", "..", "data", "generated", "quotes");
-      if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
-      const fileName = `TNA-QUOTE-${q.quote_number}-R${q.revision_number || 1}.pdf`;
-      const filePath = path.join(pdfDir, fileName);
-      const writeStream = fs.createWriteStream(filePath);
-      doc.pipe(writeStream);
-      doc.fontSize(22).font("Helvetica-Bold").text("TNA Provider", 50, 50);
-      doc.fontSize(10).font("Helvetica").text(`Quote #: ${q.quote_number}`, 400, 50);
-      doc.fontSize(12).font("Helvetica-Bold").text(`Total: $${(q.total || 0).toFixed(2)}`, 50, 150);
-      doc.text("PDF auto-generated on send.");
-      doc.end();
-      await new Promise((resolve) => writeStream.on("finish", resolve));
-      const docId = crypto.randomUUID();
-      db.prepare("UPDATE quotes SET pdf_file_path = ?, pdf_generated_at = ?, updated_at = ? WHERE id = ?").run(filePath, now, now, req.params.id);
-      db.prepare("INSERT INTO quote_documents (id, quote_id, document_type, file_name, file_path, revision_number, generated_by, generated_at) VALUES (?, ?, 'pdf', ?, ?, ?, ?, ?)").run(docId, req.params.id, fileName, filePath, q.revision_number || 1, req.user.userId, now);
+      await generateQuotePdf(db, req.params.id, req.user.userId);
     }
     db.prepare("UPDATE quotes SET status = 'sent', sent_at = ?, sent_to_email = ?, updated_at = ? WHERE id = ?").run(now, q.client_email || null, now, req.params.id);
     addReviewEvent(db, req.params.id, "approved", "sent", "Quote sent via system", req.user.userId);
