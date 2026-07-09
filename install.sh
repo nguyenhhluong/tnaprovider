@@ -242,7 +242,6 @@ else
     log "Node.js installed: $(node -v)"
   fi
 fi
-npm install -g npm@latest 2>/dev/null || true
 log "npm: $(npm -v)"
 
 # ── Install Caddy ─────────────────────────────────────────────
@@ -252,20 +251,17 @@ if command -v caddy &>/dev/null; then
   log "Caddy already installed: $(caddy version)"
 else
   if $CLI_DRY_RUN; then
-    log "Would install Caddy"
+    log "Would install Caddy via official apt repo"
   else
-    curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null \
+    apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https 2>/dev/null || true
+    curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \
       || die "Caddy GPG key download failed"
-    curl -fsSL "https://dl.cloudsmith.io/public/caddy/stable/deb/debian/pool/any-${OS_ID}/caddy/caddy_2.9.1_amd64.deb" -o /tmp/caddy.deb 2>/dev/null \
-      || curl -fsSL "https://caddyserver.com/api/download?os=linux&arch=amd64" -o /tmp/caddy.deb 2>/dev/null \
-      || die "Caddy download failed"
-    dpkg -i /tmp/caddy.deb 2>/dev/null || {
-      curl -fsSL "https://github.com/caddyserver/caddy/releases/latest/download/caddy_linux_amd64.tar.gz" -o /tmp/caddy.tar.gz
-      tar -xzf /tmp/caddy.tar.gz -C /usr/local/bin/ caddy
-      chmod +x /usr/local/bin/caddy
-      groupadd --system caddy 2>/dev/null || true
-      useradd --system --gid caddy --create-home --home-dir /var/lib/caddy --shell /usr/sbin/nologin caddy 2>/dev/null || true
-    }
+    curl -fsSL https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt -o /etc/apt/sources.list.d/caddy-stable.list \
+      || die "Caddy apt source download failed"
+    apt-get update -qq || die "apt-get update failed"
+    apt-get install -y -qq caddy || die "Caddy installation failed"
+    systemctl enable caddy 2>/dev/null || true
+    systemctl start caddy 2>/dev/null || true
     log "Caddy installed: $(caddy version)"
   fi
 fi
@@ -276,7 +272,6 @@ progress
 if $CLI_DRY_RUN; then
   log "Would configure UFW: allow OpenSSH, 80/tcp, 443/tcp"
 else
-  ufw --force reset 2>/dev/null || true
   ufw default deny incoming
   ufw default allow outgoing
   ufw allow OpenSSH
@@ -466,7 +461,8 @@ CADDYEOF
   log "Caddyfile written"
   caddy validate --config "$CADDYFILE" || die "Caddyfile validation failed"
   log "Caddyfile validated"
-  systemctl reload caddy 2>/dev/null || systemctl restart caddy || warn "Caddy restart had issues"
+  systemctl reload caddy 2>/dev/null || systemctl restart caddy || die "Caddy reload/restart failed"
+  systemctl is-active --quiet caddy || die "Caddy is not active"
   log "Caddy reloaded"
 fi
 
@@ -690,43 +686,60 @@ progress
 if $CLI_DRY_RUN; then
   log "Would run smoke tests"
 else
-  smoke_ok=true
+  # Fatal core checks
+  systemctl is-active --quiet tnaprovider || die "tnaprovider service not active"
+  log "tnaprovider service active"
+  systemctl is-active --quiet caddy || die "caddy service not active"
+  log "caddy service active"
 
-  systemctl is-active --quiet tnaprovider || { warn "tnaprovider service not active"; smoke_ok=false; }
-  systemctl is-active --quiet caddy || { warn "caddy service not active"; smoke_ok=false; }
+  curl -fsS "http://127.0.0.1:${TNA_PORT}/" >/dev/null || die "Local app not responding on port ${TNA_PORT}"
+  log "Local app responding on port ${TNA_PORT}"
 
-  if curl -fsS "http://127.0.0.1:${TNA_PORT}/" >/dev/null 2>&1; then
-    log "Local app responding on port ${TNA_PORT}"
+  # HTTPS checks with retry (5 attempts, 5s apart)
+  if [[ -z "${CLOUDFLARE_API_TOKEN:-}" && $CLI_SKIP_CLOUDFLARE == false ]]; then
+    log "Skipping HTTPS checks (no Cloudflare DNS configured)"
   else
-    warn "Local app not responding"
-    smoke_ok=false
+    https_ok=true
+    for domain in "${TNA_DOMAIN}" "${TNA_APP_DOMAIN}"; do
+      for attempt in 1 2 3 4 5; do
+        if curl -sI "https://${domain}/" --max-time 10 >/dev/null 2>&1; then
+          log "HTTPS working for ${domain} (attempt ${attempt})"
+          break
+        fi
+        if [[ $attempt -eq 5 ]]; then
+          if $CLI_SKIP_CLOUDFLARE; then
+            warn "HTTPS check for ${domain} failed (DNS may not be configured)"
+          else
+            die "HTTPS check for ${domain} failed after 5 attempts"
+          fi
+          https_ok=false
+        else
+          sleep 5
+        fi
+      done
+    done
+
+    # PWA asset checks with retry
+    for asset in manifest.webmanifest sw.js offline.html; do
+      for attempt in 1 2 3 4 5; do
+        if curl -sI "https://${TNA_APP_DOMAIN}/${asset}" --max-time 10 >/dev/null 2>&1; then
+          log "PWA asset available: ${asset} (attempt ${attempt})"
+          break
+        fi
+        if [[ $attempt -eq 5 ]]; then
+          if $CLI_SKIP_CLOUDFLARE; then
+            warn "PWA asset ${asset} not reachable (DNS may not be configured)"
+          else
+            die "PWA asset ${asset} not reachable after 5 attempts"
+          fi
+        else
+          sleep 5
+        fi
+      done
+    done
   fi
 
-  if curl -sI "https://${TNA_DOMAIN}/" --max-time 10 >/dev/null 2>&1; then
-    log "HTTPS working for ${TNA_DOMAIN}"
-  else
-    warn "HTTPS check for ${TNA_DOMAIN} failed (may still be provisioning certs)"
-  fi
-
-  if curl -sI "https://${TNA_APP_DOMAIN}/" --max-time 10 >/dev/null 2>&1; then
-    log "HTTPS working for ${TNA_APP_DOMAIN}"
-  else
-    warn "HTTPS check for ${TNA_APP_DOMAIN} failed"
-  fi
-
-  for asset in manifest.webmanifest sw.js offline.html; do
-    if curl -sI "https://${TNA_APP_DOMAIN}/${asset}" --max-time 10 >/dev/null 2>&1; then
-      log "PWA asset available: ${asset}"
-    else
-      warn "PWA asset ${asset} not reachable"
-    fi
-  done
-
-  if $smoke_ok; then
-    log "Smoke tests passed"
-  else
-    warn "Some smoke tests failed (may be due to DNS/SSL propagation)"
-  fi
+  log "Smoke tests passed"
 fi
 
 # ── Final summary ────────────────────────────────────────────
