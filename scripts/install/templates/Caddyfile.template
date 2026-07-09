@@ -1,0 +1,26 @@
+# TNA Provider — Caddyfile Template
+# Replace {{TNA_DOMAIN}}, {{TNA_APP_DOMAIN}}, {{TNA_HOST}}, {{TNA_PORT}}
+
+{
+    email admin@{{TNA_DOMAIN}}
+}
+
+{{TNA_DOMAIN}}, www.{{TNA_DOMAIN}} {
+    encode zstd gzip
+    reverse_proxy {{TNA_HOST}}:{{TNA_PORT}}
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
+
+{{TNA_APP_DOMAIN}} {
+    encode zstd gzip
+    reverse_proxy {{TNA_HOST}}:{{TNA_PORT}}
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}

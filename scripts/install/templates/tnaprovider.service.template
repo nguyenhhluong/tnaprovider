@@ -1,0 +1,28 @@
+# TNA Provider — systemd Service Template
+# Replace {{TNA_APP_USER}}, {{TNA_INSTALL_DIR}}, {{TNA_ENV_FILE}}
+# Install to: /etc/systemd/system/tnaprovider.service
+
+[Unit]
+Description=TNA Provider
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{TNA_APP_USER}}
+Group={{TNA_APP_USER}}
+WorkingDirectory={{TNA_INSTALL_DIR}}
+EnvironmentFile={{TNA_ENV_FILE}}
+ExecStart=/usr/bin/node {{TNA_INSTALL_DIR}}/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths={{TNA_INSTALL_DIR}} /var/lib/tnaprovider /var/log/tnaprovider /var/backups/tnaprovider
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -26,7 +26,8 @@
     "test:phase8d": "node scripts/qa/phase8d-worker-profile-timesheet-review.mjs",
     "test:phase8c": "node scripts/qa/phase8c-qr-quick-checkin-checkout.mjs",
     "test:phase8e": "node scripts/qa/phase8e-timesheet-history.mjs",
-    "test:phase8f": "node scripts/qa/phase8f-offline-pwa.mjs"
+    "test:phase8f": "node scripts/qa/phase8f-offline-pwa.mjs",
+    "test:install": "node scripts/qa/install-script-static-check.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
