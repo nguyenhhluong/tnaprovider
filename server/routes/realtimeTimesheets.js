@@ -1065,10 +1065,33 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
   try {
   const db = getDb();
   const { qrToken } = req.params;
-  const { action } = req.body || {};
+  const { action, idempotencyKey, clientCreatedAt } = req.body || {};
 
   if (!action || !["check_in", "check_out", "start_break", "end_break"].includes(action)) {
     return res.status(400).json({ error: "Invalid action. Must be: check_in, check_out, start_break, end_break" });
+  }
+
+  // Idempotency: check if this was already processed
+  if (idempotencyKey) {
+    // Stale action check (>24 hours old)
+    if (clientCreatedAt) {
+      const age = Date.now() - new Date(clientCreatedAt).getTime();
+      if (age > 24 * 60 * 60 * 1000) {
+        return res.status(400).json({ error: "Offline action is too old. Please contact admin." });
+      }
+    }
+
+    const existing = db.prepare("SELECT * FROM offline_action_receipts WHERE user_id = ? AND idempotency_key = ?").get(req.user.userId, idempotencyKey);
+    if (existing) {
+      let resultData;
+      try { resultData = JSON.parse(existing.result_json); } catch { resultData = {}; }
+      return res.json({
+        success: true,
+        synced: true,
+        duplicate: true,
+        ...resultData,
+      });
+    }
   }
 
   const site = db.prepare("SELECT id, name, address, timezone FROM work_sites WHERE qr_token = ? AND qr_enabled = 1 AND is_active = 1").get(qrToken);
@@ -1076,6 +1099,18 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
 
   const userId = req.user.userId;
   const now = new Date().toISOString();
+
+  // Determine event source
+  const source = idempotencyKey ? "offline_qr" : "qr";
+
+  function storeReceipt(shiftSessionId, resultStatus, resultData) {
+    if (!idempotencyKey) return;
+    const receiptId = crypto.randomUUID();
+    db.prepare(`
+      INSERT OR IGNORE INTO offline_action_receipts (id, user_id, idempotency_key, qr_token, action, client_created_at, server_processed_at, shift_session_id, result_status, result_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(receiptId, userId, idempotencyKey, qrToken, action, clientCreatedAt || null, now, shiftSessionId || null, resultStatus, JSON.stringify(resultData || {}), now);
+  }
 
   if (action === "check_in") {
     // Block client
@@ -1107,13 +1142,18 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
 
     db.prepare(`
       INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-      VALUES (?, ?, ?, 'check_in', ?, 'qr', ?)
-    `).run(eventId, shiftId, userId, now, now);
+      VALUES (?, ?, ?, 'check_in', ?, ?, ?)
+    `).run(eventId, shiftId, userId, now, source, now);
 
-    createAuditLog({ userId, action: "qr_check_in", entityType: "shift_session", entityId: shiftId, metadata: { siteId: site.id, qrToken }, ip: req.ip, userAgent: req.headers["user-agent"] });
+    storeReceipt(shiftId, "accepted", { shiftId, status: "active" });
+
+    const auditAction = source === "offline_qr" ? "offline_qr_check_in" : "qr_check_in";
+    createAuditLog({ userId, action: auditAction, entityType: "shift_session", entityId: shiftId, metadata: { siteId: site.id, qrToken, idempotencyKey, source }, ip: req.ip, userAgent: req.headers["user-agent"] });
 
     return res.status(201).json({
       success: true,
+      synced: source === "offline_qr",
+      duplicate: false,
       action: "checked_in",
       shift: {
         id: shiftId, status: "active", checkedInAt: now, checkedOutAt: null,
@@ -1148,8 +1188,8 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
     if (activeShift.status === "on_break") {
       db.prepare(`
         INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-      VALUES (?, ?, ?, 'break_end', ?, 'qr', ?)
-    `).run(crypto.randomUUID(), shiftId, userId, now, now);
+      VALUES (?, ?, ?, 'break_end', ?, ?, ?)
+    `).run(crypto.randomUUID(), shiftId, userId, now, source, now);
     }
 
     db.prepare(`
@@ -1164,12 +1204,15 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
 
     db.prepare(`
       INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-      VALUES (?, ?, ?, 'check_out', ?, 'qr', ?)
-    `).run(crypto.randomUUID(), shiftId, userId, now, now);
+      VALUES (?, ?, ?, 'check_out', ?, ?, ?)
+    `).run(crypto.randomUUID(), shiftId, userId, now, source, now);
 
-    createAuditLog({ userId, action: "qr_check_out", entityType: "shift_session", entityId: shiftId, metadata: { siteId: activeShift.site_id }, ip: req.ip, userAgent: req.headers["user-agent"] });
+    storeReceipt(shiftId, "accepted", { shiftId, status: "pending_approval" });
 
-    return res.json({ success: true, action: "checked_out", status: "pending_approval" });
+    const auditActionOut = source === "offline_qr" ? "offline_qr_check_out" : "qr_check_out";
+    createAuditLog({ userId, action: auditActionOut, entityType: "shift_session", entityId: shiftId, metadata: { siteId: activeShift.site_id, idempotencyKey, source }, ip: req.ip, userAgent: req.headers["user-agent"] });
+
+    return res.json({ success: true, synced: source === "offline_qr", duplicate: false, action: "checked_out", status: "pending_approval" });
   }
 
   if (action === "start_break") {
@@ -1177,10 +1220,12 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
     db.prepare("UPDATE shift_sessions SET status = 'on_break', updated_at = datetime('now') WHERE id = ?").run(shiftId);
     db.prepare(`
       INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-      VALUES (?, ?, ?, 'break_start', ?, 'qr', ?)
-    `).run(crypto.randomUUID(), shiftId, userId, now, now);
-    createAuditLog({ userId, action: "qr_break_start", entityType: "shift_session", entityId: shiftId, metadata: {}, ip: req.ip, userAgent: req.headers["user-agent"] });
-    return res.json({ success: true, action: "break_started", status: "on_break", serverNow: now });
+      VALUES (?, ?, ?, 'break_start', ?, ?, ?)
+    `).run(crypto.randomUUID(), shiftId, userId, now, source, now);
+    storeReceipt(shiftId, "accepted", { shiftId, status: "on_break" });
+    const auditActionSB = source === "offline_qr" ? "offline_qr_break_start" : "qr_break_start";
+    createAuditLog({ userId, action: auditActionSB, entityType: "shift_session", entityId: shiftId, metadata: { idempotencyKey, source }, ip: req.ip, userAgent: req.headers["user-agent"] });
+    return res.json({ success: true, synced: source === "offline_qr", duplicate: false, action: "break_started", status: "on_break", serverNow: now });
   }
 
   if (action === "end_break") {
@@ -1188,11 +1233,13 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
     db.prepare("UPDATE shift_sessions SET status = 'active', updated_at = datetime('now') WHERE id = ?").run(shiftId);
     db.prepare(`
       INSERT INTO shift_events (id, shift_session_id, employee_id, event_type, event_time, source, created_at)
-      VALUES (?, ?, ?, 'break_end', ?, 'qr', ?)
-    `).run(crypto.randomUUID(), shiftId, userId, now, now);
+      VALUES (?, ?, ?, 'break_end', ?, ?, ?)
+    `).run(crypto.randomUUID(), shiftId, userId, now, source, now);
+    storeReceipt(shiftId, "accepted", { shiftId, status: "active" });
     const recalculated = recalculateShift(db, shiftId);
-    createAuditLog({ userId, action: "qr_break_end", entityType: "shift_session", entityId: shiftId, metadata: {}, ip: req.ip, userAgent: req.headers["user-agent"] });
-    return res.json({ success: true, action: "break_ended", status: "active", breakSeconds: recalculated?.break_seconds || 0, serverNow: now });
+    const auditActionEB = source === "offline_qr" ? "offline_qr_break_end" : "qr_break_end";
+    createAuditLog({ userId, action: auditActionEB, entityType: "shift_session", entityId: shiftId, metadata: { idempotencyKey, source }, ip: req.ip, userAgent: req.headers["user-agent"] });
+    return res.json({ success: true, synced: source === "offline_qr", duplicate: false, action: "break_ended", status: "active", breakSeconds: recalculated?.break_seconds || 0, serverNow: now });
   }
   } catch (err) {
     console.error("QR action error:", err.message);

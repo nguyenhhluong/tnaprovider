@@ -670,9 +670,9 @@ export function migrate() {
   addColumnIfMissing(db, 'shift_sessions', 'payroll_exported_at', 'TEXT');
   addColumnIfMissing(db, 'shift_sessions', 'payroll_export_batch_id', 'TEXT');
 
-  // Check if shift_events source constraint needs 'qr' added
+  // Check if shift_events source constraint needs 'offline_qr' added
   const shiftEventsTableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='shift_events'").get();
-  if (shiftEventsTableInfo && !shiftEventsTableInfo.sql.includes("'qr'")) {
+  if (shiftEventsTableInfo && !shiftEventsTableInfo.sql.includes("'offline_qr'")) {
     db.exec("PRAGMA legacy_alter_table = ON");
     db.exec("PRAGMA foreign_keys = OFF");
 
@@ -683,7 +683,7 @@ export function migrate() {
         employee_id TEXT NOT NULL REFERENCES users(id),
         event_type TEXT NOT NULL CHECK(event_type IN ('check_in','break_start','break_end','check_out','auto_check_out','correction_requested','admin_approved','admin_rejected')),
         event_time TEXT NOT NULL,
-        source TEXT NOT NULL DEFAULT 'web' CHECK(source IN ('web','mobile','kiosk','admin','system','qr')),
+        source TEXT NOT NULL DEFAULT 'web' CHECK(source IN ('web','mobile','kiosk','admin','system','qr','offline_qr')),
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
       INSERT INTO shift_events_new SELECT * FROM shift_events;
@@ -698,7 +698,28 @@ export function migrate() {
     if (fkErrors.length > 0) {
       console.error("Foreign key violations after shift_events migration:", fkErrors);
     }
-    console.log("Migrated shift_events source constraint to include 'qr'");
+    console.log("Migrated shift_events source constraint to include 'offline_qr'");
+  }
+
+  // Phase 8F: offline_action_receipts for idempotent offline sync
+  const receiptsExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='offline_action_receipts'").get();
+  if (!receiptsExists) {
+    db.exec(`
+      CREATE TABLE offline_action_receipts (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        qr_token TEXT NOT NULL,
+        action TEXT NOT NULL CHECK(action IN ('check_in','check_out','start_break','end_break')),
+        client_created_at TEXT,
+        server_processed_at TEXT NOT NULL,
+        shift_session_id TEXT,
+        result_status TEXT NOT NULL,
+        result_json TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(user_id, idempotency_key)
+      )
+    `);
   }
 
   console.log("Database migrated successfully");

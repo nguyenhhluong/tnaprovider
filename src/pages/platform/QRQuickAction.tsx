@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, useOutletContext, Link } from "react-router-dom";
 import { SEO } from "../../components/SEO";
-import { MapPin, LogIn, LogOut, Coffee, Play, ExternalLink, Clock, CheckCircle2 } from "lucide-react";
+import { MapPin, LogIn, LogOut, Coffee, Play, ExternalLink, Clock, CheckCircle2, WifiOff, RefreshCw } from "lucide-react";
 import { appPath } from "../../utils/host";
+import { enqueueAction, syncPendingActions, getPendingActions, type QueuedAction } from "../../utils/offlineQueue";
+import { isOnline, onOnline, onOffline } from "../../utils/pwa";
 
 function calculateLivePay(payableSeconds: number, hourlyRate: number, payRule: any) {
   const otAfterSecs = (payRule?.overtime_daily_after_hours || 7.6) * 3600;
@@ -51,6 +53,9 @@ export function QRQuickAction() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const al = (a: string) => actionLoading === a;
   const [completedAction, setCompletedAction] = useState<string | null>(null);
+  const [queuedActions, setQueuedActions] = useState<QueuedAction[]>([]);
+  const [offline, setOffline] = useState(!isOnline());
+  const [syncing, setSyncing] = useState(false);
   const timerRef = useRef<any>(null);
   // Live timer state
   const [liveShift, setLiveShift] = useState<any>(null);
@@ -67,7 +72,15 @@ export function QRQuickAction() {
       const d = await res.json();
       setData(d);
       initTimer(d);
-    } catch { setError("Network error"); }
+      try { sessionStorage.setItem(`qr-data-${qrToken}`, JSON.stringify(d)); } catch {}
+    } catch {
+      // Try cache
+      try {
+        const cached = sessionStorage.getItem(`qr-data-${qrToken}`);
+        if (cached) { setData(JSON.parse(cached)); initTimer(JSON.parse(cached)); setError(null); setLoading(false); return; }
+      } catch {}
+      setError("Network error");
+    }
     finally { setLoading(false); }
   };
 
@@ -79,7 +92,41 @@ export function QRQuickAction() {
     setLiveOffset(Date.now() - new Date(s.serverNow).getTime());
   }
 
-  useEffect(() => { fetchQR(); }, [qrToken]);
+  const loadQueuedActions = useCallback(async () => {
+    if (!qrToken) return;
+    try {
+      const all = await getPendingActions();
+      setQueuedActions(all.filter((a) => a.qrToken === qrToken));
+    } catch {}
+  }, [qrToken]);
+
+  const doSync = useCallback(async () => {
+    if (!qrToken) return;
+    setSyncing(true);
+    try {
+      await syncPendingActions(qrToken);
+      await loadQueuedActions();
+      await fetchQR();
+    } finally {
+      setSyncing(false);
+    }
+  }, [qrToken]);
+
+  useEffect(() => {
+    fetchQR();
+    loadQueuedActions();
+  }, [qrToken]);
+
+  useEffect(() => {
+    const unsubOn = onOnline(() => {
+      setOffline(false);
+      doSync();
+    });
+    const unsubOff = onOffline(() => {
+      setOffline(true);
+    });
+    return () => { unsubOn(); unsubOff(); };
+  }, [doSync]);
 
   // Live timer - ticks every 1s
   useEffect(() => {
@@ -119,6 +166,19 @@ export function QRQuickAction() {
 
   const doAction = async (action: string) => {
     setActionLoading(action); setError(null);
+
+    if (!isOnline()) {
+      try {
+        const queued = await enqueueAction(qrToken || "", action as any);
+        setCompletedAction(action);
+        setQueuedActions((prev) => [...prev, queued]);
+        setTimeout(() => { setCompletedAction(null); }, 2000);
+      } catch {
+        setError("Failed to queue action offline");
+      } finally { setActionLoading(null); }
+      return;
+    }
+
     try {
       const res = await fetch(`/api/realtime-timesheets/qr/${encodeURIComponent(qrToken || "")}/action`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
@@ -127,7 +187,6 @@ export function QRQuickAction() {
       if (!res.ok) { setError(d.error || "Action failed"); return; }
       setCompletedAction(action);
       if (action === "check_in" && d.shift) {
-        // Immediately start timer with returned shift data
         const shiftData = { ...d.shift, liveBreakSeconds: 0, currentBreakStartedAt: null };
         const fakeData = { ...data, activeShift: { active: true, status: "active", sameSite: true, shift: shiftData } };
         setData(fakeData);
@@ -252,6 +311,28 @@ export function QRQuickAction() {
 
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-600 dark:text-red-400 text-center">{error}</div>
+          )}
+
+          {/* Offline indicator */}
+          {offline && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-sm text-amber-700 dark:text-amber-400 text-center flex items-center justify-center gap-2">
+              <WifiOff className="w-4 h-4" />
+              <span>You are offline — actions will be queued and synced when connected</span>
+            </div>
+          )}
+
+          {/* Queued actions */}
+          {queuedActions.length > 0 && !completedAction && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 text-sm text-blue-700 dark:text-blue-400 text-center space-y-1">
+              <p className="font-semibold">{queuedActions.length} pending {queuedActions.length === 1 ? "action" : "actions"}</p>
+              <p className="text-xs text-blue-500 dark:text-blue-400">Waiting to sync</p>
+              {!offline && (
+                <button onClick={doSync} disabled={syncing} className="mt-1 inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-full text-xs hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                  <RefreshCw className={syncing ? "animate-spin w-3 h-3" : "w-3 h-3"} />
+                  {syncing ? "Syncing..." : "Sync now"}
+                </button>
+              )}
+            </div>
           )}
 
           {/* Not checked in */}
