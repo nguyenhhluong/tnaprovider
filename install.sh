@@ -71,8 +71,12 @@ TOTAL_PHASES=${#PROGRESS_PHASES[@]}
 CURRENT_PHASE=0
 
 progress() {
-  local pct=$(( CURRENT_PHASE * 100 / TOTAL_PHASES ))
-  pct=$(( pct > 0 ? pct : 0 ))
+  local pct
+  if [[ $CURRENT_PHASE -eq $(( TOTAL_PHASES - 1 )) ]]; then
+    pct=100
+  else
+    pct=$(( CURRENT_PHASE * 100 / (TOTAL_PHASES - 1) ))
+  fi
   printf "\n${CYAN}[ %3d%% ]${NC} ${BOLD}%s${NC}\n" "$pct" "${PROGRESS_PHASES[$CURRENT_PHASE]}"
   CURRENT_PHASE=$(( CURRENT_PHASE + 1 ))
   if $CLI_DRY_RUN; then echo "  (dry-run)"; fi
@@ -160,14 +164,7 @@ if [[ -f /etc/systemd/system/tnaprovider.service || -d /root/tnaprovider ]]; the
     echo "  This installer is designed for fresh VPS deployment."
     echo "  Use --force-existing only if you understand this will modify the current server."
     echo ""
-    if ! $CLI_YES; then
-      echo -n "  Continue with --force-existing? [y/N]: "
-      read -r resp
-      if [[ "$resp" != "y" && "$resp" != "Y" ]]; then
-        die "Aborted by user."
-      fi
-    fi
-    CLI_FORCE_EXISTING=true
+    die "Aborted. Re-run with --force-existing to proceed."
   fi
   log "Existing installation acknowledged (--force-existing)"
 fi
@@ -201,22 +198,7 @@ detect_public_ip() {
     warn "Public IP detection disagreement:"
     warn "  api.ipify.org: $ip1"
     warn "  ifconfig.me:   $ip2"
-    echo "  Set PUBLIC_IP=<address> to override."
-    if ! $CLI_YES; then
-      echo -n "  Use $ip1? [Y/n]: "
-      read -r resp
-      if [[ "$resp" == "n" || "$resp" == "N" ]]; then
-        echo -n "  Use $ip2? [Y/n]: "
-        read -r resp2
-        if [[ "$resp2" == "n" || "$resp2" == "N" ]]; then
-          die "Public IP required. Set PUBLIC_IP and re-run."
-        fi
-        echo "$ip2"
-        return
-      fi
-    fi
-    echo "$ip1"
-    return
+    die "Public IP sources disagree. Set PUBLIC_IP=<address> and re-run."
   fi
   echo "${ip1:-$ip2}"
 }
@@ -423,12 +405,7 @@ progress
 if $CLI_DRY_RUN; then
   log "Would run: npm run build"
 else
-  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && npm run build" || warn "Build completed (non-zero exit)"
-  if [[ -f "${TNA_INSTALL_DIR}/dist/index.html" ]]; then
-    log "Frontend built: dist/index.html"
-  else
-    die "Build did not produce dist/index.html"
-  fi
+  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && npm run build" || die "Build failed"
 fi
 
 # ── Run tests ────────────────────────────────────────────────
@@ -439,18 +416,15 @@ if $CLI_SKIP_TESTS; then
 elif $CLI_DRY_RUN; then
   log "Would run: npm run test:phase7h, npm run test:phase8f, etc."
 else
-  set +e
-  TEST_FAILED=0
   log "Running tests..."
-  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && DATABASE_URL=${TNA_DATA_DIR}/tna.db npm run test:phase7h" || { warn "test:phase7h failed"; TEST_FAILED=1; }
-  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && DATABASE_URL=${TNA_DATA_DIR}/tna.db npm run test:phase8c" || { warn "test:phase8c failed"; TEST_FAILED=1; }
-  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && DATABASE_URL=${TNA_DATA_DIR}/tna.db npm run test:phase8f" || { warn "test:phase8f failed"; TEST_FAILED=1; }
-  set -e
-  if [[ $TEST_FAILED -eq 0 ]]; then
-    log "All tests passed"
-  else
-    warn "Some tests failed (see above). Continuing..."
-  fi
+  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && DATABASE_URL=${TNA_DATA_DIR}/tna.db npm run test:phase7h" || die "test:phase7h failed"
+  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && DATABASE_URL=${TNA_DATA_DIR}/tna.db npm run test:phase8b" || die "test:phase8b failed"
+  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && DATABASE_URL=${TNA_DATA_DIR}/tna.db npm run test:phase8c" || die "test:phase8c failed"
+  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && DATABASE_URL=${TNA_DATA_DIR}/tna.db npm run test:phase8d" || die "test:phase8d failed"
+  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && DATABASE_URL=${TNA_DATA_DIR}/tna.db npm run test:phase8e" || die "test:phase8e failed"
+  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && DATABASE_URL=${TNA_DATA_DIR}/tna.db npm run test:phase8f" || die "test:phase8f failed"
+  sudo -u "$TNA_APP_USER" bash -c "cd '$TNA_INSTALL_DIR' && DATABASE_URL=${TNA_DATA_DIR}/tna.db npm run test:install" || die "test:install failed"
+  log "All tests passed"
 fi
 
 # ── Caddy configuration ──────────────────────────────────────
@@ -566,11 +540,44 @@ cf_api_put() {
   curl -fsS -X PUT -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json" -d "$@" "${CF_API_BASE}${path}"
 }
 
+cf_check_cname_conflict() {
+  local name="$1" zone_id="$2"
+  local conflict
+  conflict=$(cf_api_get "/zones/${zone_id}/dns_records?type=CNAME&name=${name}" 2>/dev/null | jq -r '.result_info.total_count // 0')
+  if [[ "$conflict" -gt 0 ]]; then
+    die "CNAME record already exists for ${name}. Remove it manually before creating A record."
+  fi
+}
+
+cf_verify_record() {
+  local name="$1" expected_ip="$2" expected_proxied="$3" zone_id="$4"
+  sleep 2
+  local record
+  record=$(cf_api_get "/zones/${zone_id}/dns_records?type=A&name=${name}" 2>/dev/null)
+  local actual_ip actual_proxied actual_ttl
+  actual_ip=$(echo "$record" | jq -r '.result[0].content // ""')
+  actual_proxied=$(echo "$record" | jq -r '.result[0].proxied // false')
+  actual_ttl=$(echo "$record" | jq -r '.result[0].ttl // 0')
+  if [[ "$actual_ip" != "$expected_ip" ]]; then
+    die "DNS verification failed for ${name}: expected IP ${expected_ip}, got ${actual_ip}"
+  fi
+  if [[ "$actual_proxied" != "$expected_proxied" ]]; then
+    die "DNS verification failed for ${name}: expected proxied=${expected_proxied}, got ${actual_proxied}"
+  fi
+  if [[ "$actual_ttl" -ne 1 ]]; then
+    die "DNS verification failed for ${name}: expected TTL=1, got ${actual_ttl}"
+  fi
+  log "DNS A record ${name} verified: ${actual_ip} (proxied=${actual_proxied}, TTL=${actual_ttl})"
+}
+
 cf_upsert_a() {
   local name="$1" ip="$2" proxied="$3"
   local zone_id="$4"
   local record_name="${name}.${TNA_DOMAIN}"
   [[ "$name" == "@" ]] && record_name="$TNA_DOMAIN"
+
+  # Check for CNAME conflict first
+  cf_check_cname_conflict "$record_name" "$zone_id"
 
   local existing
   existing=$(cf_api_get "/zones/${zone_id}/dns_records?type=A&name=${record_name}" 2>/dev/null)
@@ -591,13 +598,15 @@ cf_upsert_a() {
     cf_api_post "/zones/${zone_id}/dns_records" "{\"type\":\"A\",\"name\":\"${name}\",\"content\":\"${ip}\",\"ttl\":1,\"proxied\":${proxied}}" >/dev/null
     log "DNS A record ${record_name} created → ${ip}"
   fi
+
+  # Verify after upsert
+  cf_verify_record "$record_name" "$ip" "$proxied" "$zone_id"
 }
 
 if $CLI_SKIP_CLOUDFLARE; then
   warn "Cloudflare DNS skipped (--skip-cloudflare)"
 elif [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
-  warn "CLOUDFLARE_API_TOKEN not set. Skipping Cloudflare DNS."
-  warn "  Set it via environment variable to enable DNS automation."
+  die "CLOUDFLARE_API_TOKEN is not set. Use --skip-cloudflare to skip DNS, or set CLOUDFLARE_API_TOKEN."
 else
   if $CLI_DRY_RUN; then
     log "Would configure Cloudflare DNS for $TNA_DOMAIN"
@@ -612,8 +621,8 @@ else
       log "Cloudflare zone ID found"
     fi
 
-    local proxied_bool
-    if [[ "$CLOUDFLARE_PROXIED" == "true" ]]; then proxied_bool="true"; else proxied_bool="false"; fi
+    proxied_bool="false"
+    if [[ "$CLOUDFLARE_PROXIED" == "true" ]]; then proxied_bool="true"; fi
 
     cf_upsert_a "@" "$SERVER_IP" "$proxied_bool" "$CF_ZONE_ID"
     cf_upsert_a "app" "$SERVER_IP" "$proxied_bool" "$CF_ZONE_ID"
@@ -681,7 +690,7 @@ progress
 if $CLI_DRY_RUN; then
   log "Would run smoke tests"
 else
-  local smoke_ok=true
+  smoke_ok=true
 
   systemctl is-active --quiet tnaprovider || { warn "tnaprovider service not active"; smoke_ok=false; }
   systemctl is-active --quiet caddy || { warn "caddy service not active"; smoke_ok=false; }

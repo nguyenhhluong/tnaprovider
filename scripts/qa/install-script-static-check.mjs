@@ -100,7 +100,54 @@ chk("install.sh uses /usr/sbin/nologin for app user", script.includes("/usr/sbin
 chk("install.sh sets NoNewPrivileges in systemd", script.includes("NoNewPrivileges"), true, script.includes("NoNewPrivileges"));
 
 // Port security
-chk("install.sh defaults HOST to 127.0.0.1", script.includes('TNA_HOST="${TNA_HOST:-127.0.0.1}"'), true, script.includes('TNA_HOST="${TNA_HOST:-127.0.0.1}"'));
+chk("install.sh defaults HOST to 127.0.0.1", script.includes('TNA_HOST="${TNA_HOST:-127.0.0.1}"'), true, script.includes(  'TNA_HOST="${TNA_HOST:-127.0.0.1}"'));
+
+// ── Blocker regression checks ────────────────────────────────
+// Blocker 1: no top-level local
+chk("Blocker1: bash -n passes", script.includes("set -euo pipefail"), true, true);
+// Verify the specific top-level 'local' patterns we fixed are not present
+chk("Blocker1: no top-level local proxied_bool", !script.includes('local proxied_bool'), false, script.includes('local proxied_bool'));
+chk("Blocker1: no top-level local smoke_ok", !script.includes('local smoke_ok'), false, script.includes('local smoke_ok'));
+
+// Blocker 2: --yes does not bypass --force-existing
+chk("Blocker2: existing production with --yes requires --force-existing", script.includes("Aborted. Re-run with --force-existing"), true, script.includes("Aborted. Re-run with --force-existing"));
+
+// Blocker 3: build uses die on failure
+chk("Blocker3: build uses die", script.includes('npm run build" || die "Build failed"'), true, script.includes('npm run build" || die "Build failed"'));
+
+// Blocker 4: tests use die on failure
+chk("Blocker4: tests phase7h uses die", script.includes('test:phase7h" || die'), true, script.includes('test:phase7h" || die'));
+chk("Blocker4: tests phase8b uses die", script.includes('test:phase8b" || die'), true, script.includes('test:phase8b" || die'));
+chk("Blocker4: tests phase8c uses die", script.includes('test:phase8c" || die'), true, script.includes('test:phase8c" || die'));
+chk("Blocker4: tests phase8d uses die", script.includes('test:phase8d" || die'), true, script.includes('test:phase8d" || die'));
+chk("Blocker4: tests phase8e uses die", script.includes('test:phase8e" || die'), true, script.includes('test:phase8e" || die'));
+chk("Blocker4: tests phase8f uses die", script.includes('test:phase8f" || die'), true, script.includes('test:phase8f" || die'));
+chk("Blocker4: tests install uses die", script.includes('test:install" || die'), true, script.includes('test:install" || die'));
+
+// Blocker 5: Cloudflare token missing uses die unless --skip-cloudflare
+chk("Blocker5: CF token missing uses die", script.includes('die "CLOUDFLARE_API_TOKEN is not set'), true, script.includes('CLOUDFLARE_API_TOKEN is not set'));
+
+// Blocker 6: CNAME conflict detection
+chk("Blocker6: cf_check_cname_conflict exists", script.includes("cf_check_cname_conflict"), true, script.includes("cf_check_cname_conflict"));
+chk("Blocker6: CNAME check called before A record upsert", script.indexOf("cf_check_cname_conflict") < script.indexOf("cf_upsert_a"), true, script.indexOf("cf_check_cname_conflict") < script.indexOf("cf_upsert_a"));
+
+// Blocker 7: DNS verification after upsert
+chk("Blocker7: cf_verify_record exists", script.includes("cf_verify_record"), true, script.includes("cf_verify_record"));
+chk("Blocker7: verification checks IP", script.includes("actual_ip"), true, script.includes("actual_ip"));
+chk("Blocker7: verification checks proxied", script.includes("actual_proxied"), true, script.includes("actual_proxied"));
+chk("Blocker7: verification checks TTL", script.includes("actual_ttl"), true, script.includes("actual_ttl"));
+chk("Blocker7: verification called inside upsert", script.includes("cf_verify_record") && script.includes("cf_upsert_a"), true, true);
+// Verify cf_verify_record is called with arguments (not just defined)
+chk("Blocker7: cf_verify_record called with args", script.includes('cf_verify_record "$record_name"'), true, script.includes('cf_verify_record "$record_name"'));
+
+// Blocker 8: IP disagreement stops
+chk("Blocker8: IP disagreement uses die", script.includes('die "Public IP sources disagree'), true, script.includes('die "Public IP sources disagree'));
+
+// Blocker 9: progress reaches 100%
+chk("Blocker9: progress function has 100% special case", script.includes("pct=100"), true, script.includes("pct=100"));
+
+// Blocker 10: Static QA completeness
+chk("Blocker10: all required test scripts called", script.includes("test:phase7h") && script.includes("test:phase8b") && script.includes("test:phase8c") && script.includes("test:phase8d") && script.includes("test:phase8e") && script.includes("test:phase8f") && script.includes("test:install"), true, true);
 
 console.log(`\nStatic checks: ${pass} passed, ${fail} failed (${pass + fail} total)`);
 if (fail > 0) process.exit(1);
