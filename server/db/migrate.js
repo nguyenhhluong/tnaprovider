@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
 import { getDb } from "./database.js";
 
 function getColumnNames(db, table) {
@@ -720,6 +723,77 @@ export function migrate() {
         UNIQUE(user_id, idempotency_key)
       )
     `);
+  }
+
+  // Phase 8G: contact_requests table for marketing contact form inbox
+  const contactRequestsExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='contact_requests'").get();
+  if (!contactRequestsExists) {
+    db.exec(`
+      CREATE TABLE contact_requests (
+        id TEXT PRIMARY KEY,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        service TEXT NOT NULL,
+        location TEXT NOT NULL,
+        budget TEXT,
+        target_date TEXT,
+        message TEXT NOT NULL,
+        request_callback INTEGER DEFAULT 0,
+        callback_time TEXT,
+        privacy_consent INTEGER DEFAULT 0,
+        project_id TEXT,
+        source TEXT,
+        status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','contacted','quoted','won','lost','archived')),
+        priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low','normal','high','urgent')),
+        internal_notes TEXT,
+        assigned_to_user_id TEXT,
+        last_contacted_at TEXT,
+        archived_at TEXT,
+        converted_lead_id TEXT,
+        received_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contact_requests_status ON contact_requests(status)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contact_requests_received_at ON contact_requests(received_at)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contact_requests_email ON contact_requests(email)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_contact_requests_phone ON contact_requests(phone)`);
+
+    // Import existing JSON submissions if present
+    try {
+      const migrateDir = path.dirname(new URL(import.meta.url).pathname);
+      const jsonPath = path.join(migrateDir, "..", "..", "data", "contact-submissions.json");
+      if (fs.existsSync(jsonPath)) {
+        const raw = fs.readFileSync(jsonPath, "utf-8");
+        const submissions = JSON.parse(raw);
+        if (Array.isArray(submissions) && submissions.length > 0) {
+          const insert = db.prepare(`
+            INSERT OR IGNORE INTO contact_requests
+              (id, first_name, last_name, email, phone, service, location, budget, target_date, message, request_callback, callback_time, privacy_consent, source, status, priority, received_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'normal', ?, ?, ?)
+          `);
+          let imported = 0;
+          for (const s of submissions) {
+            const hash = crypto.createHash("sha256").update(`${s.email || ""}|${s.phone || ""}|${s.message || ""}|${s.receivedAt || ""}`).digest("hex");
+            const existing = db.prepare("SELECT id FROM contact_requests WHERE id = ?").get(hash);
+            if (!existing) {
+              const receivedAt = s.receivedAt || new Date().toISOString();
+              const now = new Date().toISOString();
+              const firstName = s.firstName || s.first_name || "";
+              const lastName = s.lastName || s.last_name || "";
+              insert.run(hash, firstName, lastName, s.email || "", s.phone || "", s.service || "", s.location || "", s.budget || null, s.targetDate || s.target_date || null, s.message || "", s.requestCallback ? 1 : 0, s.callbackTime || null, s.privacyConsent ? 1 : 0, "contact_form", receivedAt, now, now);
+              imported++;
+            }
+          }
+          if (imported > 0) console.log(`Imported ${imported} existing contact submissions into contact_requests`);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not import existing contact submissions:", e.message);
+    }
   }
 
   console.log("Database migrated successfully");

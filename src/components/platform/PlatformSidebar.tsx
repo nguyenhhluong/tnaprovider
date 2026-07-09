@@ -24,6 +24,7 @@ import {
   BarChart,
   QrCode,
   Scale,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { useAuth } from "../../context/AuthContext";
@@ -41,6 +42,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
     { name: "Leads", path: appPath("/platform/leads"), icon: Users, roles: ["owner", "admin", "manager"] },
     { name: "Lead Automation", path: appPath("/platform/lead-automation"), icon: Phone, roles: ["owner", "admin", "manager"] },
     { name: "Quotes", path: appPath("/platform/quotes"), icon: DollarSign, roles: ["owner", "admin", "manager"] },
+    { name: "Quote Requests", path: appPath("/platform/quote-requests"), icon: MessageSquare, roles: ["owner", "admin", "manager"] },
     { name: "Projects", path: appPath("/platform/projects"), icon: FolderKanban, roles: ["owner", "admin", "manager", "client"] },
     { name: "Tasks", path: appPath("/platform/tasks"), icon: CheckSquare, roles: ["owner", "admin", "manager", "worker"] },
     { name: "My Timesheet", path: appPath("/platform/realtime-timesheet"), icon: Clock, roles: ["owner", "admin", "manager", "worker"] },

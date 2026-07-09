@@ -3,6 +3,7 @@ import express from 'express';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
 import * as mailConnector from './server/email/mailConnector.js';
 import { migrate } from './server/db/migrate.js';
@@ -60,21 +61,50 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/realtime-timesheets', realtimeTimesheetsRoutes);
 
+import { getDb } from './server/db/database.js';
+
 app.post('/api/contact', (req, res) => {
-  const submission = {
-    ...req.body,
-    receivedAt: new Date().toISOString(),
-  };
-  const logDir = path.join(__dirname, 'data');
-  if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
-  const logFile = path.join(logDir, 'contact-submissions.json');
-  let submissions = [];
-  if (fs.existsSync(logFile)) {
-    try { submissions = JSON.parse(fs.readFileSync(logFile, 'utf-8')); } catch {}
+  try {
+    const { firstName, lastName, email, phone, service, location, budget, targetDate, message, requestCallback, callbackTime, privacyConsent } = req.body || {};
+
+    // Validation
+    if (!firstName || typeof firstName !== 'string' || firstName.length > 80) return res.status(400).json({ error: 'First name is required (max 80 characters)' });
+    if (!lastName || typeof lastName !== 'string' || lastName.length > 80) return res.status(400).json({ error: 'Last name is required (max 80 characters)' });
+    if (!email || typeof email !== 'string' || email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Valid email is required' });
+    if (!phone || typeof phone !== 'string' || phone.length > 40) return res.status(400).json({ error: 'Phone is required (max 40 characters)' });
+    if (!service || typeof service !== 'string' || service.length > 120) return res.status(400).json({ error: 'Service type is required (max 120 characters)' });
+    if (!location || typeof location !== 'string' || location.length > 160) return res.status(400).json({ error: 'Location is required (max 160 characters)' });
+    if (budget && (typeof budget !== 'string' || budget.length > 120)) return res.status(400).json({ error: 'Budget too long (max 120 characters)' });
+    if (targetDate && (typeof targetDate !== 'string' || targetDate.length > 80)) return res.status(400).json({ error: 'Target date too long (max 80 characters)' });
+    if (!message || typeof message !== 'string' || message.length < 10 || message.length > 5000) return res.status(400).json({ error: 'Message is required (10-5000 characters)' });
+    if (!privacyConsent) return res.status(400).json({ error: 'Privacy consent is required' });
+
+    const now = new Date().toISOString();
+    const id = crypto.randomUUID();
+
+    // Store in SQLite
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO contact_requests (id, first_name, last_name, email, phone, service, location, budget, target_date, message, request_callback, callback_time, privacy_consent, source, status, priority, received_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'contact_form', 'new', 'normal', ?, ?, ?)
+    `).run(id, firstName, lastName, email, phone, service, location, budget || null, targetDate || null, message, requestCallback ? 1 : 0, callbackTime || null, privacyConsent ? 1 : 0, now, now, now);
+
+    // Also append to JSON backup file
+    const logDir = path.join(__dirname, 'data');
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    const logFile = path.join(logDir, 'contact-submissions.json');
+    let submissions = [];
+    if (fs.existsSync(logFile)) {
+      try { submissions = JSON.parse(fs.readFileSync(logFile, 'utf-8')); } catch {}
+    }
+    submissions.push({ id, firstName, lastName, email, phone, service, location, budget, targetDate, message, requestCallback, callbackTime, privacyConsent, receivedAt: now });
+    fs.writeFileSync(logFile, JSON.stringify(submissions, null, 2));
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Contact submission error:', err.message);
+    res.status(500).json({ error: 'Submission failed' });
   }
-  submissions.push(submission);
-  fs.writeFileSync(logFile, JSON.stringify(submissions, null, 2));
-  res.json({ success: true });
 });
 
 // ---------------------------------------------------------------------------

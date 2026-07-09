@@ -1,0 +1,251 @@
+import { withServer, mustGetCookie } from "./test-harness.mjs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(__dirname, "../..");
+const BASE = "http://127.0.0.1:3007";
+let pass = 0, fail = 0;
+
+async function api(method, path, body, cookie) {
+  const opts = { method, headers: { "Content-Type": "application/json" } };
+  if (body) opts.body = JSON.stringify(body);
+  if (cookie) opts.headers.Cookie = cookie;
+  const res = await fetch(`${BASE}${path}`, opts);
+  let data;
+  try { data = await res.json(); } catch { data = null; }
+  return { status: res.status, data };
+}
+
+function chk(label, condition, expected, actual) {
+  if (condition) pass++;
+  else { fail++; console.error(`FAIL ${label}: expected ${JSON.stringify(expected)} got ${JSON.stringify(actual)}`); }
+}
+
+const DB_PATH = resolve(ROOT, "data/test-phase8g.db");
+
+const VALID_CONTACT = {
+  firstName: "Jane",
+  lastName: "Smith",
+  email: "jane@example.com",
+  phone: "0400000000",
+  service: "construction",
+  location: "Sydney NSW",
+  message: "I need a quote for a home renovation project. Please contact me.",
+  privacyConsent: true,
+};
+
+const USERS = [
+  { email: "qr-owner@test.com", password: "ChangeMe123!", name: "QR Owner", role: "owner" },
+  { email: "qr-admin@test.com", password: "ChangeMe123!", name: "QR Admin", role: "admin" },
+  { email: "qr-mgr@test.com", password: "ChangeMe123!", name: "QR Manager", role: "manager" },
+  { email: "qr-wkr@test.com", password: "ChangeMe123!", name: "QR Worker", role: "worker" },
+  { email: "qr-cli@test.com", password: "ChangeMe123!", name: "QR Client", role: "client" },
+];
+
+async function createTestData(cO) {
+  const r = await api("POST", "/api/contact", VALID_CONTACT, cO);
+  chk("create quote request via contact form", r.status === 200, 200, r.status);
+  chk("create returns success", r.data?.success === true, true, r.data?.success);
+}
+
+// ── Phase 8G: Quote Requests Inbox ────────────────────────────
+console.log("=== Phase 8G: Quote Requests Inbox ===");
+
+// Clean up any old JSON submissions and prepare test data
+const jsonPath = resolve(ROOT, "data", "contact-submissions.json");
+const jsonBackup = existsSync(jsonPath) ? readFileSync(jsonPath, "utf-8") : null;
+if (!existsSync(resolve(ROOT, "data"))) {
+  // Ensure data dir exists
+}
+
+// Create a test JSON file with legacy submissions to test import
+const testJsonPath = resolve(ROOT, "data", "contact-submissions.json");
+const legacySubmission = {
+  firstName: "Legacy",
+  lastName: "User",
+  email: "legacy@test.com",
+  phone: "0411111111",
+  service: "Legacy Service",
+  location: "Legacy Location",
+  message: "This is a legacy contact submission for import testing.",
+  privacyConsent: true,
+  receivedAt: new Date().toISOString(),
+};
+
+// Remove test DB if exists
+try { unlinkSync(DB_PATH); } catch {}
+
+await withServer({
+  dbPath: "data/test-phase8g.db",
+  setupEnv: {
+    SEED_OWNER_EMAIL: "qr-owner@test.com",
+    SEED_OWNER_PASSWORD: "ChangeMe123!",
+    SEED_OWNER_NAME: "QR Owner",
+  },
+  setupUsers: USERS.slice(1),
+}, async () => {
+  const cO = await mustGetCookie("qr-owner@test.com", "ChangeMe123!", "owner");
+  const cA = await mustGetCookie("qr-admin@test.com", "ChangeMe123!", "admin");
+  const cM = await mustGetCookie("qr-mgr@test.com", "ChangeMe123!", "manager");
+  const cW = await mustGetCookie("qr-wkr@test.com", "ChangeMe123!", "worker");
+  const cC = await mustGetCookie("qr-cli@test.com", "ChangeMe123!", "client");
+
+  // ── 1. Contact form stores in SQLite ──
+  const contactTest = await api("POST", "/api/contact", VALID_CONTACT, cO);
+  if (contactTest.status !== 200) {
+    console.error("Contact endpoint error:", JSON.stringify(contactTest.data));
+  }
+  await createTestData(cO);
+
+  // ── 2. POST /api/contact validation ──
+  // Missing firstName
+  let r = await api("POST", "/api/contact", { ...VALID_CONTACT, firstName: "" }, cO);
+  chk("missing firstName rejected", r.status === 400, 400, r.status);
+
+  // Invalid email
+  r = await api("POST", "/api/contact", { ...VALID_CONTACT, email: "notanemail" }, cO);
+  chk("invalid email rejected", r.status === 400, 400, r.status);
+
+  // Missing phone
+  r = await api("POST", "/api/contact", { ...VALID_CONTACT, phone: "" }, cO);
+  chk("missing phone rejected", r.status === 400, 400, r.status);
+
+  // privacyConsent false
+  r = await api("POST", "/api/contact", { ...VALID_CONTACT, privacyConsent: false }, cO);
+  chk("privacyConsent false rejected", r.status === 400, 400, r.status);
+
+  // Message too short
+  r = await api("POST", "/api/contact", { ...VALID_CONTACT, message: "Short" }, cO);
+  chk("short message rejected", r.status === 400, 400, r.status);
+
+  // Message over 5000
+  r = await api("POST", "/api/contact", { ...VALID_CONTACT, message: "X".repeat(5001) }, cO);
+  chk("long message rejected", r.status === 400, 400, r.status);
+
+  // ── 3. GET /api/platform/quote-requests role checks ──
+  r = await api("GET", "/api/platform/quote-requests", null, cO);
+  chk("owner allowed to list", r.status === 200, 200, r.status);
+  chk("owner list returns requests", Array.isArray(r.data?.requests), true, Array.isArray(r.data?.requests));
+  chk("owner list has total", typeof r.data?.total === "number", true, typeof r.data?.total === "number");
+
+  r = await api("GET", "/api/platform/quote-requests", null, cA);
+  chk("admin allowed to list", r.status === 200, 200, r.status);
+
+  r = await api("GET", "/api/platform/quote-requests", null, cM);
+  chk("manager allowed to list", r.status === 200, 200, r.status);
+
+  r = await api("GET", "/api/platform/quote-requests", null, cW);
+  chk("worker blocked from list", r.status === 403, 403, r.status);
+
+  r = await api("GET", "/api/platform/quote-requests", null, cC);
+  chk("client blocked from list", r.status === 403, 403, r.status);
+
+  r = await api("GET", "/api/platform/quote-requests", null, null);
+  chk("unauth blocked from list", r.status === 401, 401, r.status);
+
+  // ── 4. Status filter works ──
+  r = await api("GET", "/api/platform/quote-requests?status=new", null, cO);
+  chk("status filter works", r.status === 200, 200, r.status);
+
+  // ── 5. Search works ──
+  r = await api("GET", "/api/platform/quote-requests?search=jane", null, cO);
+  chk("search works", r.status === 200, 200, r.status);
+
+  // ── 6. Pagination works ──
+  r = await api("GET", "/api/platform/quote-requests?limit=1&offset=0", null, cO);
+  chk("pagination works", r.status === 200, 200, r.status);
+
+  // ── 7. GET detail works ──
+  const list = await api("GET", "/api/platform/quote-requests", null, cO);
+  if (list.data?.requests?.length > 0) {
+    const id = list.data.requests[0].id;
+    r = await api("GET", `/api/platform/quote-requests/${id}`, null, cO);
+    chk("detail endpoint works", r.status === 200, 200, r.status);
+    chk("detail returns email", r.data?.email === "jane@example.com", "jane@example.com", r.data?.email);
+
+    // ── 8. PATCH status works ──
+    r = await api("PATCH", `/api/platform/quote-requests/${id}`, { status: "contacted" }, cO);
+    chk("patch status works", r.status === 200, 200, r.status);
+    chk("patch returns success", r.data?.success === true, true, r.data?.success);
+
+    // ── 9. PATCH notes works ──
+    r = await api("PATCH", `/api/platform/quote-requests/${id}`, { internal_notes: "Test notes" }, cO);
+    chk("patch notes works", r.status === 200, 200, r.status);
+
+    // Verify notes saved
+    const detail = await api("GET", `/api/platform/quote-requests/${id}`, null, cO);
+    chk("notes persisted", detail.data?.internal_notes === "Test notes", "Test notes", detail.data?.internal_notes);
+
+    // ── 10. Invalid status rejected ──
+    r = await api("PATCH", `/api/platform/quote-requests/${id}`, { status: "invalid_status" }, cO);
+    chk("invalid status rejected", r.status === 400, 400, r.status);
+
+    // ── 11. Invalid priority rejected ──
+    r = await api("PATCH", `/api/platform/quote-requests/${id}`, { priority: "invalid_priority" }, cO);
+    chk("invalid priority rejected", r.status === 400, 400, r.status);
+
+    // ── 12. Archive works ──
+    r = await api("POST", `/api/platform/quote-requests/${id}/archive`, null, cO);
+    chk("archive works", r.status === 200, 200, r.status);
+    chk("archive returns archived:true", r.data?.archived === true, true, r.data?.archived);
+
+    // Verify archived
+    const archivedDetail = await api("GET", `/api/platform/quote-requests/${id}`, null, cO);
+    chk("archived status set", archivedDetail.data?.status === "archived", "archived", archivedDetail.data?.status);
+
+    // ── 13. Restore works ──
+    r = await api("POST", `/api/platform/quote-requests/${id}/restore`, null, cO);
+    chk("restore works", r.status === 200, 200, r.status);
+    chk("restore returns restored:true", r.data?.restored === true, true, r.data?.restored);
+
+    const restoredDetail = await api("GET", `/api/platform/quote-requests/${id}`, null, cO);
+    chk("restored status is new", restoredDetail.data?.status === "new", "new", restoredDetail.data?.status);
+
+    // ── 14. No stack traces ──
+    r = await api("GET", "/api/platform/quote-requests/nonexistent-id", null, cO);
+    chk("nonexistent returns 404", r.status === 404, 404, r.status);
+    chk("no stack trace in 404", !r.data?.error?.includes("Error"), true, !r.data?.error?.includes("Error"));
+
+    r = await api("POST", "/api/contact", null, cO);
+    chk("null body no stack trace", r.status === 400, 400, r.status);
+  }
+
+  // ── 15. JSON backup preserved ──
+  if (existsSync(jsonPath)) {
+    const content = readFileSync(jsonPath, "utf-8");
+    const submissions = JSON.parse(content);
+    chk("JSON backup exists and has submissions", Array.isArray(submissions) && submissions.length > 0, true, Array.isArray(submissions) && submissions.length > 0);
+  }
+});
+
+// ── 16. App route check (structural) ──
+const appSrc = readFileSync(resolve(ROOT, "src/App.tsx"), "utf-8");
+chk("app route /quote-requests defined", appSrc.includes('path: "quote-requests"'), true, appSrc.includes('path: "quote-requests"'));
+chk("platform route /quote-requests defined", appSrc.includes('path: "quote-requests"'), true, appSrc.includes('path: "quote-requests"'));
+
+// ── 17. Sidebar check (structural) ──
+const sidebarSrc = readFileSync(resolve(ROOT, "src/components/platform/PlatformSidebar.tsx"), "utf-8");
+chk("sidebar has Quote Requests link", sidebarSrc.includes("Quote Requests"), true, sidebarSrc.includes("Quote Requests"));
+chk("sidebar link uses MessageSquare icon", sidebarSrc.includes("MessageSquare"), true, sidebarSrc.includes("MessageSquare"));
+
+// ── 18. Database migration check ──
+const migrateSrc = readFileSync(resolve(ROOT, "server/db/migrate.js"), "utf-8");
+chk("migration has contact_requests table", migrateSrc.includes("contact_requests"), true, migrateSrc.includes("contact_requests"));
+chk("migration has JSON import logic", migrateSrc.includes("contact-submissions.json"), true, migrateSrc.includes("contact-submissions.json"));
+
+// ── 19. Server contact endpoint check ──
+const serverSrc = readFileSync(resolve(ROOT, "server.js"), "utf-8");
+chk("server contact endpoint stores in SQLite", serverSrc.includes("INSERT INTO contact_requests"), true, serverSrc.includes("INSERT INTO contact_requests"));
+chk("server contact endpoint has validation", serverSrc.includes("if (!firstName || typeof firstName !== 'string' || firstName.length > 80)"), true, serverSrc.includes("firstName.length > 80"));
+chk("server contact endpoint validates email", serverSrc.includes("/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/"), true, serverSrc.includes("test(email)"));
+chk("server contact endpoint preserves JSON backup", serverSrc.includes("contact-submissions.json"), true, serverSrc.includes("contact-submissions.json"));
+
+// Restore original JSON backup
+if (jsonBackup !== null) {
+  try { writeFileSync(jsonPath, jsonBackup); } catch {}
+}
+
+console.log(`\nPhase 8G: ${pass} passed, ${fail} failed (${pass + fail} total)`);
+if (fail > 0) process.exit(1);

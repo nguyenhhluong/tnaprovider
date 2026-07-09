@@ -1080,4 +1080,123 @@ router.post("/users/:userId/shifts/:shiftId/reject", requireRole("owner"), (req,
   res.json({ success: true, rejected: true });
 });
 
+// ── Quote Requests (Phase 8G) ─────────────────────────────────
+const VALID_QR_STATUSES = ["new", "contacted", "quoted", "won", "lost", "archived"];
+const VALID_QR_PRIORITIES = ["low", "normal", "high", "urgent"];
+
+// GET /api/platform/quote-requests
+router.get("/quote-requests", requireRole("owner", "admin", "manager"), (req, res) => {
+  try {
+    const db = getDb();
+    const { status, search, priority, limit, offset } = req.query;
+    const lim = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+    const off = Math.max(parseInt(offset) || 0, 0);
+
+    let where = ["1=1"];
+    let params = [];
+
+    if (status && VALID_QR_STATUSES.includes(status)) {
+      where.push("qr.status = ?");
+      params.push(status);
+    }
+    if (priority && VALID_QR_PRIORITIES.includes(priority)) {
+      where.push("qr.priority = ?");
+      params.push(priority);
+    }
+    if (search && typeof search === "string") {
+      where.push("(qr.first_name LIKE ? OR qr.last_name LIKE ? OR qr.email LIKE ? OR qr.phone LIKE ? OR qr.service LIKE ? OR qr.location LIKE ? OR qr.message LIKE ?)");
+      const s = `%${search}%`;
+      params.push(s, s, s, s, s, s, s);
+    }
+
+    const whereClause = where.join(" AND ");
+    const count = db.prepare(`SELECT COUNT(*) as cnt FROM contact_requests qr WHERE ${whereClause}`).get(...params);
+    const rows = db.prepare(`SELECT qr.*, u.name as assigned_to_name FROM contact_requests qr LEFT JOIN users u ON u.id = qr.assigned_to_user_id WHERE ${whereClause} ORDER BY qr.received_at DESC LIMIT ? OFFSET ?`).all(...params, lim, off);
+
+    res.json({ requests: rows, total: count.cnt, limit: lim, offset: off });
+  } catch (err) {
+    console.error("Error listing quote requests:", err.message);
+    res.status(500).json({ error: "Failed to list quote requests" });
+  }
+});
+
+// GET /api/platform/quote-requests/:id
+router.get("/quote-requests/:id", requireRole("owner", "admin", "manager"), (req, res) => {
+  try {
+    const db = getDb();
+    const row = db.prepare(`SELECT qr.*, u.name as assigned_to_name FROM contact_requests qr LEFT JOIN users u ON u.id = qr.assigned_to_user_id WHERE qr.id = ?`).get(req.params.id);
+    if (!row) return res.status(404).json({ error: "Quote request not found" });
+    res.json(row);
+  } catch (err) {
+    console.error("Error getting quote request:", err.message);
+    res.status(500).json({ error: "Failed to get quote request" });
+  }
+});
+
+// PATCH /api/platform/quote-requests/:id
+router.patch("/quote-requests/:id", requireRole("owner", "admin", "manager"), (req, res) => {
+  try {
+    const db = getDb();
+    const row = db.prepare("SELECT * FROM contact_requests WHERE id = ?").get(req.params.id);
+    if (!row) return res.status(404).json({ error: "Quote request not found" });
+
+    const { status, priority, internal_notes, assigned_to_user_id, last_contacted_at } = req.body || {};
+
+    if (status !== undefined && !VALID_QR_STATUSES.includes(status)) return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_QR_STATUSES.join(", ")}` });
+    if (priority !== undefined && !VALID_QR_PRIORITIES.includes(priority)) return res.status(400).json({ error: `Invalid priority. Must be one of: ${VALID_QR_PRIORITIES.join(", ")}` });
+
+    const now = new Date().toISOString();
+    const updates = ["updated_at = ?"];
+    const params = [now];
+
+    if (status !== undefined) { updates.push("status = ?"); params.push(status); }
+    if (priority !== undefined) { updates.push("priority = ?"); params.push(priority); }
+    if (internal_notes !== undefined) { updates.push("internal_notes = ?"); params.push(internal_notes); }
+    if (assigned_to_user_id !== undefined) { updates.push("assigned_to_user_id = ?"); params.push(assigned_to_user_id); }
+    if (last_contacted_at !== undefined) { updates.push("last_contacted_at = ?"); params.push(last_contacted_at); }
+
+    // If status is 'archived', set archived_at
+    if (status === "archived") { updates.push("archived_at = ?"); params.push(now); }
+
+    params.push(req.params.id);
+    db.prepare(`UPDATE contact_requests SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+
+    audit(res, "quote_request_updated", "quote_request", req.params.id, { changes: req.body });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error updating quote request:", err.message);
+    res.status(500).json({ error: "Failed to update quote request" });
+  }
+});
+
+// POST /api/platform/quote-requests/:id/archive
+router.post("/quote-requests/:id/archive", requireRole("owner", "admin", "manager"), (req, res) => {
+  try {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const result = db.prepare("UPDATE contact_requests SET status = 'archived', archived_at = ?, updated_at = ? WHERE id = ?").run(now, now, req.params.id);
+    if (result.changes === 0) return res.status(404).json({ error: "Quote request not found" });
+    audit(res, "quote_request_archived", "quote_request", req.params.id, {});
+    res.json({ success: true, archived: true });
+  } catch (err) {
+    console.error("Error archiving quote request:", err.message);
+    res.status(500).json({ error: "Failed to archive quote request" });
+  }
+});
+
+// POST /api/platform/quote-requests/:id/restore
+router.post("/quote-requests/:id/restore", requireRole("owner", "admin", "manager"), (req, res) => {
+  try {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const result = db.prepare("UPDATE contact_requests SET status = 'new', archived_at = NULL, updated_at = ? WHERE id = ? AND status = 'archived'").run(now, req.params.id);
+    if (result.changes === 0) return res.status(404).json({ error: "Quote request not found or not archived" });
+    audit(res, "quote_request_restored", "quote_request", req.params.id, {});
+    res.json({ success: true, restored: true });
+  } catch (err) {
+    console.error("Error restoring quote request:", err.message);
+    res.status(500).json({ error: "Failed to restore quote request" });
+  }
+});
+
 export default router;

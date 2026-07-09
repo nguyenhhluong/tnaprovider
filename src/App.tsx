@@ -41,6 +41,7 @@ import { Security } from "./pages/platform/Security";
 import { AdminTools } from "./pages/platform/AdminTools";
 import LeadAutomation from "./pages/platform/LeadAutomation";
 import Quotes from "./pages/platform/Quotes";
+import { QuoteRequests } from "./pages/platform/QuoteRequests";
 import Tasks from "./pages/platform/Tasks";
 import Documents from "./pages/platform/Documents";
 import Notifications from "./pages/platform/Notifications";
@@ -158,6 +159,7 @@ const router = createBrowserRouter([
       { path: "admin-tools", element: <ProtectedRoute roles={["owner", "admin"]}><AdminTools /></ProtectedRoute> },
       { path: "lead-automation", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><LeadAutomation /></ProtectedRoute> },
       { path: "quotes", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Quotes /></ProtectedRoute> },
+      { path: "quote-requests", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><QuoteRequests /></ProtectedRoute> },
       { path: "tasks", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><Tasks /></ProtectedRoute> },
       { path: "documents", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Documents /></ProtectedRoute> },
       { path: "notifications", element: <ProtectedRoute><Notifications /></ProtectedRoute> },
@@ -195,6 +197,7 @@ const router = createBrowserRouter([
       { path: "admin-tools", element: <ProtectedRoute roles={["owner", "admin"]}><AdminTools /></ProtectedRoute> },
       { path: "lead-automation", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><LeadAutomation /></ProtectedRoute> },
       { path: "quotes", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Quotes /></ProtectedRoute> },
+      { path: "quote-requests", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><QuoteRequests /></ProtectedRoute> },
       { path: "tasks", element: <ProtectedRoute roles={["owner", "admin", "manager", "worker"]}><Tasks /></ProtectedRoute> },
       { path: "documents", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Documents /></ProtectedRoute> },
       { path: "notifications", element: <ProtectedRoute><Notifications /></ProtectedRoute> },

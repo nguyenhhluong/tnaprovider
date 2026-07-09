@@ -27,7 +27,8 @@
     "test:phase8c": "node scripts/qa/phase8c-qr-quick-checkin-checkout.mjs",
     "test:phase8e": "node scripts/qa/phase8e-timesheet-history.mjs",
     "test:phase8f": "node scripts/qa/phase8f-offline-pwa.mjs",
-    "test:install": "node scripts/qa/install-script-static-check.mjs"
+    "test:install": "node scripts/qa/install-script-static-check.mjs",
+    "test:phase8g": "node scripts/qa/phase8g-quote-requests-inbox.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
