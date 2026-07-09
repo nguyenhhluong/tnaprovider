@@ -44,10 +44,15 @@ function generateIdempotencyKey(): string {
   return generateId();
 }
 
+const ALLOWED_ACTIONS: QueuedAction["action"][] = ["check_in", "check_out", "start_break", "end_break"];
+
 export async function enqueueAction(
   qrToken: string,
   action: QueuedAction["action"]
 ): Promise<QueuedAction> {
+  if (!ALLOWED_ACTIONS.includes(action)) {
+    throw new Error(`Invalid action: ${action}. Must be one of: ${ALLOWED_ACTIONS.join(", ")}`);
+  }
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
@@ -87,7 +92,9 @@ export async function getRetryableActions(): Promise<QueuedAction[]> {
     const all = store.getAll();
     all.onsuccess = () => {
       const items = all.result as QueuedAction[];
-      resolve(items.filter((a) => a.status === "retryable_failed" || a.status === "pending"));
+      const filtered = items.filter((a) => a.status === "retryable_failed" || a.status === "pending");
+      filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      resolve(filtered);
     };
     all.onerror = () => reject(all.error);
   });

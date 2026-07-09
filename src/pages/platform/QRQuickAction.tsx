@@ -230,7 +230,17 @@ export function QRQuickAction() {
       } else if (action !== "check_out") {
         setTimeout(() => { setCompletedAction(null); fetchQR(); }, 1500);
       }
-    } catch { setError("Network error"); }
+    } catch {
+      // Network failure while online — queue the action
+      try {
+        const queued = await enqueueAction(qrToken || "", action as any);
+        setQueuedActions((prev) => [...prev, queued]);
+        const labels: Record<string, string> = { check_in: "Check-in", check_out: "Check-out", start_break: "Break start", end_break: "Break end" };
+        setQueuedActionNotice(`${labels[action] || action} queued. It will sync when internet returns.`);
+      } catch {
+        setError("Failed to queue action");
+      }
+    }
     finally { setActionLoading(null); }
   };
 

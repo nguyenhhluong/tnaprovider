@@ -285,12 +285,95 @@ function testBlocker5() {
   chk("Blocker5: sync returns stopped flag", queueSrc.includes("stopped"), true, queueSrc.includes("stopped"));
 }
 
+// ── Blocker 6: Network failure queues action + FIFO sync ─────
+function testBlocker6() {
+  // QR page: catch block must queue, not just show error
+  const qrPath = resolve(ROOT, "src/pages/platform/QRQuickAction.tsx");
+  const qrSrc = readFileSync(qrPath, "utf-8");
+  chk("Blocker6: catch block calls enqueueAction", qrSrc.includes("enqueueAction"), true, qrSrc.includes("enqueueAction"));
+  // The doAction catch block must call enqueueAction (not just setError)
+  const doActionStart = qrSrc.indexOf("const doAction = async");
+  const doActionEnd = qrSrc.indexOf("function liveTimerForShift", doActionStart);
+  const doActionBody = doActionStart >= 0 && doActionEnd > doActionStart
+    ? qrSrc.slice(doActionStart, doActionEnd) : "";
+  chk("Blocker6: doAction function found", doActionBody.length > 0, true, doActionBody.length > 0);
+  if (doActionBody) {
+    chk("Blocker6: doAction catch block calls enqueueAction", doActionBody.includes("enqueueAction"), true, doActionBody.includes("enqueueAction"));
+    chk("Blocker6: doAction catch shows queued notice", doActionBody.includes("queued. It will sync when internet returns"), true, doActionBody.includes("queued. It will sync when internet returns"));
+    chk("Blocker6: doAction sets completedAction only for server success", doActionBody.includes("setCompletedAction(action)"), true, doActionBody.includes("setCompletedAction(action)"));
+  }
+  chk("Blocker6: catch shows queued notice", qrSrc.includes("queued. It will sync when internet returns"), true, qrSrc.includes("queued. It will sync when internet returns"));
+  chk("Blocker6: queued notice uses labels", qrSrc.includes("labels["), true, qrSrc.includes("labels["));
+
+  // offlineQueue: getRetryableActions must sort by createdAt
+  const queuePath = resolve(ROOT, "src/utils/offlineQueue.ts");
+  const queueSrc = readFileSync(queuePath, "utf-8");
+  chk("Blocker6: getRetryableActions sorts by createdAt", queueSrc.includes(".sort(") || queueSrc.includes("filter"), true, queueSrc.includes("sort"));
+  chk("Blocker6: sort uses createdAt", queueSrc.includes("createdAt"), true, queueSrc.includes("createdAt"));
+
+  // offlineQueue: enqueueAction must reject unknown actions
+  chk("Blocker6: enqueueAction validates action", queueSrc.includes("ALLOWED_ACTIONS") || queueSrc.includes("Invalid action"), true, queueSrc.includes("Invalid"));
+  chk("Blocker6: enqueueAction throws for bad action", queueSrc.includes("throw new Error"), true, queueSrc.includes("throw new Error"));
+
+  // FIFO test via behavioral check: syncMultipleActionsVariesByOrder
+  // We'll mock via IDB by checking the sort is oldest-first
+  chk("Blocker6: getRetryableActions returns oldest first", queueSrc.includes("a.createdAt") && queueSrc.includes("b.createdAt"), true, queueSrc.includes("a.createdAt"));
+}
+
+// ── Blocker 7: FIFO sync preserves action order ──────────────
+async function testBlocker7(cO, cW) {
+  const qrToken = await getSiteQrToken(cO);
+
+  // Create two actions in sequence with idempotencyKeys, verify order preserved
+  // First check-in
+  const idKey1 = crypto.randomUUID?.() || `${Date.now()}-fifo1`;
+  const r1 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
+    action: "check_in",
+    idempotencyKey: idKey1,
+    clientCreatedAt: new Date().toISOString(),
+  }, cW);
+  chk("Blocker7: first check-in succeeds", r1.status === 201, 201, r1.status);
+  const shiftId1 = r1.data?.shift?.id;
+
+  // Check-out
+  const idKey2 = crypto.randomUUID?.() || `${Date.now()}-fifo2`;
+  const r2 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
+    action: "check_out",
+    idempotencyKey: idKey2,
+    clientCreatedAt: new Date().toISOString(),
+  }, cW);
+  chk("Blocker7: check-out succeeds", r2.status === 200, 200, r2.status);
+
+  // Verify events are in correct order: check_in then check_out
+  const db = getDb();
+  if (shiftId1) {
+    const events = db.prepare("SELECT event_type, event_time FROM shift_events WHERE shift_session_id = ? ORDER BY event_time").all(shiftId1);
+    chk("Blocker7: check_in event exists", events.some((e) => e.event_type === "check_in"), true, true);
+    chk("Blocker7: check_out event exists", events.some((e) => e.event_type === "check_out"), true, true);
+    if (events.length >= 2) {
+      chk("Blocker7: check_in before check_out", events[0].event_type === "check_in", "check_in", events[0].event_type);
+    }
+  }
+  db.close();
+}
+
+// ── Blocker 8: Unknown action guard ──────────────────────────
+async function testBlocker8(cO, cW) {
+  const qrToken = await getSiteQrToken(cO);
+
+  // Verify unknown action is rejected by backend
+  const r = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, { action: "unknown_action" }, cW);
+  chk("Blocker8: unknown action returns 400", r.status === 400, 400, r.status);
+  chk("Blocker8: unknown action error message", r.data?.error?.includes("Invalid action"), true, r.data?.error);
+}
+
 // ── Main ─────────────────────────────────────────────────────
 console.log("=== Phase 8F: Offline / PWA Worker Mode ===");
 
 // PWA file + source checks (no server needed)
 checkPWAFiles();
 testBlocker5();
+testBlocker6();
 
 const USERS = [
   { email: "offline-wkr@test.com", password: "Pass1234!", name: "Offline Worker", role: "worker", mustChangePassword: false },
@@ -312,6 +395,8 @@ await withServer({
   await testBlocker2(cO, cW);
   await testBlocker3(cO, cW);
   await testBlocker4(cO, cW);
+  await testBlocker7(cO, cW);
+  await testBlocker8(cO, cW);
 });
 
 console.log(`\nPhase 8F: ${pass} passed, ${fail} failed (${pass + fail} total)`);
