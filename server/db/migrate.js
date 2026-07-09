@@ -797,5 +797,208 @@ export function migrate() {
     }
   }
 
+  // Phase 8H: Professional Quote Builder — update status CHECK constraint on quotes
+  const currentCheck = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='quotes'").get()?.sql || "";
+  if (currentCheck.includes("CHECK(status IN") && !currentCheck.includes("in_review")) {
+    // Drop stale backup table from previous runs
+    const oldExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quotes_old'").get();
+    if (oldExists) db.exec("DROP TABLE quotes_old");
+
+    // Disable FK checks during migration
+    db.pragma("foreign_keys = OFF");
+    db.exec(`
+      CREATE TABLE quotes_new (
+        id TEXT PRIMARY KEY,
+        quote_request_id TEXT,
+        quote_number TEXT NOT NULL,
+        title TEXT NOT NULL,
+        scope TEXT,
+        status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','in_review','approved','sent','accepted','rejected','expired','converted')),
+        subtotal REAL DEFAULT 0,
+        gst REAL DEFAULT 0,
+        total REAL DEFAULT 0,
+        created_by TEXT,
+        accepted_by TEXT,
+        accepted_at TEXT,
+        valid_until TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      INSERT INTO quotes_new (id, quote_request_id, quote_number, title, scope, status, subtotal, gst, total, created_by, accepted_by, accepted_at, valid_until, created_at, updated_at)
+        SELECT id, quote_request_id, quote_number, title, scope, status, subtotal, gst, total, created_by, accepted_by, accepted_at, valid_until, created_at, updated_at FROM quotes;
+      DROP TABLE quotes;
+      ALTER TABLE quotes_new RENAME TO quotes;
+    `);
+    db.pragma("foreign_keys = ON");
+    console.log("Migrated quotes table CHECK constraint for Phase 8H");
+  }
+
+  // Phase 8H: Add columns to quotes
+  const qCols = getColumnNames(db, "quotes");
+  addColumnIfMissing(db, "quotes", "client_name", "TEXT");
+  addColumnIfMissing(db, "quotes", "client_email", "TEXT");
+  addColumnIfMissing(db, "quotes", "client_phone", "TEXT");
+  addColumnIfMissing(db, "quotes", "client_company", "TEXT");
+  addColumnIfMissing(db, "quotes", "client_address", "TEXT");
+  addColumnIfMissing(db, "quotes", "project_name", "TEXT");
+  addColumnIfMissing(db, "quotes", "project_location", "TEXT");
+  addColumnIfMissing(db, "quotes", "quote_date", "TEXT");
+  addColumnIfMissing(db, "quotes", "valid_until", "TEXT");
+  addColumnIfMissing(db, "quotes", "revision_number", "INTEGER DEFAULT 1");
+  addColumnIfMissing(db, "quotes", "currency", "TEXT DEFAULT 'AUD'");
+  addColumnIfMissing(db, "quotes", "tax_rate", "REAL DEFAULT 0.10");
+  addColumnIfMissing(db, "quotes", "discount_type", "TEXT DEFAULT 'none'");
+  addColumnIfMissing(db, "quotes", "discount_value", "REAL DEFAULT 0");
+  addColumnIfMissing(db, "quotes", "discount_total", "REAL DEFAULT 0");
+  addColumnIfMissing(db, "quotes", "margin_total", "REAL DEFAULT 0");
+  addColumnIfMissing(db, "quotes", "terms", "TEXT");
+  addColumnIfMissing(db, "quotes", "payment_terms", "TEXT");
+  addColumnIfMissing(db, "quotes", "inclusions", "TEXT");
+  addColumnIfMissing(db, "quotes", "exclusions", "TEXT");
+  addColumnIfMissing(db, "quotes", "warranty", "TEXT");
+  addColumnIfMissing(db, "quotes", "notes", "TEXT");
+  addColumnIfMissing(db, "quotes", "internal_notes", "TEXT");
+  addColumnIfMissing(db, "quotes", "review_status", "TEXT DEFAULT 'draft'");
+  addColumnIfMissing(db, "quotes", "reviewed_by", "TEXT");
+  addColumnIfMissing(db, "quotes", "reviewed_at", "TEXT");
+  addColumnIfMissing(db, "quotes", "approved_by", "TEXT");
+  addColumnIfMissing(db, "quotes", "approved_at", "TEXT");
+  addColumnIfMissing(db, "quotes", "sent_at", "TEXT");
+  addColumnIfMissing(db, "quotes", "sent_to_email", "TEXT");
+  addColumnIfMissing(db, "quotes", "pdf_file_path", "TEXT");
+  addColumnIfMissing(db, "quotes", "pdf_generated_at", "TEXT");
+  addColumnIfMissing(db, "quotes", "public_token", "TEXT");
+  addColumnIfMissing(db, "quotes", "public_token_expires_at", "TEXT");
+
+  // Phase 8H: quote_sections table
+  const qsExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quote_sections'").get();
+  if (!qsExists) {
+    db.exec(`
+      CREATE TABLE quote_sections (
+        id TEXT PRIMARY KEY,
+        quote_id TEXT NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT,
+        sort_order INTEGER DEFAULT 0,
+        subtotal REAL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+  }
+
+  // Phase 8H: upgrade quote_items with missing columns
+  const qiCols = getColumnNames(db, "quote_items");
+  addColumnIfMissing(db, "quote_items", "section_id", "TEXT");
+  addColumnIfMissing(db, "quote_items", "item_type", "TEXT DEFAULT 'material'");
+  addColumnIfMissing(db, "quote_items", "item_code", "TEXT");
+  addColumnIfMissing(db, "quote_items", "unit_cost", "REAL DEFAULT 0");
+  addColumnIfMissing(db, "quote_items", "markup_percent", "REAL DEFAULT 0");
+  addColumnIfMissing(db, "quote_items", "discount_percent", "REAL DEFAULT 0");
+  addColumnIfMissing(db, "quote_items", "tax_rate", "REAL DEFAULT 0.10");
+  addColumnIfMissing(db, "quote_items", "taxable", "INTEGER DEFAULT 1");
+  addColumnIfMissing(db, "quote_items", "notes", "TEXT");
+  addColumnIfMissing(db, "quote_items", "name", "TEXT");
+
+  // Phase 8H: quote_documents table
+  const qdExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quote_documents'").get();
+  if (!qdExists) {
+    db.exec(`
+      CREATE TABLE quote_documents (
+        id TEXT PRIMARY KEY,
+        quote_id TEXT NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+        document_type TEXT NOT NULL DEFAULT 'pdf',
+        file_name TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        revision_number INTEGER DEFAULT 1,
+        generated_by TEXT REFERENCES users(id),
+        generated_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+  }
+
+  // Phase 8H: quote_review_events table
+  const qreExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quote_review_events'").get();
+  if (!qreExists) {
+    db.exec(`
+      CREATE TABLE quote_review_events (
+        id TEXT PRIMARY KEY,
+        quote_id TEXT NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+        from_status TEXT,
+        to_status TEXT NOT NULL,
+        note TEXT,
+        changed_by TEXT REFERENCES users(id),
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+  }
+
+  // Phase 8H: quote_templates table
+  const qtExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quote_templates'").get();
+  if (!qtExists) {
+    db.exec(`
+      CREATE TABLE quote_templates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        category TEXT,
+        is_default INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+  }
+
+  // Phase 8H: quote_template_items table
+  const qtiExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quote_template_items'").get();
+  if (!qtiExists) {
+    db.exec(`
+      CREATE TABLE quote_template_items (
+        id TEXT PRIMARY KEY,
+        template_id TEXT NOT NULL REFERENCES quote_templates(id) ON DELETE CASCADE,
+        section_title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        unit TEXT DEFAULT 'each',
+        unit_price REAL DEFAULT 0,
+        item_type TEXT DEFAULT 'material',
+        sort_order INTEGER DEFAULT 0
+      )
+    `);
+  }
+
+  // Phase 8H: indexes
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quotes_quote_number ON quotes(quote_number)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quotes_client_email ON quotes(client_email)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quotes_created_at ON quotes(created_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quote_sections_quote ON quote_sections(quote_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON quote_items(quote_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quote_items_section ON quote_items(section_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quote_documents_quote ON quote_documents(quote_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quote_review_events_quote ON quote_review_events(quote_id)`);
+
+  // Seed default quote templates
+  const templateCount = db.prepare("SELECT COUNT(*) as cnt FROM quote_templates").get().cnt;
+  if (templateCount === 0) {
+    const templates = [
+      { name: "Commercial Fitout", items: [{ section: "Demolition & Strip Out", desc: "Strip out existing fitout including removal of partitions, ceiling, floor coverings", price: 12000 }, { section: "New Partitions", desc: "Supply & install new metal stud partition walls with 1 layer Fyrechek each side", price: 8500 }, { section: "Ceiling", desc: "Supply & install suspended ceiling grid with 600x600mm acoustic tiles", price: 9500 }, { section: "Flooring", desc: "Supply & install commercial grade carpet tiles including underlay", price: 6500 }, { section: "Paint", desc: "Supply & apply 2 coats premium interior paint to all walls and ceiling", price: 4500 }, { section: "Electrical", desc: "Allowance for electrical works including power points, data points, light fittings", price: 8000 }] },
+      { name: "Joinery Supply & Install", items: [{ section: "Custom Cabinetry", desc: "Design, supply & install custom joinery including drawers, shelving, doors", price: 15000 }, { section: "Benchtops", desc: "Supply & install engineered stone benchtop 40mm thick with integrated sink cutout", price: 4500 }, { section: "Hardware", desc: "Supply & install all handles, hinges, drawer runners (soft-close)", price: 1200 }, { section: "Delivery & Installation", desc: "Delivery to site, installation, protection, and final clean", price: 2500 }] },
+      { name: "Maintenance Works", items: [{ section: "General Repairs", desc: "Labour for general building maintenance and repairs (per day)", price: 660 }, { section: "Plumbing", desc: "Minor plumbing repairs including tap washers, valve replacements, unblocking drains", price: 550 }, { section: "Electrical", desc: "Minor electrical repairs including switch plate replacement, light fitting swap", price: 550 }, { section: "Carpentry", desc: "Minor carpentry repairs including door adjustments, hinge replacements", price: 880 }] },
+      { name: "Labour Hire / Day Works", items: [{ section: "Carpenter", desc: "Qualified carpenter — labour only per day (8 hours)", price: 660 }, { section: "Leading Hand", desc: "Leading hand / supervisor — labour only per day (8 hours)", price: 880 }, { section: "Labourer", desc: "General labourer — labour only per day (8 hours)", price: 440 }, { section: "Travel", desc: "Travel allowance (per km outside 30km radius)", price: 0.85 }] },
+      { name: "Supply Only", items: [{ section: "Materials", desc: "Supply of materials as per scope (call for itemised breakdown)", price: 0 }, { section: "Delivery", desc: "Delivery to site within 20km of depot", price: 150 }] },
+    ];
+    const tplInsert = db.prepare("INSERT INTO quote_templates (id, name, description, category, is_default) VALUES (?, ?, ?, ?, ?)");
+    const tplItemInsert = db.prepare("INSERT INTO quote_template_items (id, template_id, section_title, description, unit, unit_price, item_type, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    for (const t of templates) {
+      const tplId = crypto.randomUUID();
+      tplInsert.run(tplId, t.name, `${t.name} template`, t.name, 0);
+      t.items.forEach((item, i) => {
+        tplItemInsert.run(crypto.randomUUID(), tplId, item.section, item.desc, "each", item.price, "material", i);
+      });
+    }
+    console.log(`Seeded ${templates.length} default quote templates`);
+  }
+
   console.log("Database migrated successfully");
 }

@@ -28,7 +28,8 @@
     "test:phase8e": "node scripts/qa/phase8e-timesheet-history.mjs",
     "test:phase8f": "node scripts/qa/phase8f-offline-pwa.mjs",
     "test:install": "node scripts/qa/install-script-static-check.mjs",
-    "test:phase8g": "node scripts/qa/phase8g-quote-requests-inbox.mjs"
+    "test:phase8g": "node scripts/qa/phase8g-quote-requests-inbox.mjs",
+    "test:phase8h": "node scripts/qa/phase8h-professional-quote-builder.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -45,6 +46,7 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "nodemailer": "^9.0.3",
+    "pdfkit": "^0.19.1",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
