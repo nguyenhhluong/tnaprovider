@@ -48,7 +48,8 @@ const ALLOWED_ACTIONS: QueuedAction["action"][] = ["check_in", "check_out", "sta
 
 export async function enqueueAction(
   qrToken: string,
-  action: QueuedAction["action"]
+  action: QueuedAction["action"],
+  options?: { idempotencyKey?: string; clientCreatedAt?: string }
 ): Promise<QueuedAction> {
   if (!ALLOWED_ACTIONS.includes(action)) {
     throw new Error(`Invalid action: ${action}. Must be one of: ${ALLOWED_ACTIONS.join(", ")}`);
@@ -61,8 +62,8 @@ export async function enqueueAction(
       id: generateId(),
       qrToken,
       action,
-      idempotencyKey: generateIdempotencyKey(),
-      clientCreatedAt: new Date().toISOString(),
+      idempotencyKey: options?.idempotencyKey || generateIdempotencyKey(),
+      clientCreatedAt: options?.clientCreatedAt || new Date().toISOString(),
       status: "pending",
       createdAt: new Date().toISOString(),
     };
@@ -223,6 +224,7 @@ async function syncOne(item: QueuedAction, baseUrl: string): Promise<ActionStatu
       action: item.action,
       idempotencyKey: item.idempotencyKey,
       clientCreatedAt: item.clientCreatedAt,
+      source: "offline_qr",
     }),
   });
 

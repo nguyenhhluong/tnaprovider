@@ -203,12 +203,17 @@ export function QRQuickAction() {
   const doAction = async (action: string) => {
     setActionLoading(action); setError(null); setQueuedActionNotice(null);
 
+    // Generate idempotency key and timestamp BEFORE any attempt
+    const idempotencyKey = crypto.randomUUID();
+    const clientCreatedAt = new Date().toISOString();
+    const labels: Record<string, string> = { check_in: "Check-in", check_out: "Check-out", start_break: "Break start", end_break: "Break end" };
+    const queuedNotice = `${labels[action] || action} queued. It will sync when internet returns.`;
+
     if (!isOnline()) {
       try {
-        const queued = await enqueueAction(qrToken || "", action as any);
+        const queued = await enqueueAction(qrToken || "", action as any, { idempotencyKey, clientCreatedAt });
         setQueuedActions((prev) => [...prev, queued]);
-        const labels: Record<string, string> = { check_in: "Check-in", check_out: "Check-out", start_break: "Break start", end_break: "Break end" };
-        setQueuedActionNotice(`${labels[action] || action} queued. It will sync when internet returns.`);
+        setQueuedActionNotice(queuedNotice);
       } catch {
         setError("Failed to queue action offline");
       } finally { setActionLoading(null); }
@@ -217,7 +222,8 @@ export function QRQuickAction() {
 
     try {
       const res = await fetch(`/api/realtime-timesheets/qr/${encodeURIComponent(qrToken || "")}/action`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, idempotencyKey, clientCreatedAt, source: "qr" }),
       });
       const d = await res.json();
       if (!res.ok) { setError(d.error || "Action failed"); return; }
@@ -231,12 +237,11 @@ export function QRQuickAction() {
         setTimeout(() => { setCompletedAction(null); fetchQR(); }, 1500);
       }
     } catch {
-      // Network failure while online — queue the action
+      // Network failure while online — queue with the SAME idempotencyKey
       try {
-        const queued = await enqueueAction(qrToken || "", action as any);
+        const queued = await enqueueAction(qrToken || "", action as any, { idempotencyKey, clientCreatedAt });
         setQueuedActions((prev) => [...prev, queued]);
-        const labels: Record<string, string> = { check_in: "Check-in", check_out: "Check-out", start_break: "Break start", end_break: "Break end" };
-        setQueuedActionNotice(`${labels[action] || action} queued. It will sync when internet returns.`);
+        setQueuedActionNotice(queuedNotice);
       } catch {
         setError("Failed to queue action");
       }

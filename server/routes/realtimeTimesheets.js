@@ -1100,8 +1100,8 @@ router.post("/qr/:qrToken/action", requireAuth, (req, res) => {
   const userId = req.user.userId;
   const now = new Date().toISOString();
 
-  // Determine event source
-  const source = idempotencyKey ? "offline_qr" : "qr";
+  // Determine event source: explicit source from client, default to "qr" for online
+  const source = req.body.source === "offline_qr" ? "offline_qr" : "qr";
 
   function storeReceipt(shiftSessionId, resultStatus, resultData) {
     if (!idempotencyKey) return;
