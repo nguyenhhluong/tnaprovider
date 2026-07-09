@@ -293,6 +293,10 @@ chk("Approve button exists", quotesSrc.includes('"approve"'), true, quotesSrc.in
 chk("Send Quote button gated by approved", quotesSrc.includes('"approved"') && quotesSrc.includes("send"), true, quotesSrc.includes('"approved"') && quotesSrc.includes("send"));
 chk("Templates UI can start quote from template", quotesSrc.includes("startFromTemplate"), true, quotesSrc.includes("startFromTemplate"));
 chk("Create Quote From Request prefills data", quotesSrc.includes("prefill"), true, quotesSrc.includes("prefill"));
+chk("print-area className exists", quotesSrc.includes('className="print-area'), true, quotesSrc.includes('className="print-area'));
+chk("print CSS hides no-print", quotesSrc.includes(".no-print { display: none"), true, quotesSrc.includes(".no-print { display: none"));
+chk("Print button exists", quotesSrc.includes("Print"), true, quotesSrc.includes("Print"));
+chk("QuoteRequests does not use window.open", !qrSrc.includes('window.open("/quote-requests"'), false, qrSrc.includes('window.open("/quote-requests"'));
 
 
 console.log(`\nPhase 8H: ${pass} passed, ${fail} failed (${pass + fail} total)`);

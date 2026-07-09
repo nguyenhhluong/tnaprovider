@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams, useOutletContext } from "react-router-dom";
+import { useSearchParams, useOutletContext, useNavigate } from "react-router-dom";
 import { SEO } from "../../components/SEO";
 import { PageHeader, EmptyState, LoadingState, ErrorState } from "../../components/shared";
 import { Search, Filter, ChevronDown, ChevronUp, Mail, Phone, Calendar, Archive, RotateCcw, MessageSquare, User, Clock, AlertCircle } from "lucide-react";
@@ -53,6 +53,7 @@ function fmtDateShort(iso: string | null) {
 
 export function QuoteRequests() {
   const { setSidebarOpen } = useOutletContext<{ setSidebarOpen: (v: boolean) => void }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState<{ requests: QuoteRequest[]; total: number; summary: Record<string, number> } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -337,7 +338,18 @@ export function QuoteRequests() {
                   credentials: "same-origin",
                 });
                 if (res.ok) {
-                  window.open("/quote-requests", "_blank");
+                  const quote = await res.json();
+                  handleUpdate(selected.id, { status: "quoted" });
+                  setDetailOpen(false);
+                  const prefill = encodeURIComponent(JSON.stringify({
+                    client_name: selected.first_name + " " + selected.last_name,
+                    client_email: selected.email,
+                    client_phone: selected.phone,
+                    project_name: selected.service,
+                    location: selected.location,
+                    scope: selected.message,
+                  }));
+                  navigate(`/quote-requests?quoteId=${quote.id || ""}`, { replace: true });
                 }
               } finally { setSaving(false); }
             }} disabled={saving} className="w-full py-2 border border-green-500 text-green-600 rounded-xl text-sm font-medium hover:bg-green-50">
