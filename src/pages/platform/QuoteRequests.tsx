@@ -341,15 +341,7 @@ export function QuoteRequests() {
                   const quote = await res.json();
                   handleUpdate(selected.id, { status: "quoted" });
                   setDetailOpen(false);
-                  const prefill = encodeURIComponent(JSON.stringify({
-                    client_name: selected.first_name + " " + selected.last_name,
-                    client_email: selected.email,
-                    client_phone: selected.phone,
-                    project_name: selected.service,
-                    location: selected.location,
-                    scope: selected.message,
-                  }));
-                  navigate(`/quote-requests?quoteId=${quote.id || ""}`, { replace: true });
+                  navigate(`/quotes?tab=builder&quoteId=${quote.id || ""}`, { replace: false });
                 }
               } finally { setSaving(false); }
             }} disabled={saving} className="w-full py-2 border border-green-500 text-green-600 rounded-xl text-sm font-medium hover:bg-green-50">

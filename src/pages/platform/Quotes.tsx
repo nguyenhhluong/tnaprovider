@@ -42,15 +42,27 @@ export function Quotes() {
   const [quoteId, setQuoteId] = useState<string | null>(null);
   const [templates, setTemplates] = useState<any[]>([]);
 
-  // Create Quote From Request integration
+  // Load quote from URL params (Create Quote From Request integration)
   useEffect(() => {
-    const prefill = sp.get("prefill");
-    if (prefill) {
-      try {
-        const data = JSON.parse(decodeURIComponent(prefill));
-        setForm((f) => ({ ...f, client_name: data.client_name || "", client_email: data.client_email || "", client_phone: data.client_phone || "", project_name: data.project_name || data.service || "", scope: data.scope || data.message || "", project_location: data.location || "" }));
-      } catch {}
+    const qid = sp.get("quoteId");
+    const urlTab = sp.get("tab");
+    if (urlTab) setTab(urlTab as Tab);
+    if (qid) {
+      setQuoteId(qid);
       setTab("builder");
+      setBuilderStep("review");
+      fetch(`/api/quotes/${qid}`, { credentials: "same-origin" }).then((r) => r.json()).then((q) => {
+        if (q?.id) {
+          setForm({
+            client_name: q.client_name || "", client_company: q.client_company || "", client_email: q.client_email || "", client_phone: q.client_phone || "",
+            client_address: q.client_address || "", project_name: q.project_name || "", project_location: q.project_location || "", scope: q.scope || "",
+            quote_date: q.quote_date || "", valid_until: q.valid_until || "", currency: q.currency || "AUD", tax_rate: q.tax_rate || 0.10,
+            discount_type: q.discount_type || "none", discount_value: q.discount_value || 0, terms: q.terms || "", payment_terms: q.payment_terms || "",
+            inclusions: q.inclusions || "", exclusions: q.exclusions || "", warranty: q.warranty || "", notes: q.notes || "", internal_notes: q.internal_notes || "",
+          });
+          setSections((q.sections || []).map((s: any) => ({ ...s, items: (q.items || []).filter((i: any) => i.section_id === s.id).map((i: any) => ({ ...i })) })));
+        }
+      }).catch(() => {});
     }
   }, []);
 
@@ -261,64 +273,65 @@ export function Quotes() {
     </div>
   );
 
-  const renderReviewStep = () => {
-    const tot = quoteTotal();
+  const renderPrintableQuote = (totOverride?: any) => {
+    const tot = totOverride || quoteTotal();
     const qNum = quoteId ? quotes.find((q) => q.id === quoteId)?.quote_number || "" : "";
     return (
-      <div className="space-y-6 max-w-3xl mx-auto">
-        <div className="print-area bg-white rounded-xl p-6 md:p-8 space-y-4" style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
-          <div className="flex justify-between items-start border-b pb-4">
-            <div><h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>TNA Provider</h1><p style={{ fontSize: 10, color: '#666', margin: '2px 0' }}>ABN: 00 000 000 000</p><p style={{ fontSize: 10, color: '#666', margin: '2px 0' }}>Unit 6, 7-9 Gibbon St, Wetherill Park NSW 2164</p></div>
-            <div className="text-right"><h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>QUOTE</h2><p style={{ fontSize: 10, color: '#666', margin: '2px 0' }}>#{qNum || "New"}</p><p style={{ fontSize: 10, color: '#666', margin: '2px 0' }}>Date: {fmtDate(form.quote_date) || "Today"}</p><p style={{ fontSize: 10, color: '#666', margin: '2px 0' }}>Valid: {fmtDate(form.valid_until) || "30 days"}</p></div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 text-sm pt-2">
-            <div><p className="font-semibold" style={{ fontSize: 12 }}>Bill To:</p><p style={{ fontSize: 10 }}>{form.client_name}{form.client_company ? `\n${form.client_company}` : ""}</p><p style={{ fontSize: 10 }}>{form.client_address}</p><p style={{ fontSize: 10 }}>{form.client_email}</p><p style={{ fontSize: 10 }}>{form.client_phone}</p></div>
-            <div><p className="font-semibold" style={{ fontSize: 12 }}>Project:</p><p style={{ fontSize: 10 }}>{form.project_name}</p><p style={{ fontSize: 10 }}>{form.project_location}</p></div>
-          </div>
-          {form.scope && <div className="border-t pt-2"><p className="font-semibold" style={{ fontSize: 12 }}>Scope of Works:</p><p style={{ fontSize: 10, whiteSpace: 'pre-wrap' }}>{form.scope}</p></div>}
-          {sections.map((sec, si) => sec.items.filter((i) => i.name).length > 0 && (
-            <div key={si} className="border-t pt-2" style={{ pageBreakInside: 'avoid' }}>
-              <p className="font-semibold" style={{ fontSize: 11 }}>{sec.title}</p>
-              <table style={{ width: '100%', fontSize: 9, borderCollapse: 'collapse' }}>
-                <thead><tr style={{ borderBottom: '1px solid #ccc' }}><th style={{ textAlign: 'left', padding: '4px 2px' }}>Item</th><th style={{ textAlign: 'right', padding: '4px 2px' }}>Qty</th><th style={{ textAlign: 'right', padding: '4px 2px' }}>Unit</th><th style={{ textAlign: 'right', padding: '4px 2px' }}>Price</th><th style={{ textAlign: 'right', padding: '4px 2px' }}>Total</th></tr></thead>
-                <tbody>{sec.items.filter((i) => i.name).map((item, ii) => <tr key={ii} style={{ borderBottom: '1px solid #eee' }}><td style={{ padding: '3px 2px' }}>{item.name}</td><td style={{ textAlign: 'right', padding: '3px 2px' }}>{item.quantity}</td><td style={{ textAlign: 'right', padding: '3px 2px' }}>{item.unit}</td><td style={{ textAlign: 'right', padding: '3px 2px' }}>{fmtMoney(Number(item.unit_price) || 0)}</td><td style={{ textAlign: 'right', padding: '3px 2px', fontFamily: 'monospace' }}>{fmtMoney(calcLineTotal(item))}</td></tr>)}</tbody>
-              </table>
-            </div>
-          ))}
-          <div className="border-t pt-2" style={{ fontSize: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}><span style={{ marginRight: 40 }}>Subtotal:</span><span style={{ fontFamily: 'monospace', width: 80, textAlign: 'right', display: 'inline-block' }}>{fmtMoney(tot.subtotal)}</span></div>
-            {tot.discount > 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', color: '#dc2626' }}><span style={{ marginRight: 40 }}>Discount:</span><span style={{ fontFamily: 'monospace', width: 80, textAlign: 'right', display: 'inline-block' }}>-{fmtMoney(tot.discount)}</span></div>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}><span style={{ marginRight: 40 }}>GST:</span><span style={{ fontFamily: 'monospace', width: 80, textAlign: 'right', display: 'inline-block' }}>{fmtMoney(tot.gst)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', fontWeight: 700, fontSize: 12, borderTop: '2px solid #000', paddingTop: 4, marginTop: 4 }}><span style={{ marginRight: 40 }}>Total:</span><span style={{ fontFamily: 'monospace', width: 80, textAlign: 'right', display: 'inline-block' }}>{fmtMoney(tot.total)}</span></div>
-          </div>
-          {(form.payment_terms || form.inclusions || form.exclusions || form.warranty || form.notes) && <div className="border-t pt-2" style={{ fontSize: 9 }}>
-            {form.payment_terms && <p><strong>Payment Terms:</strong> {form.payment_terms}</p>}
-            {form.inclusions && <p><strong>Inclusions:</strong> {form.inclusions}</p>}
-            {form.exclusions && <p><strong>Exclusions:</strong> {form.exclusions}</p>}
-            {form.warranty && <p><strong>Warranty:</strong> {form.warranty}</p>}
-            {form.notes && <p><strong>Notes:</strong> {form.notes}</p>}
-          </div>}
-          <div className="border-t pt-3" style={{ fontSize: 9 }}>
-            <div style={{ borderTop: '1px solid #000', width: 250, marginTop: 30 }}></div>
-            <p className="font-semibold" style={{ fontSize: 10, marginTop: 4 }}>Acceptance of Quote</p>
-            <p style={{ fontSize: 9 }}>I/we accept the above quote and agree to the terms and conditions outlined.</p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
-              <span>Signed: ______________________________</span>
-              <span>Date: ______________________________</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-              <span>Name: ______________________________</span>
-              <span>Company: ______________________________</span>
-            </div>
-          </div>
-          <div style={{ fontSize: 7, color: '#999', textAlign: 'center', borderTop: '1px solid #ccc', paddingTop: 6, marginTop: 20 }}>
-            TNA Provider | {qNum || "Quote"} | {fmtDate(form.quote_date) || new Date().toLocaleDateString("en-AU")}
-          </div>
+      <div className="print-area bg-white rounded-xl p-6 md:p-8 space-y-4" style={{ fontFamily: "'Helvetica Neue', Arial, sans-serif" }}>
+        <div className="flex justify-between items-start border-b pb-4">
+          <div><h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>TNA Provider</h1><p style={{ fontSize: 10, color: '#666', margin: '2px 0' }}>ABN: 00 000 000 000</p><p style={{ fontSize: 10, color: '#666', margin: '2px 0' }}>Unit 6, 7-9 Gibbon St, Wetherill Park NSW 2164</p></div>
+          <div className="text-right"><h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>QUOTE</h2><p style={{ fontSize: 10, color: '#666', margin: '2px 0' }}>#{qNum || "New"}</p><p style={{ fontSize: 10, color: '#666', margin: '2px 0' }}>Date: {fmtDate(form.quote_date) || "Today"}</p><p style={{ fontSize: 10, color: '#666', margin: '2px 0' }}>Valid: {fmtDate(form.valid_until) || "30 days"}</p></div>
         </div>
+        <div className="grid grid-cols-2 gap-4 text-sm pt-2">
+          <div><p className="font-semibold" style={{ fontSize: 12 }}>Bill To:</p><p style={{ fontSize: 10 }}>{form.client_name}{form.client_company ? `\n${form.client_company}` : ""}</p><p style={{ fontSize: 10 }}>{form.client_address}</p><p style={{ fontSize: 10 }}>{form.client_email}</p><p style={{ fontSize: 10 }}>{form.client_phone}</p></div>
+          <div><p className="font-semibold" style={{ fontSize: 12 }}>Project:</p><p style={{ fontSize: 10 }}>{form.project_name}</p><p style={{ fontSize: 10 }}>{form.project_location}</p></div>
+        </div>
+        {form.scope && <div className="border-t pt-2"><p className="font-semibold" style={{ fontSize: 12 }}>Scope of Works:</p><p style={{ fontSize: 10, whiteSpace: 'pre-wrap' }}>{form.scope}</p></div>}
+        {sections.map((sec, si) => sec.items.filter((i) => i.name).length > 0 && (
+          <div key={si} className="border-t pt-2" style={{ pageBreakInside: 'avoid' }}>
+            <p className="font-semibold" style={{ fontSize: 11 }}>{sec.title}</p>
+            <table style={{ width: '100%', fontSize: 9, borderCollapse: 'collapse' }}>
+              <thead><tr style={{ borderBottom: '1px solid #ccc' }}><th style={{ textAlign: 'left', padding: '4px 2px' }}>Item</th><th style={{ textAlign: 'right', padding: '4px 2px' }}>Qty</th><th style={{ textAlign: 'right', padding: '4px 2px' }}>Unit</th><th style={{ textAlign: 'right', padding: '4px 2px' }}>Price</th><th style={{ textAlign: 'right', padding: '4px 2px' }}>Total</th></tr></thead>
+              <tbody>{sec.items.filter((i) => i.name).map((item, ii) => <tr key={ii} style={{ borderBottom: '1px solid #eee' }}><td style={{ padding: '3px 2px' }}>{item.name}</td><td style={{ textAlign: 'right', padding: '3px 2px' }}>{item.quantity}</td><td style={{ textAlign: 'right', padding: '3px 2px' }}>{item.unit}</td><td style={{ textAlign: 'right', padding: '3px 2px' }}>{fmtMoney(Number(item.unit_price) || 0)}</td><td style={{ textAlign: 'right', padding: '3px 2px', fontFamily: 'monospace' }}>{fmtMoney(calcLineTotal(item))}</td></tr>)}</tbody>
+            </table>
+          </div>
+        ))}
+        <div className="border-t pt-2" style={{ fontSize: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}><span style={{ marginRight: 40 }}>Subtotal:</span><span style={{ fontFamily: 'monospace', width: 80, textAlign: 'right', display: 'inline-block' }}>{fmtMoney(tot.subtotal)}</span></div>
+          {tot.discount > 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', color: '#dc2626' }}><span style={{ marginRight: 40 }}>Discount:</span><span style={{ fontFamily: 'monospace', width: 80, textAlign: 'right', display: 'inline-block' }}>-{fmtMoney(tot.discount)}</span></div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}><span style={{ marginRight: 40 }}>GST:</span><span style={{ fontFamily: 'monospace', width: 80, textAlign: 'right', display: 'inline-block' }}>{fmtMoney(tot.gst)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', fontWeight: 700, fontSize: 12, borderTop: '2px solid #000', paddingTop: 4, marginTop: 4 }}><span style={{ marginRight: 40 }}>Total:</span><span style={{ fontFamily: 'monospace', width: 80, textAlign: 'right', display: 'inline-block' }}>{fmtMoney(tot.total)}</span></div>
+        </div>
+        {(form.payment_terms || form.inclusions || form.exclusions || form.warranty || form.notes) && <div className="border-t pt-2" style={{ fontSize: 9 }}>
+          {form.payment_terms && <p><strong>Payment Terms:</strong> {form.payment_terms}</p>}
+          {form.inclusions && <p><strong>Inclusions:</strong> {form.inclusions}</p>}
+          {form.exclusions && <p><strong>Exclusions:</strong> {form.exclusions}</p>}
+          {form.warranty && <p><strong>Warranty:</strong> {form.warranty}</p>}
+          {form.notes && <p><strong>Notes:</strong> {form.notes}</p>}
+        </div>}
+        <div className="border-t pt-3" style={{ fontSize: 9 }}>
+          <div style={{ borderTop: '1px solid #000', width: 250, marginTop: 30 }}></div>
+          <p className="font-semibold" style={{ fontSize: 10, marginTop: 4 }}>Acceptance of Quote</p>
+          <p style={{ fontSize: 9 }}>I/we accept the above quote and agree to the terms and conditions outlined.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}><span>Signed: ______________________________</span><span>Date: ______________________________</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}><span>Name: ______________________________</span><span>Company: ______________________________</span></div>
+        </div>
+        <div style={{ fontSize: 7, color: '#999', textAlign: 'center', borderTop: '1px solid #ccc', paddingTop: 6, marginTop: 20 }}>
+          TNA Provider | {qNum || "Quote"} | {fmtDate(form.quote_date) || new Date().toLocaleDateString("en-AU")}
+        </div>
+      </div>
+    );
+  };
 
+  const renderReviewStep = () => {
+    const tot = quoteTotal();
+    return (
+      <div className="space-y-6 max-w-3xl mx-auto">
+        {renderPrintableQuote(tot)}
         <div className="flex gap-2 flex-wrap no-print">
           <button onClick={saveQuote} disabled={saving} className="px-4 py-2 bg-brand-accent text-white rounded-lg text-sm font-medium"><Save className="w-4 h-4 inline mr-1" />{quoteId ? "Update Quote" : "Save Quote"}</button>
           {quoteId && <button onClick={() => doWorkflowAction("submit-review")} disabled={saving} className="px-4 py-2 border border-brand-accent text-brand-accent rounded-lg text-sm font-medium"><Send className="w-4 h-4 inline mr-1" />Submit for Review</button>}
+          <button onClick={() => window.print()} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium"><Printer className="w-4 h-4 inline mr-2" />Print</button>
         </div>
       </div>
     );
@@ -326,10 +339,11 @@ export function Quotes() {
 
   const renderPdfStep = () => {
     const q = quotes.find((q) => q.id === quoteId);
+    const tot = quoteTotal();
     return (
-      <div className="space-y-4 text-center">
-        <p className="text-sm text-gray-500">Quote #{q?.quote_number || ""} is ready for export.</p>
-        <div className="flex gap-3 justify-center flex-wrap">
+      <div className="space-y-4">
+        {renderPrintableQuote(tot)}
+        <div className="flex gap-3 justify-center flex-wrap no-print pt-4">
           {!pdfUrl && <button onClick={() => doWorkflowAction("generate-pdf")} disabled={saving} className="px-6 py-3 bg-brand-accent text-white rounded-xl font-medium"><Download className="w-5 h-5 inline mr-2" />Export PDF</button>}
           {pdfUrl && <><a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="px-6 py-3 bg-brand-accent text-white rounded-xl font-medium inline-flex items-center gap-2"><Eye className="w-5 h-5" />Open PDF</a><a href={pdfUrl} download className="px-6 py-3 border border-brand-accent text-brand-accent rounded-xl font-medium inline-flex items-center gap-2"><Download className="w-5 h-5" />Download</a></>}
           <button onClick={() => window.print()} className="px-6 py-3 border border-gray-300 rounded-xl text-sm font-medium"><Printer className="w-4 h-4 inline mr-2" />Print</button>

@@ -292,11 +292,16 @@ chk("Submit for Review button exists", quotesSrc.includes("Submit for Review"), 
 chk("Approve button exists", quotesSrc.includes('"approve"'), true, quotesSrc.includes('"approve"'));
 chk("Send Quote button gated by approved", quotesSrc.includes('"approved"') && quotesSrc.includes("send"), true, quotesSrc.includes('"approved"') && quotesSrc.includes("send"));
 chk("Templates UI can start quote from template", quotesSrc.includes("startFromTemplate"), true, quotesSrc.includes("startFromTemplate"));
-chk("Create Quote From Request prefills data", quotesSrc.includes("prefill"), true, quotesSrc.includes("prefill"));
-chk("print-area className exists", quotesSrc.includes('className="print-area'), true, quotesSrc.includes('className="print-area'));
+chk("print-area className exists in renderPrintableQuote", quotesSrc.includes('className="print-area'), true, quotesSrc.includes('className="print-area'));
 chk("print CSS hides no-print", quotesSrc.includes(".no-print { display: none"), true, quotesSrc.includes(".no-print { display: none"));
-chk("Print button exists", quotesSrc.includes("Print"), true, quotesSrc.includes("Print"));
-chk("QuoteRequests does not use window.open", !qrSrc.includes('window.open("/quote-requests"'), false, qrSrc.includes('window.open("/quote-requests"'));
+chk("Print button in Review step", quotesSrc.includes("Print") && quotesSrc.includes("window.print()"), true, quotesSrc.includes("Print") && quotesSrc.includes("window.print()"));
+chk("Print button in Final PDF step", quotesSrc.includes("Print") && quotesSrc.includes("renderPdfStep"), true, quotesSrc.includes("Print") && quotesSrc.includes("renderPdfStep"));
+chk("print-area in Final PDF step (via renderPrintableQuote)", quotesSrc.includes("renderPrintableQuote") && quotesSrc.includes("renderPdfStep"), true, quotesSrc.includes("renderPrintableQuote") && quotesSrc.includes("renderPdfStep"));
+chk("QuoteRequests navigates to /quotes?tab=builder&quoteId", qrSrc.includes('navigate(`/quotes?tab=builder&quoteId='), true, qrSrc.includes('navigate(`/quotes?tab=builder&quoteId='));
+chk("QuoteRequests does not use window.open", !qrSrc.includes('window.open("'), false, qrSrc.includes('window.open("'));
+chk("Quotes.tsx reads quoteId from URL", quotesSrc.includes('sp.get("quoteId")'), true, quotesSrc.includes('sp.get("quoteId")'));
+chk("Quotes.tsx loads quote from API when quoteId provided", quotesSrc.includes('fetch(`/api/quotes/${qid}`'), true, quotesSrc.includes('fetch(`/api/quotes/${qid}`'));
+chk("Contact request status updated to quoted after create", qrSrc.includes('status: "quoted"'), true, qrSrc.includes('status: "quoted"'));
 
 
 console.log(`\nPhase 8H: ${pass} passed, ${fail} failed (${pass + fail} total)`);
