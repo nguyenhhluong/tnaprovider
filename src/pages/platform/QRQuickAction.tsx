@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, useOutletContext, Link } from "react-router-dom";
 import { SEO } from "../../components/SEO";
-import { MapPin, LogIn, LogOut, Coffee, Play, ExternalLink, Clock, CheckCircle2, WifiOff, RefreshCw } from "lucide-react";
+import { MapPin, LogIn, LogOut, Coffee, Play, ExternalLink, Clock, CheckCircle2, WifiOff, RefreshCw, Download } from "lucide-react";
 import { appPath } from "../../utils/host";
-import { enqueueAction, syncPendingActions, getPendingActions, type QueuedAction } from "../../utils/offlineQueue";
-import { isOnline, onOnline, onOffline } from "../../utils/pwa";
+import { cn } from "../../utils/cn";
+import { enqueueAction, syncPendingActions, getAllQueuedActions, recoverStuckSyncing, getQueueStats, type QueuedAction } from "../../utils/offlineQueue";
+import { isOnline, onOnline, onOffline, isInstallable, promptInstall } from "../../utils/pwa";
 
 function calculateLivePay(payableSeconds: number, hourlyRate: number, payRule: any) {
   const otAfterSecs = (payRule?.overtime_daily_after_hours || 7.6) * 3600;
@@ -53,15 +54,41 @@ export function QRQuickAction() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const al = (a: string) => actionLoading === a;
   const [completedAction, setCompletedAction] = useState<string | null>(null);
+  const [queuedActionNotice, setQueuedActionNotice] = useState<string | null>(null);
   const [queuedActions, setQueuedActions] = useState<QueuedAction[]>([]);
   const [offline, setOffline] = useState(!isOnline());
   const [syncing, setSyncing] = useState(false);
   const timerRef = useRef<any>(null);
-  // Live timer state
   const [liveShift, setLiveShift] = useState<any>(null);
   const [liveStartAt, setLiveStartAt] = useState<number>(0);
   const [liveOffset, setLiveOffset] = useState<number>(0);
   const [now, setNow] = useState(Date.now());
+  const [showInstall, setShowInstall] = useState(false);
+
+  useEffect(() => {
+    if (isInstallable()) {
+      const dismissed = localStorage.getItem("install-prompt-dismissed");
+      if (!dismissed || Date.now() - Number(dismissed) > 7 * 24 * 60 * 60 * 1000) {
+        setShowInstall(true);
+      }
+    }
+    const checkInstall = setInterval(() => {
+      if (isInstallable() && !localStorage.getItem("install-prompt-dismissed")) {
+        setShowInstall(true);
+      }
+    }, 3000);
+    return () => clearInterval(checkInstall);
+  }, []);
+
+  const handleInstall = async () => {
+    const accepted = await promptInstall();
+    if (accepted) setShowInstall(false);
+  };
+
+  const handleDismissInstall = () => {
+    setShowInstall(false);
+    localStorage.setItem("install-prompt-dismissed", String(Date.now()));
+  };
 
   const fetchQR = async () => {
     setLoading(true); setError(null);
@@ -74,7 +101,6 @@ export function QRQuickAction() {
       initTimer(d);
       try { sessionStorage.setItem(`qr-data-${qrToken}`, JSON.stringify(d)); } catch {}
     } catch {
-      // Try cache
       try {
         const cached = sessionStorage.getItem(`qr-data-${qrToken}`);
         if (cached) { setData(JSON.parse(cached)); initTimer(JSON.parse(cached)); setError(null); setLoading(false); return; }
@@ -92,10 +118,10 @@ export function QRQuickAction() {
     setLiveOffset(Date.now() - new Date(s.serverNow).getTime());
   }
 
-  const loadQueuedActions = useCallback(async () => {
+  const loadAllActions = useCallback(async () => {
     if (!qrToken) return;
     try {
-      const all = await getPendingActions();
+      const all = await getAllQueuedActions();
       setQueuedActions(all.filter((a) => a.qrToken === qrToken));
     } catch {}
   }, [qrToken]);
@@ -104,17 +130,30 @@ export function QRQuickAction() {
     if (!qrToken) return;
     setSyncing(true);
     try {
-      await syncPendingActions(qrToken);
-      await loadQueuedActions();
+      await recoverStuckSyncing();
+      const result = await syncPendingActions(qrToken);
+      await loadAllActions();
       await fetchQR();
+
+      if (result.stopped) {
+        setQueuedActionNotice("login_required");
+        setTimeout(() => setQueuedActionNotice(null), 5000);
+      } else if (result.synced > 0) {
+        setQueuedActionNotice("synced");
+        setTimeout(() => setQueuedActionNotice(null), 3000);
+      } else if (result.rejected > 0) {
+        setQueuedActionNotice("rejected");
+        setTimeout(() => setQueuedActionNotice(null), 5000);
+      }
     } finally {
       setSyncing(false);
     }
   }, [qrToken]);
 
   useEffect(() => {
+    recoverStuckSyncing().catch(() => {});
     fetchQR();
-    loadQueuedActions();
+    loadAllActions();
   }, [qrToken]);
 
   useEffect(() => {
@@ -128,7 +167,6 @@ export function QRQuickAction() {
     return () => { unsubOn(); unsubOff(); };
   }, [doSync]);
 
-  // Live timer - ticks every 1s
   useEffect(() => {
     if (!liveStartAt) return;
     const tick = () => { setNow(Date.now()); };
@@ -137,7 +175,6 @@ export function QRQuickAction() {
     return () => clearInterval(timerRef.current);
   }, [liveStartAt, liveShift?.id]);
 
-  // Compute live values for display
   const getLiveValues = () => {
     if (!liveStartAt) return { totalSecs: 0, breakSecs: 0, paySecs: 0, livePay: 0 };
 
@@ -154,7 +191,6 @@ export function QRQuickAction() {
       const breakStartedAt = Date.parse(liveShift.currentBreakStartedAt);
       const currentBreakElapsed = Math.max(0, Math.floor((effectiveNow - breakStartedAt) / 1000));
       breakSecs = completedBreakSecs + currentBreakElapsed;
-      // Paid duration freezes when current break started
       paySecs = Math.max(0, Math.floor((breakStartedAt - checkedAt) / 1000) - completedBreakSecs);
     }
 
@@ -165,14 +201,14 @@ export function QRQuickAction() {
   };
 
   const doAction = async (action: string) => {
-    setActionLoading(action); setError(null);
+    setActionLoading(action); setError(null); setQueuedActionNotice(null);
 
     if (!isOnline()) {
       try {
         const queued = await enqueueAction(qrToken || "", action as any);
-        setCompletedAction(action);
         setQueuedActions((prev) => [...prev, queued]);
-        setTimeout(() => { setCompletedAction(null); }, 2000);
+        const labels: Record<string, string> = { check_in: "Check-in", check_out: "Check-out", start_break: "Break start", end_break: "Break end" };
+        setQueuedActionNotice(`${labels[action] || action} queued. It will sync when internet returns.`);
       } catch {
         setError("Failed to queue action offline");
       } finally { setActionLoading(null); }
@@ -202,7 +238,6 @@ export function QRQuickAction() {
     setLiveShift(s);
     setLiveStartAt(new Date(s.checkedInAt).getTime());
     setLiveOffset(Date.now() - new Date(s.serverNow).getTime());
-    // break start handled via currentBreakStartedAt from server
   }
 
   if (loading) {
@@ -235,18 +270,41 @@ export function QRQuickAction() {
   const isCheckedIn = data.activeShift?.active;
   const isOnBreak = data.activeShift?.status === "on_break";
 
-  // Use live timer values
   const lv = getLiveValues();
   const totalSecs = (isCheckedIn || completedAction === "check_in") ? lv.totalSecs : (shift?.liveTotalSeconds || 0);
   const breakSecs = (isCheckedIn || completedAction === "check_in") ? lv.breakSecs : (shift?.liveBreakSeconds || 0);
   const paySecs = (isCheckedIn || completedAction === "check_in") ? lv.paySecs : (shift?.payableSeconds || 0);
   const livePay = (isCheckedIn || completedAction === "check_in") ? lv.livePay : 0;
 
+  const pendingQueueItems = queuedActions.filter((a) => a.status === "pending" || a.status === "retryable_failed");
+  const rejectedItems = queuedActions.filter((a) => a.status === "rejected");
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center p-4">
       <SEO title="QR Check-In | TNA Provider" description="Quick QR check-in." canonical="https://tnaprovider.com.au/qr" />
 
-      {/* Completed state */}
+      {/* Install prompt */}
+      {showInstall && (
+        <div className="max-w-sm w-full mt-4">
+          <div className="bg-brand-accent/10 border border-brand-accent/30 rounded-2xl p-4 text-center space-y-3">
+            <div className="w-12 h-12 bg-brand-accent/20 rounded-full flex items-center justify-center mx-auto">
+              <Download className="w-6 h-6 text-brand-accent" />
+            </div>
+            <p className="text-sm font-semibold text-brand-dark dark:text-white">Install TNA Worker App</p>
+            <p className="text-xs text-gray-500">Open faster on site and keep check-ins available during weak reception.</p>
+            <div className="flex gap-2 justify-center">
+              <button onClick={handleInstall} className="px-4 py-2 bg-brand-accent text-white rounded-xl text-sm font-medium hover:bg-brand-accent/90 transition-colors">
+                Install
+              </button>
+              <button onClick={handleDismissInstall} className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-600 dark:text-gray-400 font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Completed state — server confirmed success */}
       {completedAction === "check_out" ? (
         <div className="max-w-sm w-full mt-8">
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 text-center space-y-4 shadow-sm">
@@ -313,18 +371,33 @@ export function QRQuickAction() {
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-600 dark:text-red-400 text-center">{error}</div>
           )}
 
+          {/* Queued action notice — not success */}
+          {queuedActionNotice && (
+            <div className={cn(
+              "rounded-xl p-3 text-sm text-center",
+              queuedActionNotice === "synced" ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400" :
+              queuedActionNotice === "rejected" || queuedActionNotice === "login_required" ? "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400" :
+              "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400"
+            )}>
+              {queuedActionNotice === "synced" ? "Check-in synced successfully." :
+               queuedActionNotice === "rejected" ? "Sync failed: rejected by server." :
+               queuedActionNotice === "login_required" ? "Sync failed: login required. Please refresh." :
+               queuedActionNotice}
+            </div>
+          )}
+
           {/* Offline indicator */}
           {offline && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-sm text-amber-700 dark:text-amber-400 text-center flex items-center justify-center gap-2">
               <WifiOff className="w-4 h-4" />
-              <span>You are offline — actions will be queued and synced when connected</span>
+              <span>You are offline</span>
             </div>
           )}
 
-          {/* Queued actions */}
-          {queuedActions.length > 0 && !completedAction && (
+          {/* Queued actions summary */}
+          {pendingQueueItems.length > 0 && !queuedActionNotice && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 text-sm text-blue-700 dark:text-blue-400 text-center space-y-1">
-              <p className="font-semibold">{queuedActions.length} pending {queuedActions.length === 1 ? "action" : "actions"}</p>
+              <p className="font-semibold">{pendingQueueItems.length} {pendingQueueItems.length === 1 ? "action" : "actions"} queued</p>
               <p className="text-xs text-blue-500 dark:text-blue-400">Waiting to sync</p>
               {!offline && (
                 <button onClick={doSync} disabled={syncing} className="mt-1 inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-full text-xs hover:bg-blue-700 disabled:opacity-50 transition-colors">
@@ -332,6 +405,14 @@ export function QRQuickAction() {
                   {syncing ? "Syncing..." : "Sync now"}
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Rejected actions notice */}
+          {rejectedItems.length > 0 && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-600 dark:text-red-400 text-center">
+              <p className="font-semibold">{rejectedItems.length} {rejectedItems.length === 1 ? "action" : "actions"} rejected</p>
+              <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">Contact admin if this persists</p>
             </div>
           )}
 

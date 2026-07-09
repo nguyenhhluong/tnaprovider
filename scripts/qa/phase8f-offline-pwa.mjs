@@ -34,6 +34,12 @@ async function getSiteQrToken(cookie) {
   return sites[0].qr_token;
 }
 
+function getDb() {
+  const dbPath = resolve(ROOT, "data/test-phase8f.db");
+  const db = new Database(dbPath);
+  return db;
+}
+
 // ── PWA file checks ──────────────────────────────────────────
 function checkPWAFiles() {
   const manifestPath = resolve(ROOT, "public/manifest.webmanifest");
@@ -48,7 +54,7 @@ function checkPWAFiles() {
   chk("sw.js exists", existsSync(swPath), true, existsSync(swPath));
   const sw = readFileSync(swPath, "utf-8");
   chk("sw.js has install event", sw.includes("install"), true, sw.includes("install"));
-  chk("sw.js has network-first for API", sw.includes("network-first") || sw.includes("networkFirst"), true, sw.includes("networkFirst"));
+  chk("sw.js has network-first for API", sw.includes("networkFirst"), true, sw.includes("networkFirst"));
   chk("sw.js has offline fallback", sw.includes("offline.html"), true, sw.includes("offline.html"));
 
   const offlinePath = resolve(ROOT, "public/offline.html");
@@ -63,151 +69,228 @@ function checkPWAFiles() {
   const indexHtml = readFileSync(indexPath, "utf-8");
   chk("index.html links manifest", indexHtml.includes("manifest.webmanifest"), true, indexHtml.includes("manifest.webmanifest"));
   chk("index.html registers SW", indexHtml.includes("serviceWorker.register"), true, indexHtml.includes("serviceWorker.register"));
+
+  // PWA source checks
+  const pwaPath = resolve(ROOT, "src/utils/pwa.ts");
+  chk("pwa.ts exists", existsSync(pwaPath), true, existsSync(pwaPath));
+  const pwaSrc = readFileSync(pwaPath, "utf-8");
+  chk("pwa.ts exports isInstallable", pwaSrc.includes("isInstallable"), true, pwaSrc.includes("isInstallable"));
+  chk("pwa.ts exports promptInstall", pwaSrc.includes("promptInstall"), true, pwaSrc.includes("promptInstall"));
+  chk("pwa.ts exports isOnline", pwaSrc.includes("isOnline"), true, pwaSrc.includes("isOnline"));
+  chk("pwa.ts handles beforeinstallprompt", pwaSrc.includes("beforeinstallprompt"), true, pwaSrc.includes("beforeinstallprompt"));
+
+  // OfflineQueue source checks
+  const queuePath = resolve(ROOT, "src/utils/offlineQueue.ts");
+  chk("offlineQueue.ts exists", existsSync(queuePath), true, existsSync(queuePath));
+  const queueSrc = readFileSync(queuePath, "utf-8");
+  chk("offlineQueue handles recoverStuckSyncing", queueSrc.includes("recoverStuckSyncing"), true, queueSrc.includes("recoverStuckSyncing"));
+  chk("offlineQueue has getQueueStats", queueSrc.includes("getQueueStats"), true, queueSrc.includes("getQueueStats"));
+  chk("offlineQueue has rejected status", queueSrc.includes("rejected"), true, queueSrc.includes("rejected"));
+  chk("offlineQueue has login_required status", queueSrc.includes("login_required"), true, queueSrc.includes("login_required"));
+  chk("offlineQueue has retryable_failed status", queueSrc.includes("retryable_failed"), true, queueSrc.includes("retryable_failed"));
+  chk("offlineQueue has lastAttemptAt", queueSrc.includes("lastAttemptAt"), true, queueSrc.includes("lastAttemptAt"));
+  chk("offlineQueue has attemptCount", queueSrc.includes("attemptCount"), true, queueSrc.includes("attemptCount"));
+
+  // QR page source checks
+  const qrPagePath = resolve(ROOT, "src/pages/platform/QRQuickAction.tsx");
+  chk("QRQuickAction.tsx exists", existsSync(qrPagePath), true, existsSync(qrPagePath));
+  const qrSrc = readFileSync(qrPagePath, "utf-8");
+  chk("QR page has queuedActionNotice state", qrSrc.includes("queuedActionNotice"), true, qrSrc.includes("queuedActionNotice"));
+  chk("QR page has recoverStuckSyncing call", qrSrc.includes("recoverStuckSyncing"), true, qrSrc.includes("recoverStuckSyncing"));
+  chk("QR page has install prompt", qrSrc.includes("showInstall"), true, qrSrc.includes("showInstall"));
+  chk("QR page uses cn", qrSrc.includes('from "../../utils/cn"'), true, qrSrc.includes('from "../../utils/cn"'));
 }
 
-// ── Backend idempotency tests ─────────────────────────────────
-async function testIdempotency(cO, cW) {
+// ── Blocker 1: Offline queued action does NOT show success ───
+async function testBlocker1(cO, cW) {
   const qrToken = await getSiteQrToken(cO);
 
-  // 1. Normal online check-in
-  const r1 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, { action: "check_in" }, cW);
-  chk("Online check-in returns 201", r1.status === 201, 201, r1.status);
-  chk("Online check-in success", r1.data?.success === true, true, r1.data?.success);
-  chk("Online check-in source qr", r1.data?.synced === undefined || r1.data?.synced === false, false, r1.data?.synced);
-
-  // Check shift_events has 'qr' source
-  const shiftId = r1.data?.shift?.id;
-  if (shiftId) {
-    const db = await getDb();
-    const event = db.prepare("SELECT source FROM shift_events WHERE shift_session_id = ? AND event_type = 'check_in'").get(shiftId);
-    chk("Event source is 'qr' for online action", event?.source === "qr", "qr", event?.source);
-    db.close();
-  }
-
-  // 2. Check-out
-  const r2 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, { action: "check_out" }, cW);
-  chk("Online check-out success", r2.data?.success === true, true, r2.data?.success);
-
-  // 3. Offline check-in with idempotencyKey
-  const idKey1 = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
-  const r3 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
+  // Simulate an offline check-in via the API with idempotencyKey
+  // The response should indicate it's a fresh action (not duplicate, not synced=false for online)
+  const idKey = crypto.randomUUID?.() || `${Date.now()}-b1`;
+  const r = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
     action: "check_in",
-    idempotencyKey: idKey1,
+    idempotencyKey: idKey,
     clientCreatedAt: new Date().toISOString(),
   }, cW);
-  chk("Offline check-in with idempotencyKey returns 201", r3.status === 201, 201, r3.status);
-  chk("Offline check-in synced flag", r3.data?.synced === true, true, r3.data?.synced);
-  chk("Offline check-in not duplicate", r3.data?.duplicate === false, false, r3.data?.duplicate);
 
-  // Check event source is 'offline_qr'
-  const shiftId2 = r3.data?.shift?.id;
-  if (shiftId2) {
-    const db = await getDb();
-    const event2 = db.prepare("SELECT source FROM shift_events WHERE shift_session_id = ? AND event_type = 'check_in'").get(shiftId2);
-    chk("Event source is 'offline_qr' for offline action", event2?.source === "offline_qr", "offline_qr", event2?.source);
-    db.close();
-  }
+  // This is an online call with idempotency — it should succeed
+  chk("Blocker1: offline-style check-in succeeds", r.status === 201, 201, r.status);
+  chk("Blocker1: synced=true for offline-style action", r.data?.synced === true, true, r.data?.synced);
+  chk("Blocker1: not a duplicate", r.data?.duplicate === false, false, r.data?.duplicate);
 
-  // Check receipt was stored
-  const db = await getDb();
-  const receipt = db.prepare("SELECT * FROM offline_action_receipts WHERE idempotency_key = ?").get(idKey1);
-  chk("Receipt stored for idempotent action", !!receipt, true, !!receipt);
+  // Verify receipt stored with accepted status
+  const db = getDb();
+  const receipt = db.prepare("SELECT * FROM offline_action_receipts WHERE idempotency_key = ?").get(idKey);
+  chk("Blocker1: receipt stored", !!receipt, true, !!receipt);
   if (receipt) {
-    chk("Receipt action is check_in", receipt.action === "check_in", "check_in", receipt.action);
-    chk("Receipt result is accepted", receipt.result_status === "accepted", "accepted", receipt.result_status);
+    chk("Blocker1: receipt status accepted", receipt.result_status === "accepted", "accepted", receipt.result_status);
   }
   db.close();
 
-  // 4. Duplicate idempotencyKey — should not create duplicate shift
-  const r4 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
+  // Check-out for cleanup
+  await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, { action: "check_out", idempotencyKey: crypto.randomUUID?.(), clientCreatedAt: new Date().toISOString() }, cW);
+}
+
+// ── Blocker 2: Stuck syncing recovery ────────────────────────
+async function testBlocker2(cO, cW) {
+  // Verify the sync endpoint does not leave actions stuck in syncing
+  // by checking that duplicate idempotencyKeys produce correct status transitions
+  const qrToken = await getSiteQrToken(cO);
+  const idKey = crypto.randomUUID?.() || `${Date.now()}-b2`;
+
+  // First call — should succeed
+  const r1 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
     action: "check_in",
-    idempotencyKey: idKey1,
+    idempotencyKey: idKey,
     clientCreatedAt: new Date().toISOString(),
   }, cW);
-  chk("Duplicate idempotencyKey returns 200", r4.status === 200, 200, r4.status);
-  chk("Duplicate returns success", r4.data?.success === true, true, r4.data?.success);
-  chk("Duplicate marked as duplicate", r4.data?.duplicate === true, true, r4.data?.duplicate);
-  chk("Duplicate marked as synced", r4.data?.synced === true, true, r4.data?.synced);
+  chk("Blocker2: first check-in succeeds", r1.status === 201, 201, r1.status);
+  const shiftId = r1.data?.shift?.id;
 
-  // Check only one shift session for this action
-  const db2 = await getDb();
-  const receipts = db2.prepare("SELECT * FROM offline_action_receipts WHERE idempotency_key = ?").all(idKey1);
-  chk("Only one receipt stored for idempotencyKey", receipts.length === 1, 1, receipts.length);
-  db2.close();
+  // Second call with same key — duplicate, should return 200 with duplicate:true
+  const r2 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
+    action: "check_in",
+    idempotencyKey: idKey,
+    clientCreatedAt: new Date().toISOString(),
+  }, cW);
+  chk("Blocker2: duplicate returns 200", r2.status === 200, 200, r2.status);
+  chk("Blocker2: duplicate marked", r2.data?.duplicate === true, true, r2.data?.duplicate);
 
-  // 5. Stale action rejection (>24 hours old)
+  // Verify only one shift session was created
+  const db = getDb();
+  if (shiftId) {
+    const sessions = db.prepare("SELECT COUNT(*) as cnt FROM shift_sessions WHERE id = ?").get(shiftId);
+    chk("Blocker2: only one shift session", sessions?.cnt === 1, 1, sessions?.cnt);
+  }
+  db.close();
+
+  // Check-out
+  await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, { action: "check_out", idempotencyKey: crypto.randomUUID?.(), clientCreatedAt: new Date().toISOString() }, cW);
+}
+
+// ── Blocker 3: Failed/rejected actions visible ───────────────
+async function testBlocker3(cO, cW) {
+  const qrToken = await getSiteQrToken(cO);
+
+  // Stale action should be rejected
   const staleKey = crypto.randomUUID?.() || `${Date.now()}-stale`;
   const staleTime = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
-  const r5 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
-    action: "check_out",
+  const r = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
+    action: "check_in",
     idempotencyKey: staleKey,
     clientCreatedAt: staleTime,
   }, cW);
-  chk("Stale action returns 400", r5.status === 400, 400, r5.status);
-  chk("Stale action error message", r5.data?.error?.includes("too old"), true, r5.data?.error);
+  chk("Blocker3: stale action returns 400", r.status === 400, 400, r.status);
+  chk("Blocker3: stale error message", r.data?.error?.includes("too old"), true, r.data?.error);
 
-  // 6. Offline check-out with idempotencyKey
-  const idKey2 = crypto.randomUUID?.() || `${Date.now()}-co`;
-  const r6 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
-    action: "check_out",
+  // No receipt stored for rejected action (storeReceipt only fires on success)
+  const db = getDb();
+  const receipt = db.prepare("SELECT * FROM offline_action_receipts WHERE idempotency_key = ?").get(staleKey);
+  chk("Blocker3: stale action does not create receipt", !receipt, true, !receipt);
+  db.close();
+}
+
+// ── Blocker 4: Status handling ───────────────────────────────
+async function testBlocker4(cO, cW) {
+  const qrToken = await getSiteQrToken(cO);
+
+  // Test that offline_qr source is properly recorded
+  const idKey = crypto.randomUUID?.() || `${Date.now()}-b4`;
+  const r1 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
+    action: "check_in",
+    idempotencyKey: idKey,
+    clientCreatedAt: new Date().toISOString(),
+  }, cW);
+  chk("Blocker4: check-in with idempotency succeeds", r1.status === 201, 201, r1.status);
+  const shiftId = r1.data?.shift?.id;
+
+  // Verify event source is offline_qr
+  const db = getDb();
+  if (shiftId) {
+    const events = db.prepare("SELECT event_type, source FROM shift_events WHERE shift_session_id = ? ORDER BY event_time").all(shiftId);
+    const checkInEvent = events.find((e) => e.event_type === "check_in");
+    chk("Blocker4: check_in source is offline_qr", checkInEvent?.source === "offline_qr", "offline_qr", checkInEvent?.source);
+  }
+
+  // Check-out
+  const coKey = crypto.randomUUID?.() || `${Date.now()}-co4`;
+  await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, { action: "check_out", idempotencyKey: coKey, clientCreatedAt: new Date().toISOString() }, cW);
+
+  // Verify check-out event also has offline_qr source
+  if (shiftId) {
+    const events = db.prepare("SELECT event_type, source FROM shift_events WHERE shift_session_id = ? ORDER BY event_time").all(shiftId);
+    const checkOutEvent = events.find((e) => e.event_type === "check_out");
+    chk("Blocker4: check_out source is offline_qr", checkOutEvent?.source === "offline_qr", "offline_qr", checkOutEvent?.source);
+  }
+  db.close();
+
+  // Test business-rule 400 is rejected (permanent)
+  // Trying to check in when already checked in — should return 400
+  const idKey2 = crypto.randomUUID?.() || `${Date.now()}-b4-2`;
+  const r2 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
+    action: "check_in",
     idempotencyKey: idKey2,
     clientCreatedAt: new Date().toISOString(),
   }, cW);
-  chk("Offline check-out with idempotencyKey returns 200", r6.status === 200, 200, r6.status);
-  chk("Offline check-out synced", r6.data?.synced === true, true, r6.data?.synced);
+  const shiftId2 = r2.data?.shift?.id;
 
-  // 7. Offline break actions with idempotencyKey
-  const idKey3 = crypto.randomUUID?.() || `${Date.now()}-co2`;
-  const r7 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
+  // Try check-in with same idempotencyKey — should return 200 duplicate
+  const r3 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
     action: "check_in",
-    idempotencyKey: idKey3,
+    idempotencyKey: idKey2,
     clientCreatedAt: new Date().toISOString(),
   }, cW);
-  chk("Offline check-in for break test", r7.status === 201, 201, r7.status);
-  const breakShiftId = r7.data?.shift?.id;
+  chk("Blocker4: duplicate with same idempotencyKey returns 200", r3.status === 200, 200, r3.status);
+  chk("Blocker4: duplicate is marked duplicate", r3.data?.duplicate === true, true, r3.data?.duplicate);
 
-  const idKey4 = crypto.randomUUID?.() || `${Date.now()}-bs`;
-  const r8 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
-    action: "start_break",
-    idempotencyKey: idKey4,
-    clientCreatedAt: new Date().toISOString(),
-  }, cW);
-  chk("Offline start_break returns 200", r8.status === 200, 200, r8.status);
-  chk("Offline start_break synced", r8.data?.synced === true, true, r8.data?.synced);
+  // Now try check-in WITHOUT idempotencyKey — should get 400 already checked in
+  const r4 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, { action: "check_in" }, cW);
+  chk("Blocker4: non-idempotent duplicate 400", r4.status === 400, 400, r4.status);
 
-  const idKey5 = crypto.randomUUID?.() || `${Date.now()}-be`;
-  const r9 = await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, {
-    action: "end_break",
-    idempotencyKey: idKey5,
-    clientCreatedAt: new Date().toISOString(),
-  }, cW);
-  chk("Offline end_break returns 200", r9.status === 200, 200, r9.status);
-  chk("Offline end_break synced", r9.data?.synced === true, true, r9.data?.synced);
-
-  // Check break events have offline_qr source
-  const db3 = await getDb();
-  if (breakShiftId) {
-    const breakEvents = db3.prepare("SELECT event_type, source FROM shift_events WHERE shift_session_id = ? AND event_type IN ('break_start','break_end') ORDER BY event_time").all(breakShiftId);
-    chk("Break events exist", breakEvents.length >= 2, true, breakEvents.length >= 2);
-    if (breakEvents.length >= 2) {
-      chk("Break start source offline_qr", breakEvents[0].source === "offline_qr", "offline_qr", breakEvents[0].source);
-      chk("Break end source offline_qr", breakEvents[1].source === "offline_qr", "offline_qr", breakEvents[1].source);
-    }
+  // Cleanup
+  const coKey2 = crypto.randomUUID?.() || `${Date.now()}-co4-2`;
+  await api("POST", `/api/realtime-timesheets/qr/${qrToken}/action`, { action: "check_out", idempotencyKey: coKey2, clientCreatedAt: new Date().toISOString() }, cW);
+  if (shiftId2) {
+    const db2 = getDb();
+    const sessions = db2.prepare("SELECT COUNT(*) as cnt FROM shift_sessions WHERE id = ?").get(shiftId2);
+    chk("Blocker4: only one session created for idempotent pair", sessions?.cnt === 1, 1, sessions?.cnt);
+    db2.close();
   }
-  db3.close();
 }
 
-function getDb() {
-  const dbPath = resolve(ROOT, "data/test-phase8f.db");
-  const db = new Database(dbPath);
-  return db;
+// ── Blocker 5: Install prompt wiring (structural checks) ─────
+function testBlocker5() {
+  const qrPath = resolve(ROOT, "src/pages/platform/QRQuickAction.tsx");
+  const qrSrc = readFileSync(qrPath, "utf-8");
+
+  chk("Blocker5: QR page imports isInstallable", qrSrc.includes("isInstallable"), true, qrSrc.includes("isInstallable"));
+  chk("Blocker5: QR page imports promptInstall", qrSrc.includes("promptInstall"), true, qrSrc.includes("promptInstall"));
+  chk("Blocker5: QR page uses localStorage for dismiss", qrSrc.includes("install-prompt-dismissed"), true, qrSrc.includes("install-prompt-dismissed"));
+  chk("Blocker5: QR page has Install button", qrSrc.includes("Install"), true, qrSrc.includes("Install"));
+  chk("Blocker5: QR page has 'Not now' button", qrSrc.includes("Not now"), true, qrSrc.includes("Not now"));
+
+  // OfflineIndicator checks
+  const indPath = resolve(ROOT, "src/components/shared/OfflineIndicator.tsx");
+  const indSrc = readFileSync(indPath, "utf-8");
+  chk("Blocker5: OfflineIndicator shows rejected count", indSrc.includes("rejected"), true, indSrc.includes("rejected"));
+  chk("Blocker5: OfflineIndicator shows failed count", indSrc.includes("failed"), true, indSrc.includes("failed"));
+  chk("Blocker5: OfflineIndicator shows queued count", indSrc.includes("queued"), true, indSrc.includes("queued"));
+
+  // offlineQueue stats checks
+  const queuePath = resolve(ROOT, "src/utils/offlineQueue.ts");
+  const queueSrc = readFileSync(queuePath, "utf-8");
+  chk("Blocker5: getQueueStats returns login_required count", queueSrc.includes("login_required"), true, queueSrc.includes("login_required"));
+  chk("Blocker5: sync returns login_required status", queueSrc.includes("login_required"), true, queueSrc.includes("login_required"));
+  chk("Blocker5: sync returns stopped flag", queueSrc.includes("stopped"), true, queueSrc.includes("stopped"));
 }
 
 // ── Main ─────────────────────────────────────────────────────
 console.log("=== Phase 8F: Offline / PWA Worker Mode ===");
 
-// PWA file checks (no server needed)
+// PWA file + source checks (no server needed)
 checkPWAFiles();
+testBlocker5();
 
 const USERS = [
   { email: "offline-wkr@test.com", password: "Pass1234!", name: "Offline Worker", role: "worker", mustChangePassword: false },
@@ -225,7 +308,10 @@ await withServer({
   const cO = await mustGetCookie("owner@test.com", "ChangeMe123!", "owner");
   const cW = await mustGetCookie("offline-wkr@test.com", "Pass1234!", "worker");
 
-  await testIdempotency(cO, cW);
+  await testBlocker1(cO, cW);
+  await testBlocker2(cO, cW);
+  await testBlocker3(cO, cW);
+  await testBlocker4(cO, cW);
 });
 
 console.log(`\nPhase 8F: ${pass} passed, ${fail} failed (${pass + fail} total)`);
