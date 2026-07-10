@@ -5,27 +5,38 @@ import { verifySchemaContract, EXPECTED_MIGRATIONS } from "./schema-contract.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, "migrations");
-const REQUIRED_FILES = ["001-initial-schema.js","002-auth-invites.js","003-client-portal.js","004-realtime-timesheets.js","005-pay-rules.js","006-platform-modules.js","007-contact-requests.js","008-professional-quotes.js"];
+const REQUIRED_FILES = [
+  "001-initial-schema.js", "002-auth-invites.js", "003-client-portal.js",
+  "004-realtime-timesheets.js", "005-pay-rules.js", "006-platform-modules.js",
+  "007-contact-requests.js", "008-professional-quotes.js",
+];
 
 export async function runVersionedMigrations(db) {
-  const migrationsDir = MIGRATIONS_DIR;
-  if (!fs.existsSync(migrationsDir)) return;
+  // ── Require migration directory and files ──
+  if (!fs.existsSync(MIGRATIONS_DIR)) {
+    throw new Error(`Migration directory not found: ${MIGRATIONS_DIR}`);
+  }
+  const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.js')).sort();
+  if (files.length === 0) {
+    throw new Error(`No migration files found in ${MIGRATIONS_DIR}`);
+  }
 
-  const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.js')).sort();
-
-  // ── Phase 1: Preflight — validate migration inventory before any DB mutation ──
+  // ── Preflight: load + validate before any DB mutation ──
   if (files.length !== REQUIRED_FILES.length) {
     throw new Error(`Expected ${REQUIRED_FILES.length} migration files, found ${files.length}`);
   }
   for (let i = 0; i < REQUIRED_FILES.length; i++) {
     if (files[i] !== REQUIRED_FILES[i]) {
-      throw new Error(`Migration ${i + 1}: expected "${REQUIRED_FILES[i]}", got "${files[i]}"`);
+      throw new Error(`Migration file ${i + 1}: expected "${REQUIRED_FILES[i]}", got "${files[i]}"`);
     }
   }
 
   const loaded = [];
   for (const file of files) {
-    const filePath = path.join(migrationsDir, file);
+    const filePath = path.join(MIGRATIONS_DIR, file);
+    const expectedVersion = file.slice(0, 3);
+    const expectedName = EXPECTED_MIGRATIONS.find(e => e.version === expectedVersion)?.name;
+
     let mod;
     try { mod = await import(`file://${filePath}`); }
     catch (err) { throw new Error(`Failed to load ${file}: ${err.message}`); }
@@ -34,48 +45,46 @@ export async function runVersionedMigrations(db) {
     if (typeof version !== "string" || !version) throw new Error(`${file}: version must be a non-empty string`);
     if (typeof name !== "string" || !name) throw new Error(`${file}: name must be a non-empty string`);
     if (typeof migrate !== "function") throw new Error(`${file}: migrate must be a function`);
+    if (version !== expectedVersion) throw new Error(`${file}: filename ${expectedVersion} !== export "${version}"`);
+    if (name !== expectedName) throw new Error(`${file}: name "${name}" !== manifest "${expectedName}"`);
     if (rfo !== undefined && typeof rfo !== "boolean") throw new Error(`${file}: requiresForeignKeysOff must be boolean`);
     if (rlat !== undefined && typeof rlat !== "boolean") throw new Error(`${file}: requiresLegacyAlterTable must be boolean`);
-
-    const expectedVersion = file.slice(0, 3);
-    if (version !== expectedVersion) throw new Error(`${file}: version ${expectedVersion} !== export "${version}"`);
 
     loaded.push({ version, name, migrate, requireFK: rfo === true, requireLAT: rlat === true, file });
   }
 
-  // Exact ordering, no duplicates
-  for (let i = 0; i < loaded.length; i++) {
-    if (loaded[i].version !== EXPECTED_MIGRATIONS[i].version) {
-      throw new Error(`Migration ${i + 1}: version ${loaded[i].version}, expected ${EXPECTED_MIGRATIONS[i].version}`);
-    }
-  }
-  const seenVersions = new Set(), seenNames = new Set();
+  // No duplicate versions or names
+  const seenV = new Set(), seenN = new Set();
   for (const m of loaded) {
-    if (seenVersions.has(m.version)) throw new Error(`Duplicate version ${m.version}`);
-    if (seenNames.has(m.name)) throw new Error(`Duplicate name "${m.name}"`);
-    seenVersions.add(m.version); seenNames.add(m.name);
+    if (seenV.has(m.version)) throw new Error(`Duplicate version ${m.version}`);
+    if (seenN.has(m.name)) throw new Error(`Duplicate name "${m.name}"`);
+    seenV.add(m.version); seenN.add(m.name);
   }
 
-  // ── Phase 2: DB operations — create tracking table and execute migrations ──
+  // ── DB operations ──
   db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
     version TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     applied_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
 
-  // Verify already-applied records match files
-  const applied = db.prepare("SELECT version, name FROM schema_migrations ORDER BY version").all();
-  if (applied.length > 0) {
-    for (let i = 0; i < applied.length; i++) {
-      if (applied[i].version !== EXPECTED_MIGRATIONS[i].version) {
-        throw new Error(`Applied ${applied[i].version} at position ${i + 1}, expected ${EXPECTED_MIGRATIONS[i].version}`);
+  // Verify already-applied records
+  const appliedRecords = db.prepare("SELECT version, name FROM schema_migrations ORDER BY version").all();
+  if (appliedRecords.length > 0) {
+    if (appliedRecords.length !== EXPECTED_MIGRATIONS.length) {
+      throw new Error(`Expected ${EXPECTED_MIGRATIONS.length} applied migrations, found ${appliedRecords.length}`);
+    }
+    for (let i = 0; i < appliedRecords.length; i++) {
+      if (appliedRecords[i].version !== EXPECTED_MIGRATIONS[i].version) {
+        throw new Error(`Applied ${appliedRecords[i].version} at ${i + 1}, expected ${EXPECTED_MIGRATIONS[i].version}`);
       }
-      if (applied[i].name !== loaded[i].name) {
-        throw new Error(`Migration ${applied[i].version}: stored name "${applied[i].name}" !== file "${loaded[i].name}"`);
+      if (appliedRecords[i].name !== loaded[i].name) {
+        throw new Error(`Migration ${appliedRecords[i].version}: stored "${appliedRecords[i].name}" !== file "${loaded[i].name}"`);
       }
     }
   }
 
+  // ── Execute pending migrations ──
   for (let idx = 0; idx < loaded.length; idx++) {
     const { version, name, migrate, requireFK, requireLAT } = loaded[idx];
     const already = db.prepare("SELECT version FROM schema_migrations WHERE version = ?").get(version);
@@ -92,20 +101,11 @@ export async function runVersionedMigrations(db) {
 
       const runMigration = db.transaction(() => {
         migrate(db);
-        // FK check inside transaction
         const fkErrors = db.prepare("PRAGMA foreign_key_check").all();
         if (fkErrors.length > 0) {
           throw new Error(`FK violations after ${version}: ${JSON.stringify(fkErrors)}`);
         }
-        // For the final migration (008), verify schema structure before commit
-        if (version === "008") {
-          const currentApplied = db.prepare("SELECT version, name FROM schema_migrations ORDER BY version").all();
-          const futureApplied = [...currentApplied, { version: "008", name }];
-          const contractErrors = verifySchemaContract(db, futureApplied);
-          if (contractErrors.length > 0) {
-            throw new Error(`Schema contract violations after ${version}:\n  ${contractErrors.join("\n  ")}`);
-          }
-        }
+        // Per-migration FK check (schema contract verified fully at end only)
         db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, datetime('now'))").run(version, name);
       });
 
@@ -120,7 +120,22 @@ export async function runVersionedMigrations(db) {
     }
   }
 
-  // ── Final post-commit verification ──
+  // ── Final verification (always runs, even on no-op startups) ──
+  const finalApplied = db.prepare("SELECT version, name FROM schema_migrations ORDER BY version").all();
+  if (finalApplied.length !== EXPECTED_MIGRATIONS.length) {
+    throw new Error(`Expected ${EXPECTED_MIGRATIONS.length} migrations, found ${finalApplied.length}`);
+  }
+  for (let i = 0; i < EXPECTED_MIGRATIONS.length; i++) {
+    if (finalApplied[i].version !== EXPECTED_MIGRATIONS[i].version) {
+      throw new Error(`Final migration ${i + 1}: ${finalApplied[i].version}, expected ${EXPECTED_MIGRATIONS[i].version}`);
+    }
+  }
+
+  const contractErrors = verifySchemaContract(db);
+  if (contractErrors.length > 0) {
+    throw new Error(`Schema contract violations:\n  ${contractErrors.join("\n  ")}`);
+  }
+
   const finalFk = db.prepare("PRAGMA foreign_key_check").all();
   const finalIntegrity = db.prepare("PRAGMA integrity_check").all();
   if (finalFk.length > 0) throw new Error(`Final FK violations: ${JSON.stringify(finalFk)}`);

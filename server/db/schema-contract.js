@@ -83,15 +83,18 @@ const CHECK_CONSTRAINTS = {
 
 export function verifySchemaContract(db, appliedOverride) {
   const errors = [];
-  const applied = appliedOverride || db.prepare("SELECT version, name FROM schema_migrations ORDER BY version").all();
+  const raw = appliedOverride || db.prepare("SELECT version, name FROM schema_migrations ORDER BY version").all();
 
-  // 1. Migration versions — exact count and name match
-  if (applied.length !== EXPECTED_MIGRATIONS.length) {
-    errors.push(`Expected ${EXPECTED_MIGRATIONS.length} migrations, found ${applied.length}`);
+  // Determine how many migrations to expect: if override is provided, it may be partial (used during migration)
+  const expectedCount = appliedOverride ? appliedOverride.length : EXPECTED_MIGRATIONS.length;
+  const expectedSlice = EXPECTED_MIGRATIONS.slice(0, expectedCount);
+
+  if (raw.length !== expectedCount) {
+    errors.push(`Expected ${expectedCount} migrations, found ${raw.length}`);
   } else {
-    for (let i = 0; i < EXPECTED_MIGRATIONS.length; i++) {
-      const a = applied[i];
-      const e = EXPECTED_MIGRATIONS[i];
+    for (let i = 0; i < expectedCount; i++) {
+      const a = raw[i];
+      const e = expectedSlice[i];
       if (a.version !== e.version) errors.push(`Migration ${i + 1}: version ${a.version}, expected ${e.version}`);
       if (a.name !== e.name) errors.push(`Migration ${i + 1} (${a.version}): name "${a.name}", expected "${e.name}"`);
     }
