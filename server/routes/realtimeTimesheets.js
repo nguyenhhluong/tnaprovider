@@ -29,29 +29,18 @@ function getActivePayRule(db) {
   return db.prepare("SELECT * FROM company_pay_rules WHERE is_active = 1 ORDER BY id ASC LIMIT 1").get();
 }
 
-export function calculatePayBreakdownServer(payableSeconds, hourlyRate, payRule) {
-  const overtimeAfterSecs = (payRule?.overtime_daily_after_hours || 7.6) * 3600;
-
-  const baseSeconds = Math.min(payableSeconds, overtimeAfterSecs);
-  const remaining = Math.max(0, payableSeconds - overtimeAfterSecs);
-
-  let overtimeSeconds, doubleTimeSeconds;
-  if (payRule?.double_time_after_hours != null && payRule.double_time_after_hours > 0) {
-    const dtAfterSecs = payRule.double_time_after_hours * 3600;
-    const otCap = Math.max(0, dtAfterSecs - overtimeAfterSecs);
-    overtimeSeconds = Math.min(remaining, otCap);
-    doubleTimeSeconds = Math.max(0, remaining - otCap);
-  } else {
-    overtimeSeconds = remaining;
-    doubleTimeSeconds = 0;
-  }
-
-  const basePay = baseSeconds / 3600 * hourlyRate;
-  const overtimePay = overtimeSeconds / 3600 * hourlyRate * (payRule?.overtime_rate_multiplier || 1.5);
-  const doubleTimePay = doubleTimeSeconds / 3600 * hourlyRate * (payRule?.double_time_multiplier || 2.0);
-
-  return { baseSeconds, overtimeSeconds, doubleTimeSeconds, basePay, overtimePay, doubleTimePay };
-}
+import {
+  calculateTotalSeconds,
+  calculateBreakSeconds,
+  calculatePayableSeconds,
+  calculatePayBreakdown as calculatePayBreakdownServer,
+  calculateGrossPay,
+  calculateLiveEstimate,
+  calculateFinalApprovedPay,
+  roundCurrency,
+  validateEventOrder,
+  validatePayRules,
+} from '../../shared/timesheet/calculations.js';
 
 function recalculateShift(db, shiftId) {
   const shift = db.prepare("SELECT * FROM shift_sessions WHERE id = ?").get(shiftId);
@@ -65,7 +54,6 @@ function recalculateShift(db, shiftId) {
   const payableSeconds = calculatePayableSeconds(shift.checked_in_at, effectiveEnd, breakSeconds);
   const estimatedGrossPay = calculateGrossPay(payableSeconds, shift.hourly_rate_snapshot);
 
-  // Compute pay breakdown
   const payRule = getActivePayRule(db);
   const breakdown = calculatePayBreakdownServer(payableSeconds, shift.hourly_rate_snapshot, payRule);
 
@@ -82,39 +70,6 @@ function recalculateShift(db, shiftId) {
     shiftId);
 
   return { ...shift, total_seconds: totalSeconds, break_seconds: breakSeconds, payable_seconds: payableSeconds, estimated_gross_pay: estimatedGrossPay, ...breakdown };
-}
-
-function calculateBreakSeconds(events, effectiveEndTime) {
-  let breakSeconds = 0;
-  let breakStartedAt = null;
-  const endTime = effectiveEndTime ? new Date(effectiveEndTime) : new Date();
-
-  for (const event of events) {
-    if (event.event_type === "break_start") {
-      breakStartedAt = new Date(event.event_time);
-    } else if (event.event_type === "break_end" && breakStartedAt) {
-      breakSeconds += Math.max(0, (new Date(event.event_time).getTime() - breakStartedAt.getTime()) / 1000);
-      breakStartedAt = null;
-    }
-  }
-
-  if (breakStartedAt) {
-    breakSeconds += Math.max(0, (endTime.getTime() - breakStartedAt.getTime()) / 1000);
-  }
-
-  return Math.floor(breakSeconds);
-}
-
-function calculateTotalSeconds(checkedInAt, checkedOutAtOrNow) {
-  return Math.max(0, Math.floor((new Date(checkedOutAtOrNow).getTime() - new Date(checkedInAt).getTime()) / 1000));
-}
-
-function calculatePayableSeconds(checkedInAt, checkedOutAtOrNow, breakSeconds) {
-  return Math.max(0, calculateTotalSeconds(checkedInAt, checkedOutAtOrNow) - breakSeconds);
-}
-
-function calculateGrossPay(payableSeconds, hourlyRate) {
-  return payableSeconds / 3600 * hourlyRate;
 }
 
 // ── Shared live shift serializer ──

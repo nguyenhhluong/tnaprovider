@@ -22,6 +22,7 @@ import reportsRoutes from './routes/reports.js';
 import realtimeTimesheetsRoutes from './routes/realtimeTimesheets.js';
 import healthRoutes from './routes/health.js';
 import contactRequestRoutes from './modules/contactRequests/contactRequests.routes.js';
+import usersRoutes from './modules/users/users.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,6 +62,7 @@ export function createApp() {
   app.use('/api/reports', reportsRoutes);
   app.use('/api/realtime-timesheets', realtimeTimesheetsRoutes);
   app.use('/api', contactRequestRoutes);
+  app.use('/api/users', usersRoutes);
 
   // Email API
   function attachMailbox(req, res, next) {
