@@ -64,5 +64,4 @@ export function migrate(db) {
     `);
   }
 
-  db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, datetime('now'))").run(version, name);
 }

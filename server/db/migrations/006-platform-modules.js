@@ -1,5 +1,6 @@
 export const version = '006';
 export const name = 'platform-modules';
+export const requiresForeignKeysOff = true;
 export function migrate(db) {
 
   function addColumnIfMissing(table, column, definition) {
@@ -252,8 +253,6 @@ export function migrate(db) {
     const selPasswordChangedAt = buildSelectExpr(cols, 'password_changed_at', 'NULL');
 
     db.exec("PRAGMA legacy_alter_table = ON");
-    db.exec("PRAGMA foreign_keys = OFF");
-
     db.exec(`
       CREATE TABLE users_new (
         id TEXT PRIMARY KEY,
@@ -284,16 +283,7 @@ export function migrate(db) {
       DROP TABLE users;
       ALTER TABLE users_new RENAME TO users;
     `);
-
-    db.exec("PRAGMA foreign_keys = ON");
     db.exec("PRAGMA legacy_alter_table = OFF");
-
-    const fkErrors = db.prepare("PRAGMA foreign_key_check").all();
-    if (fkErrors.length > 0) {
-      console.error("Foreign key violations after users table migration:", fkErrors);
-      throw new Error("Foreign key check failed during users table migration");
-    }
   }
 
-  db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, datetime('now'))").run(version, name);
 }

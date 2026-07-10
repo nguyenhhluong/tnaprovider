@@ -36,5 +36,4 @@ export function migrate(db) {
     CREATE INDEX IF NOT EXISTS idx_contact_requests_phone ON contact_requests(phone);
   `);
 
-  db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, datetime('now'))").run(version, name);
 }

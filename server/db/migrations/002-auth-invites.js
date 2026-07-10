@@ -26,5 +26,4 @@ export function migrate(db) {
     CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
     CREATE INDEX IF NOT EXISTS idx_user_invite_email ON user_invite_tokens(email);
   `);
-  db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, datetime('now'))").run(version, name);
 }

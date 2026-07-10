@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 export const version = '008';
 export const name = 'professional-quotes';
+export const requiresForeignKeysOff = true;
 export function migrate(db) {
 
   function addColumnIfMissing(table, column, definition) {
@@ -20,7 +21,6 @@ export function migrate(db) {
     const oldExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quotes_old'").get();
     if (oldExists) db.exec("DROP TABLE quotes_old");
 
-    db.pragma("foreign_keys = OFF");
     db.exec(`
       CREATE TABLE quotes_new (
         id TEXT PRIMARY KEY,
@@ -44,7 +44,6 @@ export function migrate(db) {
       DROP TABLE quotes;
       ALTER TABLE quotes_new RENAME TO quotes;
     `);
-    db.pragma("foreign_keys = ON");
   }
 
   const qCols = getColumnNames('quotes');
@@ -204,5 +203,4 @@ export function migrate(db) {
     }
   }
 
-  db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, datetime('now'))").run(version, name);
 }

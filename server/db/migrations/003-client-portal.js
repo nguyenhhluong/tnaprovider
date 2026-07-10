@@ -55,5 +55,4 @@ export function migrate(db) {
     CREATE INDEX IF NOT EXISTS idx_project_variations_project ON project_variations(project_id);
     CREATE INDEX IF NOT EXISTS idx_client_portal_messages_project ON client_portal_messages(project_id);
   `);
-  db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, datetime('now'))").run(version, name);
 }
