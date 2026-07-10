@@ -1,8 +1,6 @@
 export const version = '006';
 export const name = 'platform-modules';
 export function migrate(db) {
-  const existing = db.prepare("SELECT version FROM schema_migrations WHERE version = ?").get(version);
-  if (existing) return;
 
   function addColumnIfMissing(table, column, definition) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);

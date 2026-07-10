@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requirePasswordChanged } from "../middleware/passwordChange.js";
 import { requireRole } from "../middleware/roles.js";
 import { createAuditLog } from "../middleware/audit.js";
+import { isValidTransition, getNextState } from "../../shared/timesheet/stateMachine.js";
 
 const router = Router();
 router.use(requireAuth);

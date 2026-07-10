@@ -1,8 +1,6 @@
 export const version = '007';
 export const name = 'contact-requests';
 export function migrate(db) {
-  const existing = db.prepare("SELECT version FROM schema_migrations WHERE version = ?").get(version);
-  if (existing) return;
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS contact_requests (

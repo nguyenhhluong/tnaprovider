@@ -1,8 +1,6 @@
 export const version = '003';
 export const name = 'client-portal';
 export function migrate(db) {
-  const existing = db.prepare("SELECT version FROM schema_migrations WHERE version = ?").get(version);
-  if (existing) return;
   db.exec(`
     CREATE TABLE IF NOT EXISTS client_project_access (
       id TEXT PRIMARY KEY,

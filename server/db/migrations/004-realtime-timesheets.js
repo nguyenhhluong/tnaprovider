@@ -1,9 +1,6 @@
 export const version = '004';
 export const name = 'realtime-timesheets';
 export function migrate(db) {
-  const existing = db.prepare("SELECT version FROM schema_migrations WHERE version = ?").get(version);
-  if (existing) return;
-
   function addColumnIfMissing(table, column, definition) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
     if (!cols.includes(column)) {
@@ -93,29 +90,32 @@ export function migrate(db) {
   // Add 'offline_qr' and 'qr' to shift_events source constraint
   const shiftEventsTableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='shift_events'").get();
   if (shiftEventsTableInfo && !shiftEventsTableInfo.sql.includes("'offline_qr'")) {
-    db.exec("PRAGMA legacy_alter_table = ON");
-    db.exec("PRAGMA foreign_keys = OFF");
-    db.exec(`
-      CREATE TABLE shift_events_new (
-        id TEXT PRIMARY KEY,
-        shift_session_id TEXT NOT NULL REFERENCES shift_sessions(id) ON DELETE CASCADE,
-        employee_id TEXT NOT NULL REFERENCES users(id),
-        event_type TEXT NOT NULL CHECK(event_type IN ('check_in','break_start','break_end','check_out','auto_check_out','correction_requested','admin_approved','admin_rejected')),
-        event_time TEXT NOT NULL,
-        source TEXT NOT NULL DEFAULT 'web' CHECK(source IN ('web','mobile','kiosk','admin','system','qr','offline_qr')),
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      INSERT INTO shift_events_new SELECT * FROM shift_events;
-      DROP TABLE shift_events;
-      ALTER TABLE shift_events_new RENAME TO shift_events;
-    `);
-    db.exec("PRAGMA foreign_keys = ON");
-    db.exec("PRAGMA legacy_alter_table = OFF");
+    const fkOriginallyOn = db.prepare("PRAGMA foreign_keys").get().foreign_keys === 1;
+    const legacyOn = db.prepare("PRAGMA legacy_alter_table").get().legacy_alter_table === 1;
+    try {
+      if (!legacyOn) db.exec("PRAGMA legacy_alter_table = ON");
+      if (fkOriginallyOn) db.exec("PRAGMA foreign_keys = OFF");
+      db.exec(`
+        CREATE TABLE shift_events_new (
+          id TEXT PRIMARY KEY,
+          shift_session_id TEXT NOT NULL REFERENCES shift_sessions(id) ON DELETE CASCADE,
+          employee_id TEXT NOT NULL REFERENCES users(id),
+          event_type TEXT NOT NULL CHECK(event_type IN ('check_in','break_start','break_end','check_out','auto_check_out','correction_requested','admin_approved','admin_rejected')),
+          event_time TEXT NOT NULL,
+          source TEXT NOT NULL DEFAULT 'web' CHECK(source IN ('web','mobile','kiosk','admin','system','qr','offline_qr')),
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+      `);
+      db.exec(`INSERT INTO shift_events_new (id, shift_session_id, employee_id, event_type, event_time, source, created_at) SELECT id, shift_session_id, employee_id, event_type, event_time, source, created_at FROM shift_events`);
+      db.exec("DROP TABLE shift_events");
+      db.exec("ALTER TABLE shift_events_new RENAME TO shift_events");
+    } finally {
+      if (fkOriginallyOn) db.exec("PRAGMA foreign_keys = ON");
+      if (!legacyOn) db.exec("PRAGMA legacy_alter_table = OFF");
+    }
     const fkErrors = db.prepare("PRAGMA foreign_key_check").all();
     if (fkErrors.length > 0) {
-      console.error("Foreign key violations after shift_events migration:", fkErrors);
+      throw new Error(`Foreign key violations after shift_events migration: ${JSON.stringify(fkErrors)}`);
     }
   }
-
-  db.prepare("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, datetime('now'))").run(version, name);
 }

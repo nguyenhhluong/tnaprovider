@@ -3,8 +3,6 @@ import crypto from "crypto";
 export const version = '008';
 export const name = 'professional-quotes';
 export function migrate(db) {
-  const existing = db.prepare("SELECT version FROM schema_migrations WHERE version = ?").get(version);
-  if (existing) return;
 
   function addColumnIfMissing(table, column, definition) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);

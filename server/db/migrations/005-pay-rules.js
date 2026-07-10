@@ -1,8 +1,6 @@
 export const version = '005';
 export const name = 'pay-rules';
 export function migrate(db) {
-  const existing = db.prepare("SELECT version FROM schema_migrations WHERE version = ?").get(version);
-  if (existing) return;
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS company_pay_rules (

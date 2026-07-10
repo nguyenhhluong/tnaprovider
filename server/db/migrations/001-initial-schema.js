@@ -8,8 +8,6 @@ export function migrate(db) {
       applied_at TEXT NOT NULL
     );
   `);
-  const existing = db.prepare("SELECT version FROM schema_migrations WHERE version = ?").get(version);
-  if (existing) return;
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,

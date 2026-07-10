@@ -31,6 +31,7 @@ const TRANSITIONS = {
   },
   on_break: {
     break_end: 'active',
+    check_out: 'pending_approval',
   },
   pending_approval: {
     admin_approved: 'approved',
