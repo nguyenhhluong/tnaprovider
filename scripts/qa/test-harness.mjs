@@ -19,8 +19,10 @@ export async function ensurePortFree(port = 3007) {
 export async function withServer({ dbPath, setupEnv, setupUsers }, fn) {
   const finalDb = resolve(ROOT, dbPath || "data/test-phase7h-harness.db");
 
-  // Delete old DB before setup
+  // Delete old DB + WAL/SHM before setup
   if (existsSync(finalDb)) unlinkSync(finalDb);
+  try { if (existsSync(finalDb + "-wal")) unlinkSync(finalDb + "-wal"); } catch {}
+  try { if (existsSync(finalDb + "-shm")) unlinkSync(finalDb + "-shm"); } catch {}
 
   // Check port
   try { await ensurePortFree(3007); }
@@ -38,9 +40,9 @@ export async function withServer({ dbPath, setupEnv, setupUsers }, fn) {
   };
 
   // Build setup code: migrate, optionally seed, then create extra users
-  let setupCode = `import {migrate} from "./server/db/migrate.js"; migrate();`;
+  let setupCode = `import {migrate} from "./server/db/migrate.js"; await migrate();`;
   if (setupEnv) {
-    setupCode = `import {migrate} from "./server/db/migrate.js"; import {seed} from "./server/db/seed.js"; migrate(); seed();`;
+    setupCode = `import {migrate} from "./server/db/migrate.js"; import {seed} from "./server/db/seed.js"; await migrate(); seed();`;
   }
   const childEnv = { ...baseEnv, ...(setupEnv || {}) };
   if (setupUsers && setupUsers.length > 0) {
@@ -100,6 +102,8 @@ closeDb();`;
     }
     if (existsSync(finalDb)) {
       try { unlinkSync(finalDb); } catch {}
+      try { if (existsSync(finalDb + "-wal")) unlinkSync(finalDb + "-wal"); } catch {}
+      try { if (existsSync(finalDb + "-shm")) unlinkSync(finalDb + "-shm"); } catch {}
     }
   }
 }

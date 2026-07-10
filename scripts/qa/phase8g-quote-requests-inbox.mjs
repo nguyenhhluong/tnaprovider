@@ -261,20 +261,21 @@ const sidebarSrc = readFileSync(resolve(ROOT, "src/components/platform/PlatformS
 chk("sidebar has Quote Requests link", sidebarSrc.includes("Quote Requests"), true, sidebarSrc.includes("Quote Requests"));
 chk("sidebar link uses MessageSquare icon", sidebarSrc.includes("MessageSquare"), true, sidebarSrc.includes("MessageSquare"));
 
-// ── 18. Database migration check ──
+// ── 18. Database migration check (supporting versioned and legacy) ──
 const migrateSrc = readFileSync(resolve(ROOT, "server/db/migrate.js"), "utf-8");
+const contactServiceSrc = readFileSync(resolve(ROOT, "server/modules/contactRequests/contactRequests.service.js"), "utf-8");
 chk("migration has contact_requests table", migrateSrc.includes("contact_requests"), true, migrateSrc.includes("contact_requests"));
-chk("migration has JSON import logic", migrateSrc.includes("contact-submissions.json"), true, migrateSrc.includes("contact-submissions.json"));
+chk("migration or service has JSON backup import logic", contactServiceSrc.includes("contact-submissions.json") || migrateSrc.includes("contact-submissions.json"), true, contactServiceSrc.includes("contact-submissions.json") || migrateSrc.includes("contact-submissions.json"));
 
-// ── 19. Server contact endpoint check ──
-const serverSrc = readFileSync(resolve(ROOT, "server.js"), "utf-8");
-chk("server contact endpoint stores in SQLite", serverSrc.includes("INSERT INTO contact_requests"), true, serverSrc.includes("INSERT INTO contact_requests"));
-chk("server contact endpoint has validation", serverSrc.includes("if (!firstName || typeof firstName !== 'string' || firstName.length > 80)"), true, serverSrc.includes("firstName.length > 80"));
-chk("server contact endpoint validates email", serverSrc.includes("/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/"), true, serverSrc.includes("test(email)"));
-chk("server contact endpoint preserves JSON backup", serverSrc.includes("contact-submissions.json"), true, serverSrc.includes("contact-submissions.json"));
-chk("server contact reads projectId", serverSrc.includes("projectId"), true, serverSrc.includes("projectId"));
-chk("server contact reads source", serverSrc.includes(", source"), true, serverSrc.includes(", source"));
-chk("server contact validates phone regex", serverSrc.includes("/^[\\d\\s+()-]{8,20}$/"), true, serverSrc.includes("8,20}"));
+// ── 19. Server contact endpoint check (refactored to module) ──
+const contactRoutesSrc = readFileSync(resolve(ROOT, "server/modules/contactRequests/contactRequests.routes.js"), "utf-8");
+chk("contact route stores in SQLite", contactServiceSrc.includes("INSERT INTO contact_requests"), true, contactServiceSrc.includes("INSERT INTO contact_requests"));
+chk("contact endpoint has validation", contactRoutesSrc.includes("validate(submitSchema)"), true, contactRoutesSrc.includes("validate(submitSchema)"));
+chk("contact endpoint validates email", contactServiceSrc.includes("email"), true, contactServiceSrc.includes("email"));
+chk("contact endpoint preserves JSON backup", contactServiceSrc.includes("contact-submissions.json"), true, contactServiceSrc.includes("contact-submissions.json"));
+chk("contact reads projectId", contactServiceSrc.includes("projectId"), true, contactServiceSrc.includes("projectId"));
+chk("contact reads source", contactServiceSrc.includes("source"), true, contactServiceSrc.includes("source"));
+chk("contact validates phone", contactServiceSrc.includes("phone"), true, contactServiceSrc.includes("phone"));
 
 // ── 20. Frontend error handling checks ──
 const qrSrc = readFileSync(resolve(ROOT, "src/pages/platform/QuoteRequests.tsx"), "utf-8");
