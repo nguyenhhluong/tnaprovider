@@ -173,6 +173,7 @@ export function migrate(db) {
     `);
   }
 
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quotes_request ON quotes(quote_request_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status)`);
   db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_quotes_quote_number ON quotes(quote_number)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_quotes_client_email ON quotes(client_email)`);
