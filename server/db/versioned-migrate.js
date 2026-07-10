@@ -70,17 +70,17 @@ export async function runVersionedMigrations(db) {
 
   // Verify already-applied records
   const appliedRecords = db.prepare("SELECT version, name FROM schema_migrations ORDER BY version").all();
-  if (appliedRecords.length > 0) {
-    if (appliedRecords.length !== EXPECTED_MIGRATIONS.length) {
-      throw new Error(`Expected ${EXPECTED_MIGRATIONS.length} applied migrations, found ${appliedRecords.length}`);
+  if (appliedRecords.length > EXPECTED_MIGRATIONS.length) {
+    throw new Error(`Expected at most ${EXPECTED_MIGRATIONS.length} applied migrations, found ${appliedRecords.length}`);
+  }
+  for (let i = 0; i < appliedRecords.length; i++) {
+    const actual = appliedRecords[i];
+    const expected = EXPECTED_MIGRATIONS[i];
+    if (actual.version !== expected.version) {
+      throw new Error(`Applied ${actual.version} at ${i + 1}, expected ${expected.version}`);
     }
-    for (let i = 0; i < appliedRecords.length; i++) {
-      if (appliedRecords[i].version !== EXPECTED_MIGRATIONS[i].version) {
-        throw new Error(`Applied ${appliedRecords[i].version} at ${i + 1}, expected ${EXPECTED_MIGRATIONS[i].version}`);
-      }
-      if (appliedRecords[i].name !== loaded[i].name) {
-        throw new Error(`Migration ${appliedRecords[i].version}: stored "${appliedRecords[i].name}" !== file "${loaded[i].name}"`);
-      }
+    if (actual.name !== loaded[i].name) {
+      throw new Error(`Migration ${actual.version}: stored "${actual.name}" !== file "${loaded[i].name}"`);
     }
   }
 
