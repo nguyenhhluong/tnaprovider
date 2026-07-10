@@ -1,6 +1,7 @@
 export const version = '006';
 export const name = 'platform-modules';
 export const requiresForeignKeysOff = true;
+export const requiresLegacyAlterTable = true;
 export function migrate(db) {
 
   function addColumnIfMissing(table, column, definition) {
@@ -252,7 +253,6 @@ export function migrate(db) {
     const selDisabledBy = buildSelectExpr(cols, 'disabled_by', 'NULL');
     const selPasswordChangedAt = buildSelectExpr(cols, 'password_changed_at', 'NULL');
 
-    db.exec("PRAGMA legacy_alter_table = ON");
     db.exec(`
       CREATE TABLE users_new (
         id TEXT PRIMARY KEY,
@@ -264,7 +264,7 @@ export function migrate(db) {
         must_change_password INTEGER DEFAULT 0,
         invited_at TEXT,
         disabled_at TEXT,
-        disabled_by TEXT,
+        disabled_by TEXT REFERENCES users(id),
         password_changed_at TEXT,
         hourly_rate REAL,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -283,7 +283,6 @@ export function migrate(db) {
       DROP TABLE users;
       ALTER TABLE users_new RENAME TO users;
     `);
-    db.exec("PRAGMA legacy_alter_table = OFF");
   }
 
 }

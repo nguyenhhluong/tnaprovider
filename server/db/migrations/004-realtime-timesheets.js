@@ -1,6 +1,7 @@
 export const version = '004';
 export const name = 'realtime-timesheets';
 export const requiresForeignKeysOff = true;
+export const requiresLegacyAlterTable = true;
 export function migrate(db) {
   function addColumnIfMissing(table, column, definition) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
@@ -73,10 +74,7 @@ export function migrate(db) {
   addColumnIfMissing('work_sites', 'qr_enabled', 'INTEGER DEFAULT 1');
   addColumnIfMissing('work_sites', 'default_allowance_cents', 'INTEGER DEFAULT 0');
 
-  const existingIndex = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_work_sites_qr_token'").get();
-  if (!existingIndex) {
-    try { db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_work_sites_qr_token ON work_sites(qr_token)"); } catch {}
-  }
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_work_sites_qr_token ON work_sites(qr_token)");
 
   addColumnIfMissing('shift_sessions', 'base_seconds', 'INTEGER DEFAULT 0');
   addColumnIfMissing('shift_sessions', 'overtime_seconds', 'INTEGER DEFAULT 0');
@@ -91,7 +89,6 @@ export function migrate(db) {
   // Add 'offline_qr' and 'qr' to shift_events source constraint
   const shiftEventsTableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='shift_events'").get();
   if (shiftEventsTableInfo && !shiftEventsTableInfo.sql.includes("'offline_qr'")) {
-    db.exec("PRAGMA legacy_alter_table = ON");
     db.exec(`
       CREATE TABLE shift_events_new (
         id TEXT PRIMARY KEY,
@@ -106,6 +103,7 @@ export function migrate(db) {
     db.exec(`INSERT INTO shift_events_new (id, shift_session_id, employee_id, event_type, event_time, source, created_at) SELECT id, shift_session_id, employee_id, event_type, event_time, source, created_at FROM shift_events`);
     db.exec("DROP TABLE shift_events");
     db.exec("ALTER TABLE shift_events_new RENAME TO shift_events");
-    db.exec("PRAGMA legacy_alter_table = OFF");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_shift_events_session ON shift_events(shift_session_id)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_shift_events_employee ON shift_events(employee_id)");
   }
 }
