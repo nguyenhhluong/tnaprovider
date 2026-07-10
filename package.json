@@ -30,6 +30,8 @@
     "test:install": "node scripts/qa/install-script-static-check.mjs",
     "test:phase8g": "node scripts/qa/phase8g-quote-requests-inbox.mjs",
     "test:phase8h": "node scripts/qa/phase8h-professional-quote-builder.mjs",
+    "test:phase8i": "node scripts/qa/phase8i-prefix-migration-tests.mjs",
+    "test:schema-contract": "node scripts/qa/schema-contract-tests.mjs",
     "test:unit": "node scripts/qa/unit-tests.mjs",
     "test:integration": "npm run test:routes && npm run test:api && npm run test:roles",
     "test:migrations": "node scripts/qa/migration-tests.mjs",
