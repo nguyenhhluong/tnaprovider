@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import * as mailConnector from './email/mailConnector.js';
 import { requireAuth as requireSessionAuth } from './middleware/auth.js';
 import { requirePasswordChanged } from './middleware/passwordChange.js';
+import { requireRole } from './middleware/roles.js';
 import { errorMiddleware } from './shared/errors/errorMiddleware.js';
 
 import authRoutes from './routes/auth.js';
@@ -81,14 +82,13 @@ export function createApp() {
     next();
   }
 
+  const requireAdmin = [requireSessionAuth, requirePasswordChanged, requireRole("owner", "admin")];
+
   app.get("/api/email/status", (req, res) => {
     res.json({ available: true });
   });
 
-  app.get("/api/email/status/detailed", requireSessionAuth, requirePasswordChanged, (req, res) => {
-    if (req.user.role !== "owner" && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Permission denied" });
-    }
+  app.get("/api/email/status/detailed", ...requireAdmin, (req, res) => {
     const config = mailConnector.getMailConfig();
     res.json({
       provider: config.provider,
@@ -99,7 +99,7 @@ export function createApp() {
     });
   });
 
-  app.get("/api/email/messages", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.get("/api/email/messages", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const { folder, search, from, to, since, before, unread, starred, page, pageSize } = req.query;
 
@@ -134,7 +134,7 @@ export function createApp() {
     }
   });
 
-  app.get("/api/email/messages/:id", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.get("/api/email/messages/:id", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const msg = await mailConnector.getMessage({
         mailbox: req.mailbox,
@@ -147,17 +147,21 @@ export function createApp() {
     }
   });
 
-  app.post("/api/email/send", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.post("/api/email/send", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       let to = [], cc = [], bcc = [], subject = "", bodyText = "", bodyHtml = "";
       let replyToMessageId = "", references = [], requestId = "";
       const attachments = [];
       let totalBytes = 0;
-      const MAX_FILE_BYTES = 25 * 1024 * 1024;
-      const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
-      const MAX_FILES = 10;
+      const { getAttachmentLimits } = await import("./email/emailConfig.js");
+      const limits = getAttachmentLimits();
+      const MAX_FILE_BYTES = limits.maxFileBytes;
+      const MAX_TOTAL_BYTES = limits.maxTotalBytes;
+      const MAX_FILES = limits.maxFiles;
 
       const contentType = req.headers["content-type"] || "";
+
+      const { parseMultipartJsonField, validateRecipients, validateReferences: validateRefs } = await import("./email/emailConfig.js");
 
       if (contentType.includes("multipart/form-data")) {
         let aborted = false;
@@ -166,15 +170,17 @@ export function createApp() {
 
         await new Promise((resolve, reject) => {
           bb.on("field", (name, val) => {
-            if (name === "to") try { const p = JSON.parse(val); to = Array.isArray(p) ? p : [p]; } catch { return reject(Object.assign(new Error("Invalid To field"), { statusCode: 400, code: "INVALID_RECIPIENTS" })); }
-            else if (name === "cc") try { const p = JSON.parse(val); cc = Array.isArray(p) ? p : [p]; } catch {}
-            else if (name === "bcc") try { const p = JSON.parse(val); bcc = Array.isArray(p) ? p : [p]; } catch {}
-            else if (name === "subject") subject = val;
-            else if (name === "bodyText") bodyText = val;
-            else if (name === "bodyHtml") bodyHtml = val;
-            else if (name === "replyToMessageId") replyToMessageId = val;
-            else if (name === "references") try { const p = JSON.parse(val); references = Array.isArray(p) ? p : [p]; } catch {}
-            else if (name === "requestId") requestId = val;
+            try {
+              if (name === "to") to = parseMultipartJsonField(val, { fieldName: "To", code: "INVALID_RECIPIENTS" });
+              else if (name === "cc") cc = parseMultipartJsonField(val, { fieldName: "Cc", code: "INVALID_RECIPIENTS" });
+              else if (name === "bcc") bcc = parseMultipartJsonField(val, { fieldName: "Bcc", code: "INVALID_RECIPIENTS" });
+              else if (name === "subject") subject = val;
+              else if (name === "bodyText") bodyText = val;
+              else if (name === "bodyHtml") bodyHtml = val;
+              else if (name === "replyToMessageId") replyToMessageId = val;
+              else if (name === "references") references = parseMultipartJsonField(val, { fieldName: "References", code: "INVALID_REFERENCES" });
+              else if (name === "requestId") requestId = val;
+            } catch (err) { reject(err); }
           });
 
           bb.on("file", (name, stream, info) => {
@@ -189,7 +195,8 @@ export function createApp() {
               fileSize += chunk.length;
               if (fileSize > MAX_FILE_BYTES) {
                 aborted = true; stream.destroy();
-                return reject(Object.assign(new Error(`Attachment too large: ${info.filename} (max 25MB)`), { statusCode: 400, code: "ATTACHMENT_TOO_LARGE" }));
+                const maxMb = Math.floor(MAX_FILE_BYTES / 1024 / 1024);
+                return reject(Object.assign(new Error(`Attachment too large: ${info.filename} (max ${maxMb}MB)`), { statusCode: 400, code: "ATTACHMENT_TOO_LARGE" }));
               }
               chunks.push(chunk);
             });
@@ -199,7 +206,8 @@ export function createApp() {
               totalBytes += buffer.length;
               if (totalBytes > MAX_TOTAL_BYTES) {
                 aborted = true;
-                return reject(Object.assign(new Error("Total attachment size exceeds 50MB limit"), { statusCode: 400, code: "TOTAL_ATTACHMENT_LIMIT_EXCEEDED" }));
+                const totalMb = Math.floor(MAX_TOTAL_BYTES / 1024 / 1024);
+                return reject(Object.assign(new Error(`Total attachment size exceeds ${totalMb}MB limit`), { statusCode: 400, code: "TOTAL_ATTACHMENT_LIMIT_EXCEEDED" }));
               }
               attachments.push({ filename: info.filename, mimeType: info.mimeType || "application/octet-stream", buffer });
             });
@@ -216,7 +224,18 @@ export function createApp() {
       if (!requestId) {
         return res.status(400).json({ error: "requestId is required", code: "MISSING_REQUEST_ID" });
       }
-      if (!to || to.length === 0) {
+
+      // Validate recipients and references
+      try {
+        validateRecipients(to);
+        if (cc.length > 0) validateRecipients(cc);
+        if (bcc.length > 0) validateRecipients(bcc);
+        if (references.length > 0) validateRefs(references);
+      } catch (err) {
+        return res.status(err.statusCode || 400).json({ error: err.message, code: err.code || "INVALID_MULTIPART_PAYLOAD" });
+      }
+
+      if (to.length === 0) {
         return res.status(400).json({ error: "At least one recipient is required", code: "INVALID_RECIPIENTS" });
       }
 
@@ -233,7 +252,53 @@ export function createApp() {
     }
   });
 
-  app.post("/api/email/messages/:id/read", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  // Forward message
+  app.post("/api/email/messages/:id/forward", ...requireAdmin, attachMailbox, async (req, res) => {
+    try {
+      const result = await mailConnector.forwardMessage({
+        mailbox: req.mailbox,
+        messageId: req.params.id,
+        payload: req.body,
+        requestId: req.body.requestId,
+      });
+      res.json(result);
+    } catch (err) {
+      console.error("forwardMessage error:", err.message);
+      res.status(err.statusCode || 500).json({ error: err.message, code: err.code || "FORWARD_FAILED" });
+    }
+  });
+
+  // Save draft
+  app.post("/api/email/drafts", ...requireAdmin, attachMailbox, async (req, res) => {
+    try {
+      const result = await mailConnector.saveDraft({
+        mailbox: req.mailbox,
+        payload: req.body,
+      });
+      res.json(result);
+    } catch (err) {
+      console.error("saveDraft error:", err.message);
+      res.status(err.statusCode || 500).json({ error: err.message });
+    }
+  });
+
+  // User preferences (owner/admin only - mailbox settings)
+  app.get("/api/email/preferences", ...requireAdmin, async (req, res) => {
+    const { getDb } = await import('./db/database.js');
+    const db = getDb();
+    let row = db.prepare("SELECT preferences FROM email_preferences WHERE user_id = ?").get(req.user.userId);
+    res.json(row ? JSON.parse(row.preferences) : {});
+  });
+
+  app.post("/api/email/preferences", ...requireAdmin, async (req, res) => {
+    const { getDb } = await import('./db/database.js');
+    const db = getDb();
+    const json = JSON.stringify(req.body);
+    db.prepare("INSERT INTO email_preferences (user_id, preferences, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(user_id) DO UPDATE SET preferences = ?, updated_at = datetime('now')").run(req.user.userId, json, json);
+    res.json({ success: true });
+  });
+
+  app.post("/api/email/messages/:id/read", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.markMessageRead({
         mailbox: req.mailbox,
@@ -247,7 +312,7 @@ export function createApp() {
     }
   });
 
-  app.post("/api/email/messages/:id/move", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.post("/api/email/messages/:id/move", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.moveMessage({
         mailbox: req.mailbox,
@@ -261,7 +326,7 @@ export function createApp() {
     }
   });
 
-  app.delete("/api/email/messages/:id", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.delete("/api/email/messages/:id", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.deleteMessage({
         mailbox: req.mailbox,
@@ -275,7 +340,7 @@ export function createApp() {
   });
 
   // Business Email folders
-  app.get("/api/email/folders", requireSessionAuth, requirePasswordChanged, async (req, res) => {
+  app.get("/api/email/folders", ...requireAdmin, async (req, res) => {
     try {
       const folders = await mailConnector.listFolders();
       res.json(folders);
@@ -286,7 +351,7 @@ export function createApp() {
   });
 
   // Star/unstar message
-  app.post("/api/email/messages/:id/star", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.post("/api/email/messages/:id/star", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.starMessage({
         mailbox: req.mailbox,
@@ -301,7 +366,7 @@ export function createApp() {
   });
 
   // Download attachment
-  app.get("/api/email/messages/:id/attachments/:attachmentId", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.get("/api/email/messages/:id/attachments/:attachmentId", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.fetchAttachment({
         mailbox: req.mailbox,

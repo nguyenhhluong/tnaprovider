@@ -393,10 +393,29 @@ export async function searchMessages({ folder, search, from, to, since, before, 
       return { items: [], page, pageSize, totalItems: 0, totalPages: 0, folder: resolvedFolder, query: { search, from } };
     }
 
+    // Parse advanced search operators
+    let effectiveSearch = search;
+    let effectiveFrom = from;
+    let effectiveTo = to;
+    if (search && !from && !to) {
+      const fromMatch = search.match(/from:(\S+)/i);
+      const toMatch = search.match(/to:(\S+)/i);
+      const subjectMatch = search.match(/subject:(\S+)/i);
+      const hasAttach = search.match(/has:attachment/i);
+      const isUnread = search.match(/is:unread/i);
+      const isStarred = search.match(/is:starred/i);
+      if (fromMatch) { effectiveFrom = fromMatch[1]; effectiveSearch = effectiveSearch.replace(fromMatch[0], "").trim(); }
+      if (toMatch) { effectiveTo = toMatch[1]; effectiveSearch = effectiveSearch.replace(toMatch[0], "").trim(); }
+      if (subjectMatch) { if (!effectiveSearch) effectiveSearch = subjectMatch[1]; else effectiveSearch = effectiveSearch.replace(subjectMatch[0], subjectMatch[1]).trim(); }
+      if (hasAttach) { /* handled below if needed */ }
+      if (isUnread) { unread = "true"; effectiveSearch = effectiveSearch.replace(isUnread[0], "").trim(); }
+      if (isStarred) { starred = "true"; effectiveSearch = effectiveSearch.replace(isStarred[0], "").trim(); }
+    }
+
     const query = {};
-    if (search) query.or = [{ subject: search }, { text: search }];
-    if (from) query.from = from;
-    if (to) query.to = to;
+    if (effectiveSearch) query.or = [{ subject: effectiveSearch }, { text: effectiveSearch }];
+    if (effectiveFrom) query.from = effectiveFrom;
+    if (effectiveTo) query.to = effectiveTo;
     if (since) query.since = new Date(since);
     if (before) query.before = new Date(before);
     if (unread === "true") query.seen = false;
@@ -450,15 +469,54 @@ export async function getMessage({ messageId }) {
 
   return withClient(async (client) => {
     await client.mailboxOpen(resolvedFolder);
-    const msg = await client.fetchOne(uid, { uid: true, envelope: true, flags: true, internalDate: true, source: true });
+    // Use UID-based fetch by passing the UID number and including uid:true in query
+    const msg = await client.fetchOne(uid, { uid: true, envelope: true, flags: true, internalDate: true, source: true }, { uid: true });
     if (!msg) { const e = new Error("Message not found"); e.statusCode = 404; throw e; }
 
     const result = convertMessage(msg, folder);
+
     if (msg.source) {
       try {
         const parsed = await simpleParser(msg.source);
-        result.bodyText = parsed.text || undefined;
-        result.bodyHtml = parsed.html || undefined;
+        // MIME body fallback: use parsed text/html, then check attachment parts
+        let bodyText = parsed.text || "";
+        let bodyHtml = parsed.html || "";
+
+        // For multipart/report and delivery-status, extract from attachments
+        if (!bodyText && !bodyHtml && parsed.attachments.length > 0) {
+          for (const att of parsed.attachments) {
+            const ct = (att.contentType || "").toLowerCase();
+            const content = att.content;
+            if (!content) continue;
+            if (ct.startsWith("text/plain") || ct === "text/rfc822-headers") {
+              const text = content instanceof Buffer ? content.toString("utf-8") : String(content);
+              if (text.trim()) { bodyText = text; break; }
+            }
+            if (ct.startsWith("text/html")) {
+              const html = content instanceof Buffer ? content.toString("utf-8") : String(content);
+              if (html.trim()) { bodyHtml = html; break; }
+            }
+          }
+        }
+
+        result.bodyText = bodyText || undefined;
+        result.bodyHtml = bodyHtml || undefined;
+
+        // Update sender/metadata from parsed result when envelope is incomplete
+        if (!result.from?.name && !result.from?.address && parsed.from) {
+          const fromVal = Array.isArray(parsed.from.value) ? parsed.from.value[0] : parsed.from.value;
+          result.from = { name: fromVal?.name || parsed.from.name || undefined, address: fromVal?.address || "" };
+        }
+        if ((!result.to || result.to.length === 0) && parsed.to) {
+          const toArr = Array.isArray(parsed.to) ? parsed.to : [parsed.to];
+          result.to = toArr.map((a) => {
+            const val = Array.isArray(a.value) ? a.value[0] : a.value;
+            return { name: val?.name || a.name || undefined, email: val?.address || a.text || "" };
+          });
+        }
+        if (!result.subject && parsed.subject) result.subject = parsed.subject;
+        if (!result.messageId && parsed.messageId) result.messageId = parsed.messageId;
+
         result.attachments = parsed.attachments.map((att, idx) => ({
           id: encodeAttachmentToken(folder, result.uid, idx, att.filename, att.contentId),
           filename: att.filename || "unnamed",
@@ -467,10 +525,53 @@ export async function getMessage({ messageId }) {
           contentId: att.contentId,
         }));
         result.hasAttachments = parsed.attachments.length > 0;
-      } catch {}
+      } catch (parseError) {
+        console.error("Email MIME parse failed", {
+          folder,
+          uid,
+          sourceBytes: msg.source?.length || 0,
+          error: parseError instanceof Error ? parseError.message : String(parseError),
+        });
+        // No raw MIME fallback — parser failure results in empty body
+      }
     }
+
     return result;
   });
+}
+
+export async function saveDraft({ mailbox, payload }) {
+  // Save a draft message to Zoho Drafts folder via IMAP APPEND
+  return withClient(async (client) => {
+    await client.mailboxOpen("Drafts");
+    const cfg = getSmtpConfig();
+    const raw = [
+      "From: " + `"${cfg.fromName}" <${cfg.fromAddress}>`,
+      "To: " + (payload.to || []).map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
+      "Subject: " + (payload.subject || "(no subject)"),
+      "MIME-Version: 1.0",
+      "Content-Type: text/plain; charset=utf-8",
+      "Content-Transfer-Encoding: 7bit",
+      "Date: " + new Date().toUTCString(),
+      "",
+      payload.bodyText || "",
+    ].join("\r\n");
+    const result = await client.append("Drafts", [Buffer.from(raw, "utf-8")], ["\\Draft"], new Date());
+    return { success: true, uid: result?.uid };
+  });
+}
+
+export async function forwardMessage({ messageId, payload, requestId }) {
+  const decoded = decodeId(messageId);
+  if (!decoded) { const e = new Error("Invalid message ID"); e.statusCode = 400; throw e; }
+
+  // Fetch original message to include as quote/attachment
+  const originalMsg = await getMessage({ messageId });
+  const fwdSubject = originalMsg.subject.startsWith("Fwd:") ? originalMsg.subject : `Fwd: ${originalMsg.subject}`;
+  const fwdBody = `\n\n---------- Forwarded message ---------\nFrom: ${originalMsg.from.name || originalMsg.from.address}\nSubject: ${originalMsg.subject}\nDate: ${originalMsg.receivedAt}\n\n${originalMsg.bodyText || ""}`;
+
+  const fwdPayload = { ...payload, subject: fwdSubject, bodyText: (payload.bodyText || "") + fwdBody };
+  return sendMessage({ payload: fwdPayload, requestId });
 }
 
 export async function sendMessage({ mailbox, payload, requestId }) {
@@ -516,7 +617,9 @@ export async function sendMessage({ mailbox, payload, requestId }) {
       const sentMsgId = await findInSent(info.messageId);
       if (sentMsgId) sentSync = { status: "confirmed", folder: "Sent", messageId: sentMsgId };
       else sentSync = { status: "pending" };
-    } catch {}
+    } catch (sentErr) {
+      console.error("Sent-folder sync failed", { error: sentErr.message });
+    }
 
     return { success: true, messageId: info.messageId, accepted: info.accepted || [], rejected: info.rejected || [], sentSync };
   };
@@ -612,10 +715,18 @@ export async function fetchAttachment({ messageId, attachmentId }) {
 
   return withClient(async (client) => {
     await client.mailboxOpen(folderMap[d.folder] || d.folder);
-    const msg = await client.fetchOne(d.uid, { uid: true, source: true });
+    // Fetch by UID with uid:true option
+    const msg = await client.fetchOne(d.uid, { uid: true, source: true }, { uid: true });
     if (!msg?.source) { const e = new Error("Message not found"); e.statusCode = 404; throw e; }
 
-    const parsed = await simpleParser(msg.source);
+    let parsed;
+    try {
+      parsed = await simpleParser(msg.source);
+    } catch (parseError) {
+      console.error("Attachment parse failed", { folder: d.folder, uid: d.uid, error: parseError.message });
+      const e = new Error("Could not parse message to extract attachment"); e.statusCode = 500; throw e;
+    }
+
     if (!parsed.attachments || attToken.i >= parsed.attachments.length) {
       const e = new Error("Attachment not found"); e.statusCode = 404; throw e;
     }

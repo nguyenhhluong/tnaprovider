@@ -56,6 +56,22 @@ export async function sendMessage({ mailbox, payload, requestId }) {
   return getConnector().sendMessage({ mailbox, payload, requestId });
 }
 
+export async function forwardMessage({ mailbox, messageId, payload, requestId }) {
+  const connector = getConnector();
+  if (connector.forwardMessage) return connector.forwardMessage({ messageId, payload, requestId });
+  // Fallback: send as regular email with Fwd: subject
+  const msg = await connector.getMessage({ mailbox, messageId });
+  payload.subject = msg.subject.startsWith("Fwd:") ? msg.subject : `Fwd: ${msg.subject}`;
+  payload.bodyText = (payload.bodyText || "") + `\n\n---------- Forwarded message ---------\nFrom: ${msg.from?.name || msg.from?.address}\nSubject: ${msg.subject}\n\n${msg.bodyText || ""}`;
+  return connector.sendMessage({ mailbox, payload, requestId });
+}
+
+export async function saveDraft({ mailbox, payload }) {
+  const connector = getConnector();
+  if (connector.saveDraft) return connector.saveDraft({ mailbox, payload });
+  return { success: true, note: "Draft saving not supported in current provider" };
+}
+
 export async function markMessageRead({ mailbox, messageId, isRead }) {
   return getConnector().markMessageRead({ mailbox, messageId, isRead });
 }
