@@ -202,8 +202,42 @@ export function QuoteRequests() {
         <EmptyState title="No quote requests yet" message="New requests from tnaprovider.com.au/contact will appear here." />
       ) : (
         <div className="space-y-4">
-          {/* Table */}
-          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-3">
+            {data.requests.map((r) => (
+              <div
+                key={r.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleSelect(r)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(r); } }}
+                aria-label={`Open quote request from ${r.first_name} ${r.last_name}`}
+                className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:outline-none"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="min-w-0 flex-1 mr-2">
+                    <p className="font-semibold text-sm truncate">{r.first_name} {r.last_name}</p>
+                    <p className="text-xs text-gray-500 truncate">{r.email}</p>
+                  </div>
+                  <span className={cn("inline-flex px-2 py-0.5 rounded-full text-xs font-semibold shrink-0", STATUS_COLORS[r.status])}>{STATUS_LABELS[r.status] || r.status}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                  <span className="truncate">{r.service}</span>
+                  {r.location && <><span>·</span><span className="truncate">{r.location}</span></>}
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <a href={`mailto:${r.email}`} onClick={(e) => e.stopPropagation()} className="text-brand-accent hover:underline flex items-center gap-1"><Mail className="w-3 h-3" />Email</a>
+                    <a href={`tel:${r.phone}`} onClick={(e) => e.stopPropagation()} className="text-gray-500 hover:text-brand-accent flex items-center gap-1"><Phone className="w-3 h-3" />Call</a>
+                  </div>
+                  <span className="text-gray-400">{fmtDateShort(r.received_at)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

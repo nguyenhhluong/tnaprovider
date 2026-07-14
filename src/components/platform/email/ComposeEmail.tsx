@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { EmailMessage, EmailAddress, ComposeEmailPayload } from "../../../types/email";
 import { isValidEmail, formatEmailAddress } from "../../../utils/emailFormat";
 import { X, Paperclip, Send, Loader2, AlertTriangle, ArrowLeft } from "lucide-react";
@@ -24,12 +24,17 @@ interface ComposeEmailProps {
 }
 
 export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: ComposeEmailProps) {
-  // Generate idempotency key once per compose session
+  // Generate idempotency key and draft key once per compose session
   const requestIdRef = useRef(generateIdempotencyKey());
   function getRequestId() { return requestIdRef.current; }
 
+  const mode = forwardMsg ? "forward" : replyTo ? "reply" : "new";
+  const sourceId = forwardMsg?.messageId || replyTo?.messageId || "";
+  const DRAFT_KEY = `tna-email-draft:v1:${mode}:${sourceId}`;
+  const discardRef = useRef(false);
+
   const [to, setTo] = useState(
-    replyTo ? formatEmailAddress(replyTo.from) : ""
+    replyTo ? formatEmailAddress(replyTo.from) : forwardMsg ? "" : ""
   );
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
@@ -42,6 +47,60 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // Offline draft preservation — scoped by mode + messageId
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (!saved) return;
+      const d = JSON.parse(saved);
+      if (typeof d !== "object" || d === null) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      if (d.version !== 1 || d.mode !== mode || d.sourceMessageId !== sourceId) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      if (d.savedAt && Date.now() - new Date(d.savedAt).getTime() > 7 * 86400000) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      if (typeof d.to !== "string") d.to = "";
+      if (typeof d.cc !== "string") d.cc = "";
+      if (typeof d.bcc !== "string") d.bcc = "";
+      if (typeof d.subject !== "string") d.subject = "";
+      if (typeof d.bodyText !== "string") d.bodyText = "";
+      if (d.to) setTo(d.to);
+      if (d.cc) setCc(d.cc);
+      if (d.bcc) setBcc(d.bcc);
+      if (d.subject) setSubject(d.subject);
+      if (d.bodyText) setBodyText(d.bodyText);
+      setDraftRestored(true);
+    } catch (e) {
+      localStorage.removeItem(DRAFT_KEY);
+    }
+  }, []);
+
+  // Save draft on changes — skip if discarding
+  useEffect(() => {
+    if (discardRef.current) return;
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          version: 1,
+          mode,
+          sourceMessageId: sourceId,
+          savedAt: new Date().toISOString(),
+          to, cc, bcc, subject, bodyText,
+        }));
+      } catch (e) {
+        // Best-effort draft save — compose must remain usable
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [to, cc, bcc, subject, bodyText, DRAFT_KEY, mode, sourceId]);
 
   const parseAddressList = (raw: string): EmailAddress[] => {
     return raw
@@ -100,6 +159,7 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
 
     try {
       await onSend(payload);
+      localStorage.removeItem(DRAFT_KEY);
       setSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -107,6 +167,20 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
       setSending(false);
     }
   }, [to, cc, bcc, subject, bodyText, attachments, replyTo, onSend, validate]);
+
+  const handleDiscard = useCallback(() => {
+    discardRef.current = true;
+    localStorage.removeItem(DRAFT_KEY);
+    setTo("");
+    setCc("");
+    setBcc("");
+    setSubject("");
+    setBodyText("");
+    setAttachments([]);
+    setError("");
+    setDraftRestored(false);
+    onDiscard();
+  }, [DRAFT_KEY, onDiscard]);
 
   const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -151,20 +225,26 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 shrink-0">
           <div className="flex items-center gap-2">
             <button
-              onClick={onDiscard}
+              onClick={handleDiscard}
               className="lg:hidden p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h3 className="font-display font-bold">{replyTo ? "Reply" : "New Message"}</h3>
+            <h3 className="font-display font-bold">{replyTo ? "Reply" : forwardMsg ? "Forward" : "New Message"}</h3>
           </div>
-          <button onClick={onDiscard} className="hidden lg:flex p-2 min-h-[44px] min-w-[44px] items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+          <button onClick={handleDiscard} className="hidden lg:flex p-2 min-h-[44px] min-w-[44px] items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Scrollable form */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          {draftRestored && (
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between">
+              <span>Draft restored</span>
+              <button onClick={() => { localStorage.removeItem(DRAFT_KEY); setDraftRestored(false); }} className="underline">Discard</button>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
             <p className="text-sm px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
@@ -255,14 +335,21 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
 
         {/* Bottom bar — sticky */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-brand-darker shrink-0">
-          <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer hover:text-gray-700 min-h-[44px] px-2">
-            <Paperclip className="w-4 h-4" />
-            Attach
-            <input type="file" multiple onChange={handleAttachmentChange} className="hidden" />
-          </label>
+          <div className="flex items-center gap-1">
+            <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer hover:text-gray-700 min-h-[44px] px-2" aria-label="Take photo">
+              <span>📷</span>
+              Photo
+              <input type="file" accept="image/*" capture="environment" onChange={handleAttachmentChange} className="hidden" />
+            </label>
+            <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer hover:text-gray-700 min-h-[44px] px-2" aria-label="Attach file">
+              <Paperclip className="w-4 h-4" />
+              Attach
+              <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" onChange={handleAttachmentChange} className="hidden" />
+            </label>
+          </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={onDiscard}
+              onClick={handleDiscard}
               className="px-3 py-2 min-h-[44px] text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
             >
               Discard

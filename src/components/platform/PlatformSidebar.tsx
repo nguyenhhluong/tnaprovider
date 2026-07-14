@@ -90,7 +90,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
             </div>
             <span className="font-display font-bold text-lg">Platform</span>
           </Link>
-          <button onClick={onClose} className="lg:hidden p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
+          <button onClick={onClose} className="lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors" aria-label="Close menu">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -104,7 +104,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
                 to={link.path}
                 onClick={onClose}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                  "flex items-center gap-3 px-3 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors",
                   isActive
                     ? "bg-brand-accent/10 text-brand-accent"
                     : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -131,7 +131,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
                     to={link.path}
                     onClick={onClose}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                      "flex items-center gap-3 px-3 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors",
                       isActive
                         ? "bg-brand-accent/10 text-brand-accent"
                         : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -165,7 +165,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
           </Link>
           <button
             onClick={logout}
-            className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-sm text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            className="flex items-center gap-3 px-3 py-3 min-h-[44px] w-full rounded-lg text-sm text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
             <LogOut className="w-5 h-5" />
             Sign Out
