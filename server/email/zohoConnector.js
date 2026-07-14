@@ -194,58 +194,71 @@ export async function searchMessages({ folder, search, from, to, since, before, 
       return { items: [], page, pageSize, totalItems: 0, totalPages: 0, folder: resolvedFolder, query: { search, from } };
     }
 
-    // Build ImapFlow search criteria
-    const criteria = [];
+    // Build ImapFlow search query object
+    const query = {};
 
     if (search) {
-      criteria.push(["OR", ["SUBJECT", search], ["TEXT", search]]);
+      query.or = [{ subject: search }, { text: search }];
     }
     if (from) {
-      criteria.push(["FROM", from]);
+      query.from = from;
     }
     if (to) {
-      criteria.push(["TO", to]);
+      query.to = to;
     }
     if (since) {
-      criteria.push(["SINCE", new Date(since)]);
+      query.since = new Date(since);
     }
     if (before) {
-      criteria.push(["BEFORE", new Date(before)]);
+      query.before = new Date(before);
     }
     if (unread === "true" || unread === true) {
-      criteria.push(["UNSEEN"]);
+      query.seen = false;
     }
     if (unread === "false" || unread === false) {
-      criteria.push(["SEEN"]);
+      query.seen = true;
     }
     if (starred === "true" || starred === true) {
-      criteria.push(["FLAGGED"]);
+      query.flagged = true;
     }
 
-    // Execute search
-    let uids;
-    if (criteria.length > 0) {
-      uids = await client.search({ uid: true }, criteria);
-    } else {
-      // No criteria - return all
-      uids = mailbox.exists > 0
-        ? Array.from({ length: mailbox.exists }, (_, i) => i + 1)
-        : [];
+    // Execute search with ImapFlow query object
+    let result;
+    if (Object.keys(query).length > 0) {
+      result = await client.search(query, { returnOptions: ["COUNT", "ALL"] });
     }
 
-    // Sort newest first
-    uids.sort((a, b) => b - a);
+    // Parse UIDs from search result
+    let allUids = [];
+    if (result && result.all) {
+      // all is a packed message range like "1,3,5:10"
+      const ranges = result.all.split(",");
+      for (const range of ranges) {
+        if (range.includes(":")) {
+          const [start, end] = range.split(":").map(Number);
+          for (let i = start; i <= end; i++) allUids.push(i);
+        } else {
+          allUids.push(Number(range));
+        }
+      }
+    } else if (Object.keys(query).length === 0) {
+      // No criteria - fetch all sequence numbers
+      for (let i = 1; i <= mailbox.exists; i++) allUids.push(i);
+    }
 
-    const totalItems = uids.length;
-    const totalPages = Math.ceil(totalItems / pageSize);
+    // Sort newest first (assuming higher UID = newer)
+    allUids.sort((a, b) => b - a);
+
+    const totalItems = allUids.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
     const startIdx = (page - 1) * pageSize;
-    const pageUids = uids.slice(startIdx, startIdx + pageSize);
+    const pageUids = allUids.slice(startIdx, startIdx + pageSize);
 
     if (pageUids.length === 0) {
       return { items: [], page, pageSize, totalItems, totalPages, folder: resolvedFolder, query: { search, from } };
     }
 
-    // Fetch only metadata for the requested page
+    // Fetch metadata for the requested page
     const items = [];
     for await (const msg of client.fetch(
       { uid: pageUids },
@@ -273,7 +286,7 @@ export async function searchMessages({ folder, search, from, to, since, before, 
       });
     }
 
-    // Restore newest-first order (fetch may not preserve order)
+    // Restore newest-first order
     items.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
 
     return { items, page, pageSize, totalItems, totalPages, folder: resolvedFolder, query: { search, from } };
