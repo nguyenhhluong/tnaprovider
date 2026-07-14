@@ -86,8 +86,14 @@ function getSmtpTransporter() {
 // Single-process in-memory. Not cluster-safe. Lost on restart.
 
 const idempotencyStore = new Map();
-const IDEMPOTENCY_TTL = parseInt(process.env.EMAIL_IDEMPOTENCY_TTL_MS || "3600000", 10);
-const IDEMPOTENCY_CLEANUP_INTERVAL = parseInt(process.env.EMAIL_IDEMPOTENCY_CLEANUP_INTERVAL_MS || "300000", 10);
+function parsePositiveInt(value, fallback, minimum) {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  if (!Number.isFinite(parsed) || parsed < (minimum || 1000)) return fallback;
+  return parsed;
+}
+
+const IDEMPOTENCY_TTL = parsePositiveInt(process.env.EMAIL_IDEMPOTENCY_TTL_MS, 3600000, 60000);
+const IDEMPOTENCY_CLEANUP_INTERVAL = parsePositiveInt(process.env.EMAIL_IDEMPOTENCY_CLEANUP_INTERVAL_MS, 300000, 5000);
 const MAX_REQUEST_ID_LENGTH = 256;
 
 let cleanupTimer = null;
@@ -113,11 +119,22 @@ function normalizeAddresses(arr) {
     .sort((a, b) => a.email.localeCompare(b.email));
 }
 
+function stableValue(value) {
+  if (value === null || value === undefined) return null;
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (typeof value === "object") {
+    const sorted = {};
+    Object.keys(value).sort().forEach((k) => { sorted[k] = stableValue(value[k]); });
+    return sorted;
+  }
+  return value;
+}
+
 function computePayloadHash(payload) {
   const canonical = {
-    to: normalizeAddresses(payload.to),
-    cc: normalizeAddresses(payload.cc),
-    bcc: normalizeAddresses(payload.bcc),
+    to: normalizeAddresses(payload.to).map((a) => ({ email: a.email, name: a.name })),
+    cc: normalizeAddresses(payload.cc).map((a) => ({ email: a.email, name: a.name })),
+    bcc: normalizeAddresses(payload.bcc).map((a) => ({ email: a.email, name: a.name })),
     subject: (payload.subject || "").trim(),
     bodyText: payload.bodyText || "",
     bodyHtml: payload.bodyHtml || "",
@@ -129,8 +146,7 @@ function computePayloadHash(payload) {
       return { filename: a.filename || "attachment", mimeType: a.mimeType || "application/octet-stream", size: buf.length, sha256 };
     }),
   };
-  const keys = Object.keys(canonical).sort();
-  const json = JSON.stringify(canonical, keys);
+  const json = JSON.stringify(stableValue(canonical));
   return crypto.createHash("sha256").update(json).digest("hex");
 }
 
