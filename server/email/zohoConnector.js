@@ -474,11 +474,11 @@ export async function getMessage({ messageId }) {
     if (!msg) { const e = new Error("Message not found"); e.statusCode = 404; throw e; }
 
     const result = convertMessage(msg, folder);
+    result.bodyState = "EMPTY_SOURCE";
 
     if (msg.source) {
       try {
         const parsed = await simpleParser(msg.source);
-        // MIME body fallback: use parsed text/html, then check attachment parts
         let bodyText = parsed.text || "";
         let bodyHtml = parsed.html || "";
 
@@ -501,27 +501,43 @@ export async function getMessage({ messageId }) {
 
         result.bodyText = bodyText || undefined;
         result.bodyHtml = bodyHtml || undefined;
+        result.bodyState = (bodyText || bodyHtml) ? "PARSED" : "NO_DISPLAYABLE_PART";
 
-        // Update sender/metadata from parsed result when envelope is incomplete
-        if (!result.from?.name && !result.from?.address && parsed.from) {
-          const fromVal = Array.isArray(parsed.from.value) ? parsed.from.value[0] : parsed.from.value;
-          result.from = { name: fromVal?.name || parsed.from.name || undefined, address: fromVal?.address || "" };
+        // Sender fallback from parsed headers (envelope may be incomplete)
+        if (parsed.from?.value?.[0]?.address && !result.from?.address) {
+          const fromVal = parsed.from.value[0];
+          result.from = {
+            name: fromVal.name || parsed.from.name || undefined,
+            address: fromVal.address,
+          };
+        } else if (!result.from?.address && parsed.from?.text) {
+          result.from = { name: parsed.from.name || undefined, address: parsed.from.text };
         }
+
+        // Recipients and metadata fallback
         if ((!result.to || result.to.length === 0) && parsed.to) {
           const toArr = Array.isArray(parsed.to) ? parsed.to : [parsed.to];
           result.to = toArr.map((a) => {
-            const val = Array.isArray(a.value) ? a.value[0] : a.value;
-            return { name: val?.name || a.name || undefined, email: val?.address || a.text || "" };
+            const v = Array.isArray(a.value) ? a.value[0] : a.value;
+            return { name: v?.name || a.name || undefined, email: v?.address || a.text || "" };
+          });
+        }
+        if ((!result.cc || result.cc.length === 0) && parsed.cc) {
+          const ccArr = Array.isArray(parsed.cc) ? parsed.cc : [parsed.cc];
+          result.cc = ccArr.map((a) => {
+            const v = Array.isArray(a.value) ? a.value[0] : a.value;
+            return { name: v?.name || a.name || undefined, email: v?.address || a.text || "" };
           });
         }
         if (!result.subject && parsed.subject) result.subject = parsed.subject;
         if (!result.messageId && parsed.messageId) result.messageId = parsed.messageId;
 
+        // Attachment mapping
         result.attachments = parsed.attachments.map((att, idx) => ({
           id: encodeAttachmentToken(folder, result.uid, idx, att.filename, att.contentId),
           filename: att.filename || "unnamed",
           mimeType: att.contentType || "application/octet-stream",
-          sizeBytes: att.size || 0,
+          sizeBytes: att.size || att.content?.length || 0,
           contentId: att.contentId,
         }));
         result.hasAttachments = parsed.attachments.length > 0;
@@ -532,7 +548,7 @@ export async function getMessage({ messageId }) {
           sourceBytes: msg.source?.length || 0,
           error: parseError instanceof Error ? parseError.message : String(parseError),
         });
-        // No raw MIME fallback — parser failure results in empty body
+        result.bodyState = "PARSE_FAILED";
       }
     }
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { EmailFolder, EmailMessage, ComposeEmailPayload, EmailStatus } from "../../../types/email";
 import { MailboxSidebar } from "./MailboxSidebar";
 import { MessageList } from "./MessageList";
@@ -6,7 +6,7 @@ import { MessagePreview } from "./MessagePreview";
 import { ComposeEmail } from "./ComposeEmail";
 import { EmailSettings } from "./EmailSettings";
 import { useEmailData } from "./useEmailData";
-import { sendEmail, getEmailStatus, starEmail } from "../../../utils/emailApi";
+import { sendEmail, getEmailStatus, starEmail, getMessage } from "../../../utils/emailApi";
 import { logEmailAudit } from "../../../utils/emailAudit";
 import { cn } from "../../../utils/cn";
 import { ChevronDown, PenSquare, Menu } from "lucide-react";
@@ -39,6 +39,10 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
   const [mobileFolderPickerOpen, setMobileFolderPickerOpen] = useState(false);
   const [forwardMsg, setForwardMsg] = useState<EmailMessage | null>(null);
   const [preferences, setPreferences] = useState<any>({});
+  const [messageDetail, setMessageDetail] = useState<EmailMessage | null>(null);
+  const [messageDetailLoading, setMessageDetailLoading] = useState(false);
+  const [messageDetailError, setMessageDetailError] = useState<string | null>(null);
+  const detailFetchRef = useRef(0);
 
   useEffect(() => {
     getEmailStatus()
@@ -70,6 +74,23 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
     setSelectedMessageId(id);
     markRead(id, true);
     logEmailAudit("user-1", "info@tnaprovider.com.au", "email.opened", { messageId: id });
+
+    // Fetch full message detail
+    const seq = ++detailFetchRef.current;
+    setMessageDetail(null);
+    setMessageDetailError(null);
+    setMessageDetailLoading(true);
+    getMessage(id).then((detail) => {
+      if (seq === detailFetchRef.current) {
+        setMessageDetail(detail);
+        setMessageDetailLoading(false);
+      }
+    }).catch((err) => {
+      if (seq === detailFetchRef.current) {
+        setMessageDetailError(err.message);
+        setMessageDetailLoading(false);
+      }
+    });
   }, [markRead]);
 
   const handleCompose = useCallback(() => {
@@ -301,12 +322,16 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
           selectedMessageId && "flex"
         )}>
           <MessagePreview
-            message={selectedMessage}
+            key={selectedMessage.id}
+            message={messageDetail || selectedMessage}
+            loading={messageDetailLoading}
+            error={messageDetailError || undefined}
             onReply={handleReply}
             onForward={handleForward}
             onDelete={handleDelete}
             onArchive={handleArchive}
             onClose={handleBackToList}
+            onRetry={() => { if (selectedMessage) handleSelectMessage(selectedMessage.id); }}
           />
         </div>
       )}
