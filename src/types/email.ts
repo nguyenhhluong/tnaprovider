@@ -32,6 +32,7 @@ export interface EmailMessage {
   preview: string;
   bodyText?: string;
   bodyHtml?: string;
+  bodyState?: "PARSED" | "FALLBACK_PARSED" | "EMPTY_SOURCE" | "NO_DISPLAYABLE_PART" | "PARSE_FAILED";
   receivedAt: string;
   sentAt?: string;
   isRead: boolean;
