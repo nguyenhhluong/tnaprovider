@@ -64,9 +64,9 @@ function generateIdempotencyKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export async function sendEmail(payload: ComposeEmailPayload): Promise<{ success: boolean; messageId: string; sentSync?: { status: string } }> {
+export async function sendEmail(payload: ComposeEmailPayload & { requestId?: string }): Promise<{ success: boolean; messageId: string; sentSync?: { status: string } }> {
   const form = new FormData();
-  form.append("requestId", generateIdempotencyKey());
+  form.append("requestId", payload.requestId || generateIdempotencyKey());
   form.append("to", JSON.stringify(payload.to));
   if (payload.cc && payload.cc.length > 0) form.append("cc", JSON.stringify(payload.cc));
   if (payload.bcc && payload.bcc.length > 0) form.append("bcc", JSON.stringify(payload.bcc));

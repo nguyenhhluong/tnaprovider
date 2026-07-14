@@ -80,23 +80,76 @@ function getSmtpTransporter() {
   return smtpTransporter;
 }
 
-// ── Idempotency store ──
+// ── Atomic idempotency store ──
+// Single-process in-memory. Not cluster-safe. Lost on restart.
 
 const idempotencyStore = new Map();
-const IDEMPOTENCY_TTL = 3600000; // 1 hour
+const IDEMPOTENCY_TTL = 3600000;
 
-function getIdempotencyResult(key) {
-  const entry = idempotencyStore.get(key);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    idempotencyStore.delete(key);
-    return null;
-  }
-  return entry.result;
+function payloadHash(payload) {
+  const obj = {
+    to: payload.to,
+    cc: payload.cc,
+    bcc: payload.bcc,
+    subject: payload.subject,
+    bodyTextLen: (payload.bodyText || "").length,
+    bodyHtmlLen: (payload.bodyHtml || "").length,
+    attachments: (payload.attachments || []).map((a) => ({ filename: a.filename, mimeType: a.mimeType, size: (a.buffer || a.content || "").length })),
+  };
+  const json = JSON.stringify(obj);
+  let hash = 0;
+  for (let i = 0; i < json.length; i++) { const c = json.charCodeAt(i); hash = ((hash << 5) - hash) + c; hash |= 0; }
+  return hash.toString(36);
 }
 
-function setIdempotencyResult(key, result) {
-  idempotencyStore.set(key, { result, expiresAt: Date.now() + IDEMPOTENCY_TTL });
+async function withIdempotency(requestId, payload, sendFn) {
+  if (!requestId) return sendFn();
+
+  const existing = idempotencyStore.get(requestId);
+
+  // If SUCCEEDED, return cached result
+  if (existing && existing.status === "SUCCEEDED") {
+    return existing.result;
+  }
+
+  // If same key with different payload, reject
+  if (existing && existing.status !== "PENDING") {
+    const ph = payloadHash(payload);
+    if (existing.payloadHash && existing.payloadHash !== ph) {
+      const err = new Error("Idempotency key conflict: different payload");
+      err.statusCode = 409;
+      err.code = "IDEMPOTENCY_KEY_CONFLICT";
+      throw err;
+    }
+  }
+
+  // If PENDING, wait for the in-flight promise
+  if (existing && existing.status === "PENDING" && existing.promise) {
+    return existing.promise;
+  }
+
+  // Reserve as PENDING before SMTP
+  const ph = payloadHash(payload);
+  const entry = { status: "PENDING", payloadHash: ph, promise: null, result: null, expiresAt: Date.now() + IDEMPOTENCY_TTL };
+  idempotencyStore.set(requestId, entry);
+
+  const promise = (async () => {
+    try {
+      const result = await sendFn();
+      entry.status = "SUCCEEDED";
+      entry.result = result;
+      entry.promise = null;
+      return result;
+    } catch (err) {
+      entry.status = "FAILED";
+      entry.result = null;
+      entry.promise = null;
+      throw err;
+    }
+  })();
+
+  entry.promise = promise;
+  return promise;
 }
 
 // ── IMAP helpers ──
@@ -127,6 +180,7 @@ async function withClient(fn) {
 }
 
 function convertMessage(src, folder) {
+  const srcUid = src.uid;
   const envelope = src.envelope || {};
   const fromAddr = (envelope.from || [])[0] || {};
   const toAddrs = (envelope.to || []).map((a) => ({
@@ -163,13 +217,31 @@ function convertMessage(src, folder) {
     isStarred: !!src.flags?.includes?.("\\Flagged"),
     hasAttachments: (src.attachments || []).length > 0,
     attachments: (src.attachments || []).map((att, i) => ({
-      id: att.id || `part${i + 1}`,
+      id: encodeAttachmentToken(folder, srcUid, i, att.filename, att.id),
       filename: att.filename || "unnamed",
       mimeType: att.mimeType || "application/octet-stream",
       sizeBytes: att.size || 0,
-      part: att.part,
+      contentId: att.id,
     })),
   };
+}
+
+// ── Attachment token ──
+
+function encodeAttachmentToken(folder, uid, index, filename, contentId) {
+  const obj = { f: folder, u: uid, i: index };
+  if (filename) obj.n = filename;
+  if (contentId) obj.c = contentId;
+  return Buffer.from(JSON.stringify(obj)).toString("base64url");
+}
+
+function decodeAttachmentToken(token) {
+  try {
+    const json = Buffer.from(token, "base64url").toString("utf-8");
+    const obj = JSON.parse(json);
+    if (!obj.f || typeof obj.u !== "number" || typeof obj.i !== "number") return null;
+    return obj;
+  } catch { return null; }
 }
 
 // ── Exported API ──
@@ -303,7 +375,7 @@ export async function getMessage({ messageId }) {
         result.bodyText = parsed.text || undefined;
         result.bodyHtml = parsed.html || undefined;
         result.attachments = parsed.attachments.map((att, idx) => ({
-          id: att.contentId || `part${idx + 1}`,
+          id: encodeAttachmentToken(folder, result.uid, idx, att.filename, att.contentId),
           filename: att.filename || "unnamed",
           mimeType: att.contentType || "application/octet-stream",
           sizeBytes: att.size || 0,
@@ -317,79 +389,67 @@ export async function getMessage({ messageId }) {
 }
 
 export async function sendMessage({ mailbox, payload, requestId }) {
-  // Idempotency check
-  if (requestId) {
-    const existing = getIdempotencyResult(requestId);
-    if (existing) return existing;
-  }
+  const sendFn = async () => {
+    validateSmtpConfig();
 
-  validateSmtpConfig();
+    if (!payload.to || payload.to.length === 0) {
+      const e = new Error("At least one recipient is required");
+      e.statusCode = 400;
+      throw e;
+    }
 
-  if (!payload.to || payload.to.length === 0) {
-    const e = new Error("At least one recipient is required");
-    e.statusCode = 400;
-    throw e;
-  }
+    const cfg = getSmtpConfig();
+    const tr = getSmtpTransporter();
+    const mailOptions = {
+      from: `"${cfg.fromName}" <${cfg.fromAddress}>`,
+      to: payload.to.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
+      cc: payload.cc?.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
+      bcc: payload.bcc?.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
+      subject: payload.subject,
+      text: payload.bodyText || (payload.bodyHtml ? payload.bodyHtml.replace(/<[^>]*>/g, "") : ""),
+      html: payload.bodyHtml || undefined,
+    };
 
-  const cfg = getSmtpConfig();
-  const tr = getSmtpTransporter();
-  const mailOptions = {
-    from: `"${cfg.fromName}" <${cfg.fromAddress}>`,
-    to: payload.to.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
-    cc: payload.cc?.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
-    bcc: payload.bcc?.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
-    subject: payload.subject,
-    text: payload.bodyText || (payload.bodyHtml ? payload.bodyHtml.replace(/<[^>]*>/g, "") : ""),
-    html: payload.bodyHtml || undefined,
+    if (payload.attachments?.length > 0) {
+      mailOptions.attachments = payload.attachments.map((att) => ({
+        filename: att.filename || "attachment",
+        content: att.buffer || att.content,
+        contentType: att.mimeType || "application/octet-stream",
+      }));
+    }
+
+    if (payload.replyToMessageId) {
+      mailOptions.inReplyTo = payload.replyToMessageId;
+      mailOptions.references = payload.references || [payload.replyToMessageId];
+    }
+
+    const info = await tr.sendMail(mailOptions);
+
+    let sentSync = { status: "pending" };
+    try {
+      const sentMsgId = await findInSent(info.messageId);
+      if (sentMsgId) sentSync = { status: "confirmed", folder: "Sent", messageId: sentMsgId };
+      else sentSync = { status: "pending" };
+    } catch {}
+
+    return { success: true, messageId: info.messageId, accepted: info.accepted || [], rejected: info.rejected || [], sentSync };
   };
 
-  if (payload.attachments?.length > 0) {
-    mailOptions.attachments = payload.attachments.map((att) => ({
-      filename: att.filename || "attachment",
-      content: att.buffer || att.content,
-      contentType: att.mimeType || "application/octet-stream",
-    }));
-  }
-
-  if (payload.replyToMessageId) {
-    mailOptions.inReplyTo = payload.replyToMessageId;
-    mailOptions.references = payload.references || [payload.replyToMessageId];
-  }
-
-  const info = await tr.sendMail(mailOptions);
-  const messageId = info.messageId;
-
-  // Verify sent folder sync
-  let sentSync = { status: "pending" };
-  try {
-    const sentMsgId = await findInSent(messageId);
-    if (sentMsgId) {
-      sentSync = { status: "confirmed", folder: "Sent", messageId: sentMsgId };
-    } else {
-      sentSync = { status: "pending" };
-    }
-  } catch {}
-
-  const result = { success: true, messageId, accepted: info.accepted || [], rejected: info.rejected || [], sentSync };
-
-  if (requestId) setIdempotencyResult(requestId, result);
-  return result;
+  return withIdempotency(requestId, payload, sendFn);
 }
 
 async function findInSent(rfcMessageId) {
   return withClient(async (client) => {
     try { await client.mailboxOpen("Sent"); } catch { return null; }
-    const result = await client.search({ header: { "Message-ID": rfcMessageId } }, { returnOptions: ["ALL"] });
-    if (result?.all) {
-      const firstUid = parseInt(result.all.split(",")[0]);
-      if (firstUid) return encodeId("sent", firstUid);
-    }
-    // Retry once after short delay (async indexing)
-    await new Promise((r) => setTimeout(r, 1000));
-    const result2 = await client.search({ header: { "Message-ID": rfcMessageId } }, { returnOptions: ["ALL"] });
-    if (result2?.all) {
-      const firstUid = parseInt(result2.all.split(",")[0]);
-      if (firstUid) return encodeId("sent", firstUid);
+    const attempts = [0, 1];
+    for (const delay of attempts) {
+      if (delay > 0) await new Promise((r) => setTimeout(r, delay * 1000));
+      const result = await client.search({ header: { "Message-ID": rfcMessageId } }, { returnOptions: ["ALL"] });
+      if (result?.all) {
+        const parts = result.all.split(",");
+        const firstUid = parseInt(parts[0]);
+        if (!isNaN(firstUid) && firstUid > 0) return encodeId("sent", firstUid);
+      }
     }
     return null;
   });
@@ -457,17 +517,29 @@ export async function listFolders() {
 export async function fetchAttachment({ messageId, attachmentId }) {
   const d = decodeId(messageId);
   if (!d) { const e = new Error("Invalid message ID"); e.statusCode = 400; throw e; }
+
+  const attToken = decodeAttachmentToken(attachmentId);
+  if (!attToken) { const e = new Error("Invalid attachment token"); e.statusCode = 400; throw e; }
+  if (attToken.f !== d.folder || attToken.u !== d.uid) {
+    const e = new Error("Attachment token does not match the message"); e.statusCode = 400; throw e;
+  }
+
   return withClient(async (client) => {
     await client.mailboxOpen(folderMap[d.folder] || d.folder);
-    const msg = await client.fetchOne(d.uid, { uid: true, bodyStructure: true });
-    if (!msg) { const e = new Error("Message not found"); e.statusCode = 404; throw e; }
+    const msg = await client.fetchOne(d.uid, { uid: true, source: true });
+    if (!msg?.source) { const e = new Error("Message not found"); e.statusCode = 404; throw e; }
 
-    const att = (msg.bodyStructure?.attachments || []).find((a) => a.id === attachmentId || a.part === attachmentId);
-    if (!att) { const e = new Error("Attachment not found"); e.statusCode = 404; throw e; }
+    const parsed = await simpleParser(msg.source);
+    if (!parsed.attachments || attToken.i >= parsed.attachments.length) {
+      const e = new Error("Attachment not found"); e.statusCode = 404; throw e;
+    }
 
-    const fetchMsg = await client.fetchOne(d.uid, { uid: true, source: true });
-    if (!fetchMsg?.source) { const e = new Error("Could not fetch attachment"); e.statusCode = 500; throw e; }
-
-    return { filename: att.filename || "attachment", mimeType: att.mimeType || "application/octet-stream", size: att.size || 0, content: fetchMsg.source };
+    const att = parsed.attachments[attToken.i];
+    return {
+      filename: att.filename || "attachment",
+      mimeType: att.contentType || "application/octet-stream",
+      size: att.size || att.content.length || 0,
+      content: att.content,
+    };
   });
 }

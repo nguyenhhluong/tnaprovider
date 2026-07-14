@@ -1,7 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { EmailMessage, EmailAddress, ComposeEmailPayload } from "../../../types/email";
 import { isValidEmail, formatEmailAddress } from "../../../utils/emailFormat";
 import { X, Paperclip, Send, Loader2, AlertTriangle, ArrowLeft } from "lucide-react";
+
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function textToHtml(text: string): string {
   return text
@@ -18,6 +23,10 @@ interface ComposeEmailProps {
 }
 
 export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) {
+  // Generate idempotency key once per compose session
+  const requestIdRef = useRef(generateIdempotencyKey());
+  function getRequestId() { return requestIdRef.current; }
+
   const [to, setTo] = useState(
     replyTo ? formatEmailAddress(replyTo.from) : ""
   );
@@ -73,7 +82,7 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
     setError("");
     setSending(true);
 
-    const payload: ComposeEmailPayload = {
+    const payload: ComposeEmailPayload & { requestId?: string } = {
       from: { name: "TNA Provider", email: "info@tnaprovider.com.au" },
       to: parseAddressList(to),
       cc: cc ? parseAddressList(cc) : undefined,
@@ -84,6 +93,7 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
       attachments: attachments.length > 0 ? attachments : undefined,
       replyToMessageId: replyTo?.messageId,
       references: replyTo?.messageId ? [replyTo.messageId] : undefined,
+      requestId: getRequestId(),
     };
 
     try {

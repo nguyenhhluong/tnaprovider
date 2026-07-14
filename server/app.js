@@ -213,6 +213,9 @@ export function createApp() {
         ({ to = [], cc = [], bcc = [], subject = "", bodyText = "", bodyHtml = "", replyToMessageId = "", references = [], requestId = "" } = req.body);
       }
 
+      if (!requestId) {
+        return res.status(400).json({ error: "requestId is required", code: "MISSING_REQUEST_ID" });
+      }
       if (!to || to.length === 0) {
         return res.status(400).json({ error: "At least one recipient is required", code: "INVALID_RECIPIENTS" });
       }
