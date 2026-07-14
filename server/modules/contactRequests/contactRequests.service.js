@@ -127,15 +127,15 @@ async function createQuoteEmailJobs(submission, contactId, referenceNumber) {
       },
     });
 
-    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
-    const adminEmail = newQuoteAdmin({
+    const { buildAppUrl } = await import('../../config/appUrl.js');
+    const adminEmail = newQuoteAdminTemplate.newQuoteAdmin({
       referenceNumber,
       customerName: `${submission.firstName} ${submission.lastName}`,
       customerEmail: submission.email,
       customerPhone: submission.phone,
       company: null,
       message: submission.message,
-      adminQuoteUrl: `${appUrl}/platform/quote-requests?id=${contactId}`,
+      adminQuoteUrl: buildAppUrl('/platform/quote-requests', { id: contactId }),
     });
 
     const adminRecipient = process.env.ADMIN_EMAIL || 'info@tnaprovider.com.au';

@@ -159,8 +159,8 @@ router.post("/forgot-password", rateLimitLogin, validate(schemas.forgotPassword)
     const { passwordReset } = await import('../email/templates/passwordReset.js');
     const { createEmailJob, processEmailJob } = await import('../email/emailJobService.js');
 
-    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
-    const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
+    const { buildAppUrl } = await import('../config/appUrl.js');
+    const resetUrl = buildAppUrl('/reset-password', { token: rawToken });
 
     const emailContent = passwordReset({ name: user.name, resetUrl, expiresAt });
 
@@ -323,8 +323,8 @@ router.post("/resend-invite", requireAuth, requireRole("owner", "admin"), valida
     const { userInvitation } = await import('../email/templates/userInvitation.js');
     const { createEmailJob, processEmailJob } = await import('../email/emailJobService.js');
 
-    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
-    const inviteUrl = `${appUrl}/accept-invite?token=${encodeURIComponent(rawToken)}`;
+    const { buildAppUrl } = await import('../config/appUrl.js');
+    const inviteUrl = buildAppUrl('/accept-invite', { token: rawToken });
 
     const emailContent = userInvitation({ name: existing.name, email: existing.email, inviteUrl, expiresAt });
 
