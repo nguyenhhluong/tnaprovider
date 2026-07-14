@@ -81,10 +81,11 @@ export function MobileBottomNav() {
 
   return (
     <>
-      <nav
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-brand-darker border-t border-gray-200 dark:border-gray-800"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-      >
+    <nav
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-brand-darker border-t border-gray-200 dark:border-gray-800"
+      data-testid="mobile-bottom-nav"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+    >
         <div className="flex items-center justify-around h-16">
           {tabs.map((tab) => {
             const active = isRouteActive(location.pathname, tab.path);
@@ -105,6 +106,7 @@ export function MobileBottomNav() {
           <button
             ref={moreBtnRef}
             onClick={() => setMoreOpen(true)}
+            data-testid="mobile-more-button"
             className="flex flex-col items-center justify-center gap-1 min-w-[56px] min-h-[44px] px-2 py-1 rounded-lg transition-colors text-gray-500 dark:text-gray-400"
             aria-label="More menu"
             aria-expanded={moreOpen}
@@ -116,7 +118,7 @@ export function MobileBottomNav() {
       </nav>
 
       {moreOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="Navigation menu">
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="Navigation menu" data-testid="mobile-more-sheet">
           <div className="absolute inset-0 bg-black/50" onClick={closeMore} />
           <div
             ref={sheetRef}
