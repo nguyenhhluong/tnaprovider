@@ -13,9 +13,10 @@ interface MessagePreviewProps {
   onClose: () => void;
   onRetry?: () => void;
   loading?: boolean;
+  error?: string;
 }
 
-export function MessagePreview({ message, onReply, onForward, onDelete, onArchive, onClose, onRetry, loading }: MessagePreviewProps) {
+export function MessagePreview({ message, onReply, onForward, onDelete, onArchive, onClose, onRetry, loading, error }: MessagePreviewProps) {
   const [showImages, setShowImages] = useState(false);
   const hasRemoteImages = message.bodyHtml?.includes("http") && message.bodyHtml?.includes("src=");
 
@@ -27,6 +28,22 @@ export function MessagePreview({ message, onReply, onForward, onDelete, onArchiv
     () => message.bodyHtml ? sanitizeEmailHtml(message.bodyHtml) : "",
     [message.id, message.bodyHtml]
   );
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white dark:bg-brand-darker p-6">
+        <div className="text-center max-w-md">
+          <p className="text-red-500 text-sm mb-2 font-medium">Failed to load message</p>
+          <p className="text-xs text-gray-500 mb-4">{error}</p>
+          {onRetry && (
+            <button onClick={onRetry} className="flex items-center gap-1.5 px-4 py-2 min-h-[44px] mx-auto bg-brand-accent text-white rounded-lg text-sm font-medium hover:bg-brand-accent-hover transition-colors">
+              <RefreshCw className="w-4 h-4" /> Retry
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

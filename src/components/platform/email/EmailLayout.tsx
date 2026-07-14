@@ -77,8 +77,9 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
 
     // Fetch full message detail
     const seq = ++detailFetchRef.current;
-    setMessageDetailLoading(true);
+    setMessageDetail(null);
     setMessageDetailError(null);
+    setMessageDetailLoading(true);
     getMessage(id).then((detail) => {
       if (seq === detailFetchRef.current) {
         setMessageDetail(detail);
@@ -324,6 +325,7 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
             key={selectedMessage.id}
             message={messageDetail || selectedMessage}
             loading={messageDetailLoading}
+            error={messageDetailError || undefined}
             onReply={handleReply}
             onForward={handleForward}
             onDelete={handleDelete}
