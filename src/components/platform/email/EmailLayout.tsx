@@ -11,8 +11,6 @@ import { logEmailAudit } from "../../../utils/emailAudit";
 import { cn } from "../../../utils/cn";
 import { ChevronDown, PenSquare, Menu } from "lucide-react";
 
-const MOCK_MODE = import.meta.env.VITE_EMAIL_MOCK_MODE !== "false";
-
 const folders: { id: EmailFolder; label: string }[] = [
   { id: "inbox", label: "Inbox" },
   { id: "sent", label: "Sent" },
@@ -41,19 +39,9 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
   const [mobileFolderPickerOpen, setMobileFolderPickerOpen] = useState(false);
 
   useEffect(() => {
-    if (!MOCK_MODE) {
-      getEmailStatus()
-        .then(setEmailStatus)
-        .catch(() => setEmailStatus(null));
-    } else {
-      setEmailStatus({
-        provider: "mock",
-        inboundReady: true,
-        outboundReady: true,
-        attachmentsReady: true,
-        mailbox: "info@tnaprovider.com.au",
-      });
-    }
+    getEmailStatus()
+      .then(setEmailStatus)
+      .catch(() => setEmailStatus(null));
   }, []);
 
   const {
@@ -102,13 +90,9 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
       hasAttachments: !!(payload.attachments && payload.attachments.length > 0),
     };
 
-    if (MOCK_MODE) {
-      addSentMessage(newMsg);
-    } else {
-      const result = await sendEmail(payload);
-      newMsg.id = result.id;
-      addSentMessage(newMsg);
-    }
+    const result = await sendEmail(payload);
+    newMsg.id = result.id;
+    addSentMessage(newMsg);
 
     setShowCompose(false);
     setReplyTo(null);

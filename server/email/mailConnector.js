@@ -1,9 +1,7 @@
-// Unified mail connector — delegates to the correct backend connector
-// based on MAIL_PROVIDER env var.
-
 import * as mockConnector from "./mockMailConnector.js";
 import * as smtpConnector from "./smtpConnector.js";
 import * as imapConnector from "./imapConnector.js";
+import * as zohoConnector from "./zohoConnector.js";
 
 function getProvider() {
   return process.env.MAIL_PROVIDER || "mock";
@@ -11,6 +9,8 @@ function getProvider() {
 
 function getConnector() {
   switch (getProvider()) {
+    case "zoho":
+      return zohoConnector;
     case "imap-smtp":
       return imapConnector;
     case "smtp":
@@ -47,4 +47,29 @@ export async function moveMessage({ mailbox, messageId, folder }) {
 
 export async function deleteMessage({ mailbox, messageId }) {
   return getConnector().deleteMessage({ mailbox, messageId });
+}
+
+export async function listFolders() {
+  const connector = getConnector();
+  if (connector.listFolders) {
+    return connector.listFolders();
+  }
+  return [
+    { name: "INBOX", path: "INBOX", specialUse: "\\Inbox" },
+    { name: "Sent", path: "Sent", specialUse: "\\Sent" },
+    { name: "Drafts", path: "Drafts", specialUse: "\\Drafts" },
+    { name: "Archive", path: "Archive", specialUse: "\\Archive" },
+    { name: "Trash", path: "Trash", specialUse: "\\Trash" },
+    { name: "Spam", path: "Spam", specialUse: "\\Junk" },
+  ];
+}
+
+export async function fetchAttachment({ mailbox, messageId, attachmentId }) {
+  const connector = getConnector();
+  if (connector.fetchAttachment) {
+    return connector.fetchAttachment({ messageId, attachmentId });
+  }
+  const err = new Error("Attachment fetching not supported in current provider mode");
+  err.statusCode = 501;
+  throw err;
 }

@@ -180,6 +180,79 @@ export function createApp() {
     }
   });
 
+  // Business Email folders
+  app.get("/api/email/folders", requireSessionAuth, requirePasswordChanged, async (req, res) => {
+    try {
+      const folders = await mailConnector.listFolders();
+      res.json(folders);
+    } catch (err) {
+      console.error("listFolders error:", err.message);
+      res.status(err.statusCode || 500).json({ error: err.message });
+    }
+  });
+
+  // Star/unstar message
+  app.post("/api/email/messages/:id/star", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+    try {
+      const client = await import('./email/zohoConnector.js');
+      const { ImapFlow } = await import('imapflow');
+      const config = client.getMailConfig();
+      const imapConfig = {
+        host: process.env.ZOHO_IMAP_HOST || "imap.zoho.com.au",
+        port: parseInt(process.env.ZOHO_IMAP_PORT || "993", 10),
+        secure: process.env.ZOHO_IMAP_SECURE !== "false",
+        auth: {
+          user: process.env.ZOHO_IMAP_USER || "info@tnaprovider.com.au",
+          pass: process.env.ZOHO_IMAP_PASSWORD || "",
+        },
+        logger: false,
+      };
+      const conn = new ImapFlow(imapConfig);
+      await conn.connect();
+      try {
+        await conn.mailboxOpen("INBOX");
+        const isStarred = req.body.isStarred;
+        if (isStarred) {
+          await conn.messageFlagsAdd(parseInt(req.params.id), ["\\Flagged"]);
+        } else {
+          await conn.messageFlagsRemove(parseInt(req.params.id), ["\\Flagged"]);
+        }
+        res.json({ success: true });
+      } finally {
+        await conn.logout();
+      }
+    } catch (err) {
+      console.error("starMessage error:", err.message);
+      res.status(err.statusCode || 500).json({ error: err.message });
+    }
+  });
+
+  // Download attachment
+  app.get("/api/email/messages/:id/attachments/:attachmentId", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+    try {
+      const result = await mailConnector.fetchAttachment({
+        mailbox: req.mailbox,
+        messageId: req.params.id,
+        attachmentId: req.params.attachmentId,
+      });
+      res.setHeader("Content-Type", result.mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+      res.setHeader("Content-Length", result.size);
+      if (result.content instanceof Buffer) {
+        res.send(result.content);
+      } else {
+        res.send(result.content);
+      }
+    } catch (err) {
+      console.error("fetchAttachment error:", err.message);
+      if (err.statusCode === 404) {
+        res.status(404).json({ error: "Attachment not found" });
+      } else {
+        res.status(err.statusCode || 500).json({ error: err.message });
+      }
+    }
+  });
+
   // Error middleware
   app.use(errorMiddleware);
 
