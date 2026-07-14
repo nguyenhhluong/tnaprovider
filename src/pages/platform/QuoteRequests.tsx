@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useOutletContext, useNavigate } from "react-router-dom";
 import { SEO } from "../../components/SEO";
 import { PageHeader, EmptyState, LoadingState, ErrorState } from "../../components/shared";
-import { Search, Filter, ChevronDown, ChevronUp, Mail, Phone, Calendar, Archive, RotateCcw, MessageSquare, User, Clock, AlertCircle } from "lucide-react";
+import { Search, Filter, ChevronDown, ChevronUp, Mail, Phone, Calendar, Archive, RotateCcw, MessageSquare, User, Clock, AlertCircle, CheckCircle, RefreshCw, ExternalLink, Loader2 } from "lucide-react";
 import { cn } from "../../utils/cn";
 
 interface QuoteRequest {
@@ -320,6 +320,9 @@ export function QuoteRequests() {
               )}
             </div>
 
+            {/* Email Delivery Status */}
+            <EmailDeliveryStatus entityType="contact_request" entityId={selected.id} />
+
             {/* Create quote from request */}
             <button onClick={async () => {
               setSaving(true);
@@ -355,6 +358,69 @@ export function QuoteRequests() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function EmailDeliveryStatus({ entityType, entityId }: { entityType: string; entityId: string }) {
+  const [deliveryStatus, setDeliveryStatus] = useState<Record<string, any> | null>(null);
+  const [loadingDelivery, setLoadingDelivery] = useState(true);
+
+  const fetchDeliveryStatus = useCallback(async () => {
+    setLoadingDelivery(true);
+    try {
+      const res = await fetch(`/api/admin/email-delivery-status/${entityType}/${entityId}`, { credentials: "include" });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.success) setDeliveryStatus(d.data);
+      }
+    } catch {}
+    finally { setLoadingDelivery(false); }
+  }, [entityType, entityId]);
+
+  useEffect(() => { fetchDeliveryStatus(); }, [fetchDeliveryStatus]);
+
+  if (loadingDelivery) return null;
+  if (!deliveryStatus || Object.keys(deliveryStatus).length === 0) return null;
+
+  const statusColors: Record<string, string> = {
+    SENT: "text-green-600 bg-green-50 dark:bg-green-900/20",
+    FAILED: "text-red-600 bg-red-50 dark:bg-red-900/20",
+    PENDING: "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20",
+  };
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-gray-500 mb-2 flex items-center gap-1"><Mail className="w-4 h-4" />Email Delivery</h3>
+      <div className="space-y-2">
+        {Object.entries(deliveryStatus).map(([type, job]: [string, any]) => {
+          const labels: Record<string, string> = {
+            QUOTE_RECEIVED_CUSTOMER: "Customer Confirmation",
+            QUOTE_RECEIVED_ADMIN: "Admin Notification",
+          };
+          return (
+            <div key={type} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 text-sm">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-medium text-gray-700 dark:text-gray-300">{labels[type] || type}</span>
+                <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium", statusColors[job.status] || "text-gray-500 bg-gray-100")}>
+                  {job.status === "SENT" && <CheckCircle className="w-3 h-3" />}
+                  {job.status === "FAILED" && <AlertCircle className="w-3 h-3" />}
+                  {job.status === "PENDING" && <Clock className="w-3 h-3" />}
+                  {job.status}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500">{job.recipient}</p>
+              {job.sentAt && <p className="text-xs text-gray-400 mt-0.5">Sent: {fmtDate(job.sentAt)}</p>}
+              {job.lastError && <p className="text-xs text-red-500 mt-0.5">{job.lastError}</p>}
+              <div className="flex gap-2 mt-1">
+                <a href={`/platform/email-center/${job.id}`} className="text-xs text-brand-accent hover:underline flex items-center gap-1">
+                  <ExternalLink className="w-3 h-3" /> View
+                </a>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
