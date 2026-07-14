@@ -393,10 +393,29 @@ export async function searchMessages({ folder, search, from, to, since, before, 
       return { items: [], page, pageSize, totalItems: 0, totalPages: 0, folder: resolvedFolder, query: { search, from } };
     }
 
+    // Parse advanced search operators
+    let effectiveSearch = search;
+    let effectiveFrom = from;
+    let effectiveTo = to;
+    if (search && !from && !to) {
+      const fromMatch = search.match(/from:(\S+)/i);
+      const toMatch = search.match(/to:(\S+)/i);
+      const subjectMatch = search.match(/subject:(\S+)/i);
+      const hasAttach = search.match(/has:attachment/i);
+      const isUnread = search.match(/is:unread/i);
+      const isStarred = search.match(/is:starred/i);
+      if (fromMatch) { effectiveFrom = fromMatch[1]; effectiveSearch = effectiveSearch.replace(fromMatch[0], "").trim(); }
+      if (toMatch) { effectiveTo = toMatch[1]; effectiveSearch = effectiveSearch.replace(toMatch[0], "").trim(); }
+      if (subjectMatch) { if (!effectiveSearch) effectiveSearch = subjectMatch[1]; else effectiveSearch = effectiveSearch.replace(subjectMatch[0], subjectMatch[1]).trim(); }
+      if (hasAttach) { /* handled below if needed */ }
+      if (isUnread) { unread = "true"; effectiveSearch = effectiveSearch.replace(isUnread[0], "").trim(); }
+      if (isStarred) { starred = "true"; effectiveSearch = effectiveSearch.replace(isStarred[0], "").trim(); }
+    }
+
     const query = {};
-    if (search) query.or = [{ subject: search }, { text: search }];
-    if (from) query.from = from;
-    if (to) query.to = to;
+    if (effectiveSearch) query.or = [{ subject: effectiveSearch }, { text: effectiveSearch }];
+    if (effectiveFrom) query.from = effectiveFrom;
+    if (effectiveTo) query.to = effectiveTo;
     if (since) query.since = new Date(since);
     if (before) query.before = new Date(before);
     if (unread === "true") query.seen = false;
@@ -471,6 +490,40 @@ export async function getMessage({ messageId }) {
     }
     return result;
   });
+}
+
+export async function saveDraft({ mailbox, payload }) {
+  // Save a draft message to Zoho Drafts folder via IMAP APPEND
+  return withClient(async (client) => {
+    try { await client.mailboxOpen("Drafts"); } catch { await client.mailboxOpen("INBOX"); }
+    const cfg = getSmtpConfig();
+    const raw = [
+      "From: " + `"${cfg.fromName}" <${cfg.fromAddress}>`,
+      "To: " + (payload.to || []).map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
+      "Subject: " + (payload.subject || "(no subject)"),
+      "MIME-Version: 1.0",
+      "Content-Type: text/plain; charset=utf-8",
+      "Content-Transfer-Encoding: 7bit",
+      "Date: " + new Date().toUTCString(),
+      "",
+      payload.bodyText || "",
+    ].join("\r\n");
+    const result = await client.append("Drafts", [Buffer.from(raw, "utf-8")], ["\\Draft"], new Date());
+    return { success: true, uid: result?.uid };
+  });
+}
+
+export async function forwardMessage({ messageId, payload, requestId }) {
+  const decoded = decodeId(messageId);
+  if (!decoded) { const e = new Error("Invalid message ID"); e.statusCode = 400; throw e; }
+
+  // Fetch original message to include as quote/attachment
+  const originalMsg = await getMessage({ messageId });
+  const fwdSubject = originalMsg.subject.startsWith("Fwd:") ? originalMsg.subject : `Fwd: ${originalMsg.subject}`;
+  const fwdBody = `\n\n---------- Forwarded message ---------\nFrom: ${originalMsg.from.name || originalMsg.from.address}\nSubject: ${originalMsg.subject}\nDate: ${originalMsg.receivedAt}\n\n${originalMsg.bodyText || ""}`;
+
+  const fwdPayload = { ...payload, subject: fwdSubject, bodyText: (payload.bodyText || "") + fwdBody };
+  return sendMessage({ payload: fwdPayload, requestId });
 }
 
 export async function sendMessage({ mailbox, payload, requestId }) {

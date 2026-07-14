@@ -6,7 +6,7 @@ import { MessagePreview } from "./MessagePreview";
 import { ComposeEmail } from "./ComposeEmail";
 import { EmailSettings } from "./EmailSettings";
 import { useEmailData } from "./useEmailData";
-import { sendEmail, getEmailStatus } from "../../../utils/emailApi";
+import { sendEmail, getEmailStatus, starEmail } from "../../../utils/emailApi";
 import { logEmailAudit } from "../../../utils/emailAudit";
 import { cn } from "../../../utils/cn";
 import { ChevronDown, PenSquare, Menu } from "lucide-react";
@@ -37,11 +37,17 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
   const [uiError, setUiError] = useState<string | null>(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileFolderPickerOpen, setMobileFolderPickerOpen] = useState(false);
+  const [forwardMsg, setForwardMsg] = useState<EmailMessage | null>(null);
+  const [preferences, setPreferences] = useState<any>({});
 
   useEffect(() => {
     getEmailStatus()
       .then(setEmailStatus)
       .catch(() => setEmailStatus(null));
+    fetch("/api/email/preferences", { credentials: "include" })
+      .then((r) => r.json())
+      .then(setPreferences)
+      .catch(() => {});
   }, []);
 
   const {
@@ -113,6 +119,37 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
       setUiError(err instanceof Error ? err.message : "Failed to archive message");
     }
   }, [moveMessage, selectedMessageId]);
+
+  const handleStar = useCallback((id: string) => {
+    const msg = messages.find((m) => m.id === id);
+    if (!msg) return;
+    const newStarred = !msg.isStarred;
+    starEmail(id, newStarred).catch(() => {});
+  }, [messages]);
+
+  const handleForward = useCallback((message: EmailMessage) => {
+    setForwardMsg(message);
+    setShowCompose(true);
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      if (!selectedMessage && !showCompose) return;
+      const key = e.key.toLowerCase();
+      if (key === "r" && selectedMessage) { e.preventDefault(); handleReply(selectedMessage); }
+      if (key === "f" && selectedMessage) { e.preventDefault(); handleForward(selectedMessage); }
+      if (key === "delete" || key === "backspace") { if (selectedMessage) { e.preventDefault(); handleDelete(selectedMessage.id); } }
+      if (key === "u" && selectedMessage) { e.preventDefault(); markRead(selectedMessage.id, !selectedMessage.isRead); }
+      if (key === "s" && selectedMessage) { e.preventDefault(); handleStar(selectedMessage.id); }
+      if (key === "e" && selectedMessage) { e.preventDefault(); handleArchive(selectedMessage.id); }
+      if (key === "escape") { if (showCompose) { setShowCompose(false); setReplyTo(null); setForwardMsg(null); } else { setSelectedMessageId(null); } }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedMessage, showCompose, handleReply, handleForward, handleDelete, handleArchive, markRead, selectedMessageId]);
 
   const clearError = useCallback(() => setUiError(null), []);
 
@@ -266,6 +303,7 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
           <MessagePreview
             message={selectedMessage}
             onReply={handleReply}
+            onForward={handleForward}
             onDelete={handleDelete}
             onArchive={handleArchive}
             onClose={handleBackToList}
@@ -277,8 +315,9 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
       {showCompose && (
         <ComposeEmail
           replyTo={replyTo}
+          forwardMsg={forwardMsg}
           onSend={handleSend}
-          onDiscard={() => { setShowCompose(false); setReplyTo(null); }}
+          onDiscard={() => { setShowCompose(false); setReplyTo(null); setForwardMsg(null); }}
         />
       )}
 

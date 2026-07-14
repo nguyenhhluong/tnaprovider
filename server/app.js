@@ -233,6 +233,54 @@ export function createApp() {
     }
   });
 
+  // Forward message
+  app.post("/api/email/messages/:id/forward", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+    try {
+      const result = await mailConnector.forwardMessage({
+        mailbox: req.mailbox,
+        messageId: req.params.id,
+        payload: req.body,
+        requestId: req.body.requestId,
+      });
+      res.json(result);
+    } catch (err) {
+      console.error("forwardMessage error:", err.message);
+      res.status(err.statusCode || 500).json({ error: err.message, code: err.code || "FORWARD_FAILED" });
+    }
+  });
+
+  // Save draft
+  app.post("/api/email/drafts", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+    try {
+      const result = await mailConnector.saveDraft({
+        mailbox: req.mailbox,
+        payload: req.body,
+      });
+      res.json(result);
+    } catch (err) {
+      console.error("saveDraft error:", err.message);
+      res.status(err.statusCode || 500).json({ error: err.message });
+    }
+  });
+
+  // User preferences
+  app.get("/api/email/preferences", requireSessionAuth, async (req, res) => {
+    const { getDb } = await import('./db/database.js');
+    const db = getDb();
+    db.exec("CREATE TABLE IF NOT EXISTS email_preferences (user_id TEXT PRIMARY KEY, preferences TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))");
+    let row = db.prepare("SELECT preferences FROM email_preferences WHERE user_id = ?").get(req.user.userId);
+    res.json(row ? JSON.parse(row.preferences) : {});
+  });
+
+  app.post("/api/email/preferences", requireSessionAuth, async (req, res) => {
+    const { getDb } = await import('./db/database.js');
+    const db = getDb();
+    db.exec("CREATE TABLE IF NOT EXISTS email_preferences (user_id TEXT PRIMARY KEY, preferences TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))");
+    const json = JSON.stringify(req.body);
+    db.prepare("INSERT INTO email_preferences (user_id, preferences, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(user_id) DO UPDATE SET preferences = ?, updated_at = datetime('now')").run(req.user.userId, json, json);
+    res.json({ success: true });
+  });
+
   app.post("/api/email/messages/:id/read", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.markMessageRead({
