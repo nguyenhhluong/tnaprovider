@@ -6,7 +6,8 @@ import { LoadingState } from "../../components/shared/LoadingState";
 import { ErrorState } from "../../components/shared/ErrorState";
 import { useAuth } from "../../context/AuthContext";
 import { appPath } from "../../utils/host";
-import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, DollarSign, Clock, User, Mail, Shield, Calendar, Save, X, AlertCircle, CheckCircle2, XCircle, Eye, ExternalLink } from "lucide-react";
+import { cn } from "../../utils/cn";
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, DollarSign, Clock, User, Mail, Shield, Calendar, Save, X, AlertCircle, CheckCircle2, XCircle, Eye, ExternalLink, Send, RefreshCw, Loader2, Ban, CheckCheck } from "lucide-react";
 
 interface WorkerData {
   id: string;
@@ -67,6 +68,15 @@ export function WorkerProfile() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyWeeks, setHistoryWeeks] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Invitation resend
+  const [invitationInfo, setInvitationInfo] = useState<any>(null);
+  const [emailJobs, setEmailJobs] = useState<any[]>([]);
+  const [inviteDataLoading, setInviteDataLoading] = useState(false);
+  const [resendingInvite, setResendingInvite] = useState(false);
+  const [showResendConfirm, setShowResendConfirm] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState<string | null>(null);
+  const [resendError, setResendError] = useState<string | null>(null);
 
   // Manual shift / adjustment
   const [showManualShift, setShowManualShift] = useState(false);
@@ -137,7 +147,29 @@ export function WorkerProfile() {
     setShowHistory(false);
   };
 
+  const fetchInvitationData = async () => {
+    if (!userId) return;
+    setInviteDataLoading(true);
+    try {
+      const [inviteRes, emailRes] = await Promise.all([
+        fetch(`/api/platform/users/${userId}/invitation`, { credentials: "include" }).catch(() => null),
+        fetch(`/api/admin/email-jobs?search=${encodeURIComponent(profile?.email || "")}&pageSize=10`, { credentials: "include" }).catch(() => null),
+      ]);
+      if (inviteRes?.ok) {
+        const d = await inviteRes.json();
+        if (d.success) setInvitationInfo(d.data);
+      }
+      if (emailRes?.ok) {
+        const d = await emailRes.json();
+        if (d.success) setEmailJobs(d.data || []);
+      }
+    } catch {}
+    finally { setInviteDataLoading(false); }
+  };
+
   useEffect(() => { setLoading(true); Promise.all([fetchProfile(), fetchWeek(0)]).finally(() => setLoading(false)); }, [userId]);
+
+  useEffect(() => { if (profile) fetchInvitationData(); }, [profile]);
 
   useEffect(() => { if (profile) fetchWeek(weekOffset); }, [weekOffset]);
 
@@ -155,6 +187,22 @@ export function WorkerProfile() {
       fetchProfile();
     } catch { setRateError("Network error"); }
     finally { setRateSaving(false); }
+  };
+
+  const handleResendInvitation = async () => {
+    setResendingInvite(true); setResendError(null); setResendSuccess(null);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/resend-invitation`, { method: "POST", credentials: "include" });
+      const d = await res.json();
+      if (d.success) {
+        setResendSuccess("Invitation resent successfully");
+        setShowResendConfirm(false);
+        fetchInvitationData();
+      } else {
+        setResendError(d.error || "Failed to resend invitation");
+      }
+    } catch { setResendError("Network error"); }
+    finally { setResendingInvite(false); }
   };
 
   const viewShiftDetail = async (shiftId: string) => {
@@ -275,6 +323,96 @@ export function WorkerProfile() {
             <p className="text-xs text-gray-400">Changing this rate only affects future check-ins. Existing shifts keep the rate captured at check-in.</p>
           </div>
         )}
+
+        {/* Invitation & Emails */}
+        <div className="bg-white dark:bg-brand-darker rounded-xl border border-gray-200 dark:border-gray-800 p-5 space-y-4">
+          <h3 className="text-lg font-semibold text-brand-dark dark:text-white flex items-center gap-2">
+            <Mail className="w-5 h-5 text-brand-accent" /> Invitation & Emails
+          </h3>
+
+          {resendSuccess && (
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-start gap-2 text-sm text-green-700 dark:text-green-300">
+              <CheckCheck className="w-4 h-4 mt-0.5 shrink-0" />{resendSuccess}
+            </div>
+          )}
+          {resendError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />{resendError}
+            </div>
+          )}
+
+          {inviteDataLoading ? (
+            <div className="text-center py-4"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-400" /></div>
+          ) : (
+            <>
+              {/* Invitation status */}
+              <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Status: <span className={cn(
+                        "inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ml-1",
+                        profile?.status === "invited" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" :
+                        profile?.status === "active" ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400" :
+                        "bg-gray-100 text-gray-500"
+                      )}>{profile?.status || "unknown"}</span>
+                    </p>
+                  </div>
+                  {(profile?.status === "invited") && (
+                    <button
+                      onClick={() => setShowResendConfirm(true)}
+                      disabled={resendingInvite}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-accent text-white rounded-lg text-xs font-medium hover:bg-brand-accent/90 disabled:opacity-50 transition-colors"
+                    >
+                      {resendingInvite ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                      Resend Invitation
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Email history */}
+              {emailJobs.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Recent Email Activity</p>
+                  <div className="space-y-1.5">
+                    {emailJobs.slice(0, 5).map((job: any) => (
+                      <div key={job.id} className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={cn(
+                            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium shrink-0",
+                            job.status === "SENT" ? "bg-green-100 text-green-700" :
+                            job.status === "FAILED" ? "bg-red-100 text-red-700" :
+                            "bg-yellow-100 text-yellow-700"
+                          )}>
+                            {job.status === "SENT" ? <CheckCircle2 className="w-2.5 h-2.5" /> :
+                             job.status === "FAILED" ? <AlertCircle className="w-2.5 h-2.5" /> :
+                             <Clock className="w-2.5 h-2.5" />}
+                            {job.status}
+                          </span>
+                          <span className="text-gray-600 dark:text-gray-400 truncate">{job.subject}</span>
+                        </div>
+                        <Link to={appPath(`/platform/email-center/${job.id}`)} className="text-brand-accent hover:underline shrink-0 ml-2">
+                          View
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                  <Link
+                    to={appPath(`/platform/email-center?recipient=${encodeURIComponent(profile?.email || "")}`)}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-brand-accent hover:underline"
+                  >
+                    <ExternalLink className="w-3 h-3" /> View all emails for this user
+                  </Link>
+                </div>
+              )}
+
+              {!invitationInfo && emailJobs.length === 0 && profile?.status !== "invited" && (
+                <p className="text-xs text-gray-400 text-center py-2">No invitation or email activity for this user.</p>
+              )}
+            </>
+          )}
+        </div>
 
         {/* Weekly Timesheet */}
         <div className="bg-white dark:bg-brand-darker rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
@@ -458,6 +596,40 @@ export function WorkerProfile() {
                 )}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Resend Invitation Confirmation */}
+      {showResendConfirm && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4" onClick={() => setShowResendConfirm(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-800 max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold mb-2">Resend Invitation</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              This will invalidate the previous invitation token and send a new one.
+            </p>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 mb-4 space-y-1 text-sm">
+              <p><span className="text-gray-500">Recipient:</span> <span className="font-medium">{profile?.email}</span></p>
+              <p><span className="text-gray-500">Name:</span> <span className="font-medium">{profile?.name}</span></p>
+              <p><span className="text-gray-500">Status:</span> <span className="font-medium capitalize">{profile?.status}</span></p>
+              <p><span className="text-gray-500">Role:</span> <span className="font-medium capitalize">{profile?.role}</span></p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowResendConfirm(false)}
+                className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResendInvitation}
+                disabled={resendingInvite}
+                className="px-4 py-2 bg-brand-accent text-white rounded-lg text-sm font-medium hover:bg-brand-accent/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                {resendingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {resendingInvite ? "Sending..." : "Resend Invitation"}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
@@ -11,6 +12,7 @@ import {
   getEmailCenterSummary,
   bulkRetryEmailJobs,
   resendEmailJob,
+  getAttemptsForJob,
 } from '../email/emailJobService.js';
 
 const router = Router();
@@ -183,10 +185,85 @@ router.get('/email-jobs/:id', requireRole('owner', 'admin'), async (req, res) =>
       } catch {}
     }
 
-    res.json({ success: true, data: { ...job, relatedInfo } });
+    const attempts = getAttemptsForJob(req.params.id);
+
+    res.json({ success: true, data: { ...job, relatedInfo, attempts } });
   } catch (err) {
     console.error('Error getting email job:', err.message);
     res.status(500).json({ success: false, error: 'Failed to get email job' });
+  }
+});
+
+// Resend invitation for a specific user
+router.post('/users/:userId/resend-invitation', requireRole('owner', 'admin'), async (req, res) => {
+  try {
+    const { getDb } = await import('../db/database.js');
+    const db = getDb();
+
+    const user = db.prepare('SELECT id, email, name, status FROM users WHERE id = ?').get(req.params.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const invite = db.prepare("SELECT * FROM user_invite_tokens WHERE email = ? AND accepted_at IS NULL AND expires_at > datetime('now')").get(user.email);
+    if (!invite) {
+      const expiredInvite = db.prepare("SELECT * FROM user_invite_tokens WHERE email = ? AND accepted_at IS NULL").get(user.email);
+      if (!expiredInvite && user.status !== 'invited') {
+        return res.status(400).json({ error: 'User does not have a pending invitation' });
+      }
+    }
+
+    const { generateToken, hashToken } = await import('../auth/tokens.js');
+    const rawToken = generateToken();
+    const tokenHash = hashToken(rawToken);
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    if (invite) {
+      db.prepare("UPDATE user_invite_tokens SET token_hash = ?, expires_at = ?, created_at = ? WHERE id = ?").run(tokenHash, expiresAt, now, invite.id);
+    } else {
+      const existing = db.prepare("SELECT id FROM user_invite_tokens WHERE email = ?").get(user.email);
+      if (existing) {
+        db.prepare("UPDATE user_invite_tokens SET token_hash = ?, expires_at = ?, created_at = ? WHERE id = ?").run(tokenHash, expiresAt, now, existing.id);
+      } else {
+        const tokenId = crypto.randomUUID();
+        db.prepare(`
+          INSERT INTO user_invite_tokens (id, email, role, name, token_hash, expires_at, created_by, created_at, created_ip)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(tokenId, user.email, user.role || 'worker', user.name, tokenHash, expiresAt, req.user.userId, now, req.ip);
+      }
+    }
+
+    db.prepare("UPDATE users SET status = 'invited', invited_at = ?, updated_at = ? WHERE id = ?").run(now, now, user.id);
+
+    // Create and send email
+    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
+    const inviteUrl = `${appUrl}/accept-invite?token=${encodeURIComponent(rawToken)}`;
+
+    const { userInvitation } = await import('../email/templates/userInvitation.js');
+    const emailContent = userInvitation({ name: user.name, email: user.email, inviteUrl, expiresAt });
+
+    const newJobId = createEmailJob({
+      type: 'USER_INVITATION',
+      recipient: user.email,
+      subject: emailContent.subject,
+      relatedEntityType: 'user_invite_token',
+      relatedEntityId: invite?.id || existing?.id || 'new',
+      payloadJson: { html: emailContent.html, text: emailContent.text },
+      scheduledAt: now,
+    });
+
+    const sendResult = await processEmailJob(newJobId);
+
+    res.json({
+      success: sendResult.success,
+      message: sendResult.success ? 'Invitation resent' : 'Invitation created but email delivery failed',
+      emailJobId: newJobId,
+      ...(sendResult.success ? { messageId: sendResult.messageId } : { error: sendResult.error }),
+    });
+  } catch (err) {
+    console.error('Error resending invitation:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to resend invitation' });
   }
 });
 

@@ -8,6 +8,7 @@ export const EXPECTED_MIGRATIONS = [
   { version: "007", name: "contact-requests" },
   { version: "008", name: "professional-quotes" },
   { version: "009", name: "email-jobs" },
+  { version: "010", name: "email-job-attempts" },
 ];
 
 const TABLES = {
@@ -28,6 +29,7 @@ const TABLES = {
   quote_templates: { cols: ["id","name","description","category","is_default","created_at","updated_at"] },
   quote_template_items: { cols: ["id","template_id","section_title","description","unit","unit_price","item_type","sort_order"] },
   email_jobs: { cols: ["id","type","recipient","subject","related_entity_type","related_entity_id","payload_json","status","attempt_count","last_error","smtp_message_id","scheduled_at","sent_at","created_at","updated_at"], checks: ["status","type"] },
+  email_job_attempts: { cols: ["id","email_job_id","attempt_number","status","started_at","completed_at","smtp_message_id","error_message","created_at"], checks: ["status"] },
 };
 
 const CRITICAL_COLUMNS = [
@@ -55,6 +57,7 @@ export const FKS = [
   { table: "shift_events", from: "shift_session_id", ref: "shift_sessions", to: "id", onDelete: "CASCADE" },
   { table: "shift_events", from: "employee_id", ref: "users", to: "id" },
   { table: "quote_items", from: "quote_id", ref: "quotes", to: "id", onDelete: "CASCADE" },
+  { table: "email_job_attempts", from: "email_job_id", ref: "email_jobs", to: "id", onDelete: "CASCADE" },
 ];
 
 export const INDEXES = [
@@ -78,6 +81,7 @@ export const INDEXES = [
   { table: "email_jobs", name: "idx_email_jobs_type", columns: ["type"], unique: false },
   { table: "email_jobs", name: "idx_email_jobs_related", columns: ["related_entity_type","related_entity_id"], unique: false },
   { table: "email_jobs", name: "idx_email_jobs_scheduled", columns: ["scheduled_at"], unique: false },
+  { table: "email_job_attempts", name: "idx_email_job_attempts_job", columns: ["email_job_id"], unique: false },
 ];
 
 const CHECK_CONSTRAINTS = {
@@ -86,6 +90,7 @@ const CHECK_CONSTRAINTS = {
   shift_events: { event_type: "'check_in','break_start','break_end','check_out','auto_check_out','correction_requested','admin_approved','admin_rejected'", source: "'web','mobile','kiosk','admin','system','qr','offline_qr'" },
   quotes: { status: "'draft','in_review','approved','sent','accepted','rejected','expired','converted'" },
   email_jobs: { status: "'PENDING','PROCESSING','SENT','FAILED','CANCELLED'", type: "'QUOTE_RECEIVED_CUSTOMER','QUOTE_RECEIVED_ADMIN','USER_INVITATION','PASSWORD_RESET','QUOTE_STATUS_CHANGED'" },
+  email_job_attempts: { status: "'PROCESSING','SENT','FAILED'" },
 };
 
 export function verifySchemaContract(db, appliedOverride) {

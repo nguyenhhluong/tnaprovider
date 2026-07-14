@@ -789,6 +789,9 @@ export function EmailCenter() {
                   </div>
                 )}
 
+                {/* Attempt History */}
+                <AttemptHistorySection job={selectedJob} />
+
                 {/* Payload preview */}
                 {selectedJob.payload_json && (() => {
                   try {
@@ -855,6 +858,110 @@ export function EmailCenter() {
         </div>
       )}
     </>
+  );
+}
+
+function AttemptHistorySection({ job }: { job: any }) {
+  const attempts = job.attempts;
+  const hasAttemptData = Array.isArray(attempts) && attempts.length > 0;
+  const hasLegacyAttempts = !hasAttemptData && (job.attempt_count > 0);
+
+  if (!hasAttemptData && !hasLegacyAttempts) return null;
+
+  return (
+    <div>
+      <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Delivery Attempts</h4>
+      <div className="space-y-2">
+        {hasAttemptData ? (
+          attempts.map((att: any, idx: number) => {
+            const attemptNum = att.attempt_number || attempts.length - idx;
+            const isProcessing = att.status === "PROCESSING";
+            const isSent = att.status === "SENT";
+            const isFailed = att.status === "FAILED";
+            const hasDuration = att.started_at && att.completed_at;
+
+            let duration = null;
+            if (hasDuration) {
+              const diff = new Date(att.completed_at).getTime() - new Date(att.started_at).getTime();
+              if (diff < 1000) duration = "<1s";
+              else if (diff < 60000) duration = `${Math.round(diff / 1000)}s`;
+              else duration = `${Math.floor(diff / 60000)}m ${Math.round((diff % 60000) / 1000)}s`;
+            }
+
+            return (
+              <div key={att.id} className={cn(
+                "rounded-lg border p-3 text-sm",
+                isSent && "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10",
+                isFailed && "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10",
+                isProcessing && "border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10",
+                !isSent && !isFailed && !isProcessing && "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+              )}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-gray-700 dark:text-gray-300">
+                      Attempt #{attemptNum}
+                    </span>
+                    {isProcessing && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Processing
+                      </span>
+                    )}
+                    {isSent && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                        <CheckCircle className="w-3 h-3" /> Sent
+                      </span>
+                    )}
+                    {isFailed && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400">
+                        <AlertCircle className="w-3 h-3" /> Failed
+                      </span>
+                    )}
+                  </div>
+                  {duration && <span className="text-xs text-gray-400">{duration}</span>}
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                  {att.started_at && <span>Started: {fmtDate(att.started_at)}</span>}
+                  {att.completed_at && <span>Completed: {fmtDate(att.completed_at)}</span>}
+                </div>
+                {att.smtp_message_id && (
+                  <div className="flex items-center gap-1 mt-1 text-xs">
+                    <span className="text-gray-400">SMTP ID:</span>
+                    <code className="text-gray-600 dark:text-gray-400 truncate max-w-[200px]">{att.smtp_message_id}</code>
+                    <button onClick={() => navigator.clipboard.writeText(att.smtp_message_id)}
+                      className="text-gray-400 hover:text-gray-600 shrink-0" title="Copy SMTP ID">
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                {att.error_message && (
+                  <details className="mt-1">
+                    <summary className="text-xs text-red-500 cursor-pointer hover:text-red-600">Error details</summary>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1 whitespace-pre-wrap break-words bg-red-50 dark:bg-red-900/20 rounded p-2">{att.error_message}</p>
+                  </details>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          /* Legacy fallback for jobs without attempt records */
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-gray-500">Historical Record</span>
+              <span className="text-xs text-gray-400">
+                {job.status === "SENT" ? "Sent" : job.status === "FAILED" ? "Failed" : job.status}
+              </span>
+            </div>
+            {job.smtp_message_id && (
+              <p className="text-xs text-gray-500 mt-1">SMTP ID: {job.smtp_message_id}</p>
+            )}
+            {job.last_error && (
+              <p className="text-xs text-red-500 mt-1">{job.last_error}</p>
+            )}
+            <p className="text-xs text-gray-400 mt-1">{job.attempt_count} attempt{job.attempt_count !== 1 ? "s" : ""}</p>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
