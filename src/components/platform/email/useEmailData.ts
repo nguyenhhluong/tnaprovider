@@ -28,15 +28,9 @@ export function useEmailData(folder: EmailFolder, initialSearch?: SearchParams) 
     setLoading(true);
     setError(null);
     try {
-      const result = await listMessages(folder, params);
-      if (result && typeof result === "object" && "items" in result) {
-        const sr = result as SearchResult;
-        setMessages(sr.items);
-        setSearchResult(sr);
-      } else if (Array.isArray(result)) {
-        setMessages(result);
-        setSearchResult(null);
-      }
+      const sr = await listMessages(folder, params);
+      setMessages(sr.items || []);
+      setSearchResult(sr);
     } catch (err: any) {
       if (err.name !== "AbortError") {
         setError(err.message || `Failed to load ${folder}`);

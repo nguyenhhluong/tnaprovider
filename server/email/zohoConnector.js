@@ -2,27 +2,27 @@ import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
 import { simpleParser } from "mailparser";
 
-let imapClient = null;
 let smtpTransporter = null;
 
-// Encode folder + UID into a stable identifier
+// ── Opaque message ID encoding ──
+
 function encodeId(folder, uid) {
-  const folderKey = Object.entries(folderMap).find(([, v]) => v === folder)?.[0] || folder;
-  return `${folderKey}:${uid}`;
+  const obj = JSON.stringify({ f: folder, u: uid });
+  return Buffer.from(obj).toString("base64url");
 }
 
-// Decode a stable identifier back to folder and UID
 function decodeId(id) {
-  const colonIdx = id.indexOf(":");
-  if (colonIdx === -1) return { folder: "inbox", uid: parseInt(id) };
-  const folderKey = id.substring(0, colonIdx);
-  const uid = parseInt(id.substring(colonIdx + 1));
-  const folder = folderMap[folderKey] || folderKey;
-  return { folder, uid };
+  try {
+    const json = Buffer.from(id, "base64url").toString("utf-8");
+    const { f, u } = JSON.parse(json);
+    return { folder: f, uid: parseInt(u) };
+  } catch {
+    return null;
+  }
 }
 
 const folderMap = {
-  inbox: "INBOX",
+  inbox: "Inbox",
   sent: "Sent",
   drafts: "Drafts",
   archive: "Archive",
@@ -42,66 +42,88 @@ function getImapConfig() {
 
 function getSmtpConfig() {
   return {
-    host: process.env.ZOHO_SMTP_HOST || "smtp.zoho.com.au",
+    host: process.env.ZOHO_SMTP_HOST || "",
     port: parseInt(process.env.ZOHO_SMTP_PORT || "465", 10),
     secure: process.env.ZOHO_SMTP_SECURE !== "false",
-    user: process.env.ZOHO_SMTP_USER || "info@tnaprovider.com.au",
+    user: process.env.ZOHO_SMTP_USER || "",
     pass: process.env.ZOHO_SMTP_PASSWORD || "",
     fromName: process.env.EMAIL_FROM_NAME || "TNA Provider",
-    fromAddress: process.env.EMAIL_FROM_ADDRESS || "info@tnaprovider.com.au",
+    fromAddress: process.env.EMAIL_FROM_ADDRESS || "",
   };
 }
 
+function validateSmtpConfig() {
+  const cfg = getSmtpConfig();
+  const missing = [];
+  if (!cfg.host) missing.push("ZOHO_SMTP_HOST");
+  if (!cfg.pass) missing.push("ZOHO_SMTP_PASSWORD");
+  if (!cfg.user) missing.push("ZOHO_SMTP_USER");
+  if (!cfg.fromAddress) missing.push("EMAIL_FROM_ADDRESS");
+  if (!Number.isFinite(cfg.port) || cfg.port < 1 || cfg.port > 65535) missing.push("ZOHO_SMTP_PORT (invalid)");
+  if (missing.length > 0) {
+    const err = new Error(`SMTP is not configured for Business Email. Missing: ${missing.join(", ")}`);
+    err.statusCode = 503;
+    throw err;
+  }
+}
+
+function getSmtpTransporter() {
+  if (smtpTransporter) return smtpTransporter;
+  validateSmtpConfig();
+  const cfg = getSmtpConfig();
+  smtpTransporter = nodemailer.createTransport({
+    host: cfg.host,
+    port: cfg.port,
+    secure: cfg.secure,
+    auth: { user: cfg.user, pass: cfg.pass },
+  });
+  return smtpTransporter;
+}
+
+// ── Idempotency store ──
+
+const idempotencyStore = new Map();
+const IDEMPOTENCY_TTL = 3600000; // 1 hour
+
+function getIdempotencyResult(key) {
+  const entry = idempotencyStore.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    idempotencyStore.delete(key);
+    return null;
+  }
+  return entry.result;
+}
+
+function setIdempotencyResult(key, result) {
+  idempotencyStore.set(key, { result, expiresAt: Date.now() + IDEMPOTENCY_TTL });
+}
+
+// ── IMAP helpers ──
+
 function getImapClient() {
-  if (imapClient) return imapClient;
   const config = getImapConfig();
   if (!config.pass) {
     const err = new Error("Zoho IMAP password not configured. Set ZOHO_IMAP_PASSWORD.");
     err.statusCode = 501;
     throw err;
   }
-  imapClient = new ImapFlow({
+  return new ImapFlow({
     host: config.host,
     port: config.port,
     secure: config.secure,
     auth: { user: config.user, pass: config.pass },
-    logger: false,
-    verifyState: true,
   });
-  return imapClient;
 }
 
-function getSmtpTransporter() {
-  if (smtpTransporter) return smtpTransporter;
-  const config = getSmtpConfig();
-  smtpTransporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: config.user && config.pass ? { user: config.user, pass: config.pass } : undefined,
-  });
-  return smtpTransporter;
-}
-
-async function ensureConnected() {
+async function withClient(fn) {
   const client = getImapClient();
-  if (!client.usable) {
-    try { await client.connect(); } catch (err) {
-      imapClient = null;
-      const responseText = err.responseText || err.message || "";
-      if (responseText.includes("enable IMAP")) {
-        const imapErr = new Error("IMAP is not enabled for this mailbox. Enable IMAP Access in Zoho Mail Settings (Settings → Mail Accounts → IMAP Access).");
-        imapErr.statusCode = 503;
-        throw imapErr;
-      }
-      throw err;
-    }
+  try {
+    await client.connect();
+    return await fn(client);
+  } finally {
+    try { await client.logout(); } catch {}
   }
-  return client;
-}
-
-function resolveFolder(folder) {
-  return folderMap[folder.toLowerCase()] || folder;
 }
 
 function convertMessage(src, folder) {
@@ -119,21 +141,15 @@ function convertMessage(src, folder) {
     name: a.name || undefined,
     email: a.address || "",
   }));
-
-  // Use ImapFlow's text/html body fields if available, else derive from source
   const textPart = src.text?.substring?.(0, 500) || "";
   const htmlPart = src.html || "";
   const preview = textPart.slice(0, 100) || htmlPart.replace(/<[^>]*>/g, "").slice(0, 100) || (envelope.subject || "").slice(0, 100);
-
   return {
     id: encodeId(folder, src.uid),
     uid: src.uid,
     folder,
     messageId: envelope.messageId || "",
-    from: {
-      name: fromAddr.name || undefined,
-      address: fromAddr.address || "",
-    },
+    from: { name: fromAddr.name || undefined, address: fromAddr.address || "" },
     to: toAddrs,
     cc: ccAddrs.length > 0 ? ccAddrs : undefined,
     bcc: bccAddrs.length > 0 ? bccAddrs : undefined,
@@ -146,8 +162,8 @@ function convertMessage(src, folder) {
     isRead: !!src.flags?.includes?.("\\Seen"),
     isStarred: !!src.flags?.includes?.("\\Flagged"),
     hasAttachments: (src.attachments || []).length > 0,
-    attachments: (src.attachments || []).map((att) => ({
-      id: att.id || att.part,
+    attachments: (src.attachments || []).map((att, i) => ({
+      id: att.id || `part${i + 1}`,
       filename: att.filename || "unnamed",
       mimeType: att.mimeType || "application/octet-stream",
       sizeBytes: att.size || 0,
@@ -155,6 +171,8 @@ function convertMessage(src, folder) {
     })),
   };
 }
+
+// ── Exported API ──
 
 export function getMailConfig() {
   const imap = getImapConfig();
@@ -168,196 +186,117 @@ export function getMailConfig() {
   };
 }
 
-export async function listMessages({ folder }) {
-  const resolvedFolder = resolveFolder(folder);
-  const client = await ensureConnected();
-  try {
+export async function listMessages({ folder, page = 1, pageSize = 25 }) {
+  const resolvedFolder = folderMap[folder] || folder;
+  return withClient(async (client) => {
     const mailbox = await client.mailboxOpen(resolvedFolder);
-    if (!mailbox) return [];
-
-    const messages = [];
-    const fetchRange = mailbox.exists > 0
-      ? { uid: mailbox.exists > 50 ? `${mailbox.exists - 49}:*` : `1:*` }
-      : { uid: "1:*" };
-
-    for await (const msg of client.fetch(fetchRange, {
-      uid: true,
-      envelope: true,
-      flags: true,
-      internalDate: true,
-      body: true,
-    })) {
-      const parsed = convertMessage(msg, folder);
-      // Try to get a text preview from the body (ImapFlow decodes text/plain parts)
-      if (!parsed.preview && msg.body && msg.body instanceof Buffer) {
-        try {
-          const rawText = msg.body.toString("utf-8").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
-          parsed.preview = rawText.slice(0, 100);
-        } catch {}
-      }
-      messages.push(parsed);
+    if (!mailbox || mailbox.exists === 0) {
+      return { items: [], page, pageSize, totalItems: 0, totalPages: 0, folder: resolvedFolder };
     }
 
-    messages.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-    return messages;
-  } finally {
-    try { await client.logout(); } catch {}
-    imapClient = null;
-  }
+    // Get all real UIDs
+    const allUids = await client.search({ all: true }, { returnOptions: ["ALL"] });
+    let uidList = [];
+    if (allUids?.all) {
+      const ranges = allUids.all.split(",");
+      for (const range of ranges) {
+        if (range.includes(":")) {
+          const [s, e] = range.split(":").map(Number);
+          for (let i = s; i <= e; i++) uidList.push(i);
+        } else {
+          uidList.push(Number(range));
+        }
+      }
+    }
+    uidList.sort((a, b) => b - a);
+    if (uidList.length === 0) {
+      return { items: [], page, pageSize, totalItems: 0, totalPages: 0, folder: resolvedFolder };
+    }
+
+    const totalItems = uidList.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const start = (page - 1) * pageSize;
+    const pageUids = uidList.slice(start, start + pageSize);
+
+    const items = [];
+    for await (const msg of client.fetch({ uid: pageUids }, { uid: true, envelope: true, flags: true, internalDate: true })) {
+      items.push(convertMessage(msg, folder));
+    }
+    items.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+
+    return { items, page, pageSize, totalItems, totalPages, folder: resolvedFolder };
+  });
 }
 
 export async function searchMessages({ folder, search, from, to, since, before, unread, starred, page = 1, pageSize = 25 }) {
-  const resolvedFolder = resolveFolder(folder);
-  const client = await ensureConnected();
-  try {
+  const resolvedFolder = folderMap[folder] || folder;
+  return withClient(async (client) => {
     const mailbox = await client.mailboxOpen(resolvedFolder);
     if (!mailbox || mailbox.exists === 0) {
       return { items: [], page, pageSize, totalItems: 0, totalPages: 0, folder: resolvedFolder, query: { search, from } };
     }
 
-    // Build ImapFlow search query object
     const query = {};
+    if (search) query.or = [{ subject: search }, { text: search }];
+    if (from) query.from = from;
+    if (to) query.to = to;
+    if (since) query.since = new Date(since);
+    if (before) query.before = new Date(before);
+    if (unread === "true") query.seen = false;
+    if (unread === "false") query.seen = true;
+    if (starred === "true") query.flagged = true;
 
-    if (search) {
-      query.or = [{ subject: search }, { text: search }];
-    }
-    if (from) {
-      query.from = from;
-    }
-    if (to) {
-      query.to = to;
-    }
-    if (since) {
-      query.since = new Date(since);
-    }
-    if (before) {
-      query.before = new Date(before);
-    }
-    if (unread === "true" || unread === true) {
-      query.seen = false;
-    }
-    if (unread === "false" || unread === false) {
-      query.seen = true;
-    }
-    if (starred === "true" || starred === true) {
-      query.flagged = true;
-    }
-
-    // Execute search with ImapFlow query object
-    let result;
-    if (Object.keys(query).length > 0) {
-      result = await client.search(query, { returnOptions: ["COUNT", "ALL"] });
-    }
-
-    // Parse UIDs from search result
     let allUids = [];
-    if (result && result.all) {
-      // all is a packed message range like "1,3,5:10"
-      const ranges = result.all.split(",");
-      for (const range of ranges) {
-        if (range.includes(":")) {
-          const [start, end] = range.split(":").map(Number);
-          for (let i = start; i <= end; i++) allUids.push(i);
-        } else {
-          allUids.push(Number(range));
+    if (Object.keys(query).length > 0) {
+      const result = await client.search(query, { returnOptions: ["ALL"] });
+      if (result?.all) {
+        const ranges = result.all.split(",");
+        for (const range of ranges) {
+          if (range.includes(":")) {
+            const [s, e] = range.split(":").map(Number);
+            for (let i = s; i <= e; i++) allUids.push(i);
+          } else {
+            allUids.push(Number(range));
+          }
         }
       }
-    } else if (Object.keys(query).length === 0) {
-      // No criteria - fetch all sequence numbers
-      for (let i = 1; i <= mailbox.exists; i++) allUids.push(i);
+    } else {
+      allUids = await client.search({ all: true });
     }
-
-    // Sort newest first (assuming higher UID = newer)
     allUids.sort((a, b) => b - a);
 
     const totalItems = allUids.length;
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-    const startIdx = (page - 1) * pageSize;
-    const pageUids = allUids.slice(startIdx, startIdx + pageSize);
+    const start = (page - 1) * pageSize;
+    const pageUids = allUids.slice(start, start + pageSize);
 
     if (pageUids.length === 0) {
       return { items: [], page, pageSize, totalItems, totalPages, folder: resolvedFolder, query: { search, from } };
     }
 
-    // Fetch metadata for the requested page (no bodyStructure to save bandwidth)
     const items = [];
-    for await (const msg of client.fetch(
-      { uid: pageUids },
-      { uid: true, envelope: true, flags: true, internalDate: true, body: true }
-    )) {
-      const envelope = msg.envelope || {};
-      const fromAddr = (envelope.from || [])[0] || {};
-      const toAddrs = (envelope.to || []).map((a) => ({ name: a.name || undefined, email: a.address || "" }));
-      const textPart = msg.text?.substring?.(0, 200) || "";
-      const htmlPart = msg.html || "";
-      let preview = textPart.slice(0, 100) || htmlPart.replace(/<[^>]*>/g, "").slice(0, 100);
-
-      // Fallback: use mailparser if ImapFlow didn't decode body
-      if (!preview && msg.body && msg.body instanceof Buffer) {
-        try {
-          const parsedMail = await simpleParser(msg.body);
-          preview = (parsedMail.text || parsedMail.html?.replace(/<[^>]*>/g, "") || "").slice(0, 100);
-        } catch {}
-      }
-
-      items.push({
-        id: encodeId(folder, msg.uid),
-        uid: msg.uid,
-        folder,
-        messageId: envelope.messageId || "",
-        from: { name: fromAddr.name || undefined, address: fromAddr.address || "" },
-        to: toAddrs,
-        subject: envelope.subject || "(No subject)",
-        preview,
-        receivedAt: msg.internalDate?.toISOString?.() || new Date().toISOString(),
-        isRead: !!msg.flags?.includes?.("\\Seen"),
-        isStarred: !!msg.flags?.includes?.("\\Flagged"),
-        hasAttachments: (msg.attachments || []).length > 0,
-      });
+    for await (const msg of client.fetch({ uid: pageUids }, { uid: true, envelope: true, flags: true, internalDate: true })) {
+      const conv = convertMessage(msg, folder);
+      items.push(conv);
     }
-
-    // Restore newest-first order
     items.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
 
     return { items, page, pageSize, totalItems, totalPages, folder: resolvedFolder, query: { search, from } };
-  } finally {
-    try { await client.logout(); } catch {}
-    imapClient = null;
-  }
+  });
 }
 
 export async function getMessage({ messageId }) {
-  const { folder, uid } = decodeId(messageId);
-  const client = await ensureConnected();
-  try {
-    // Open the specific folder first, then try others if not found
-    let msg = null;
-    const foldersToTry = [folderMap[folder] || folder, ...Object.values(folderMap).filter(f => f !== (folderMap[folder] || folder))];
-    
-    for (const f of foldersToTry) {
-      try {
-        await client.mailboxOpen(f);
-        msg = await client.fetchOne(uid, {
-          uid: true,
-          envelope: true,
-          flags: true,
-          bodyStructure: true,
-          internalDate: true,
-          source: true,
-        });
-        if (msg) break;
-      } catch {}
-    }
+  const decoded = decodeId(messageId);
+  if (!decoded) { const e = new Error("Invalid message ID"); e.statusCode = 400; throw e; }
+  const { folder, uid } = decoded;
+  const resolvedFolder = folderMap[folder] || folder;
 
-    if (!msg) {
-      const err = new Error("Message not found");
-      err.statusCode = 404;
-      throw err;
-    }
+  return withClient(async (client) => {
+    await client.mailboxOpen(resolvedFolder);
+    const msg = await client.fetchOne(uid, { uid: true, envelope: true, flags: true, internalDate: true, source: true });
+    if (!msg) { const e = new Error("Message not found"); e.statusCode = 404; throw e; }
 
     const result = convertMessage(msg, folder);
-
-    // Use mailparser to properly parse MIME structure
     if (msg.source) {
       try {
         const parsed = await simpleParser(msg.source);
@@ -371,206 +310,164 @@ export async function getMessage({ messageId }) {
           contentId: att.contentId,
         }));
         result.hasAttachments = parsed.attachments.length > 0;
-      } catch (parseErr) {
-        console.error("[zohoConnector] mailparser error for message", messageId, ":", parseErr.message);
-      }
+      } catch {}
     }
-
     return result;
-  } finally {
-    try { await client.logout(); } catch {}
-    imapClient = null;
-  }
+  });
 }
 
-export async function sendMessage({ mailbox, payload }) {
-  const { to, subject, bodyText, bodyHtml, attachments, cc, bcc, replyToMessageId, references } = payload;
-
-  // Validate SMTP config before attempting send
-  const config = getSmtpConfig();
-  if (!config.host || !config.pass) {
-    const err = new Error("SMTP is not configured for Business Email. Check ZOHO_SMTP_* environment variables.");
-    err.statusCode = 503;
-    throw err;
+export async function sendMessage({ mailbox, payload, requestId }) {
+  // Idempotency check
+  if (requestId) {
+    const existing = getIdempotencyResult(requestId);
+    if (existing) return existing;
   }
 
-  if (!to || to.length === 0) {
-    const err = new Error("At least one recipient is required");
-    err.statusCode = 400;
-    throw err;
+  validateSmtpConfig();
+
+  if (!payload.to || payload.to.length === 0) {
+    const e = new Error("At least one recipient is required");
+    e.statusCode = 400;
+    throw e;
   }
 
+  const cfg = getSmtpConfig();
   const tr = getSmtpTransporter();
-
   const mailOptions = {
-    from: `"${config.fromName}" <${config.fromAddress}>`,
-    to: to.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
-    cc: cc?.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
-    bcc: bcc?.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
-    subject,
-    text: bodyText || (bodyHtml ? bodyHtml.replace(/<[^>]*>/g, "") : ""),
-    html: bodyHtml || undefined,
+    from: `"${cfg.fromName}" <${cfg.fromAddress}>`,
+    to: payload.to.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
+    cc: payload.cc?.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
+    bcc: payload.bcc?.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
+    subject: payload.subject,
+    text: payload.bodyText || (payload.bodyHtml ? payload.bodyHtml.replace(/<[^>]*>/g, "") : ""),
+    html: payload.bodyHtml || undefined,
   };
 
-  // Attachments from multipart form
-  if (attachments && attachments.length > 0) {
-    mailOptions.attachments = [];
-    for (const att of attachments) {
-      if (att.buffer || att.content) {
-        mailOptions.attachments.push({
-          filename: att.filename || "attachment",
-          content: att.buffer || att.content,
-          contentType: att.mimeType || att.contentType || "application/octet-stream",
-        });
-      }
-    }
-    if (mailOptions.attachments.length === 0) delete mailOptions.attachments;
+  if (payload.attachments?.length > 0) {
+    mailOptions.attachments = payload.attachments.map((att) => ({
+      filename: att.filename || "attachment",
+      content: att.buffer || att.content,
+      contentType: att.mimeType || "application/octet-stream",
+    }));
   }
 
-  // Reply threading - use RFC Message-ID, not IMAP UID
-  if (replyToMessageId) {
-    mailOptions.inReplyTo = replyToMessageId;
-    mailOptions.references = references || [replyToMessageId];
+  if (payload.replyToMessageId) {
+    mailOptions.inReplyTo = payload.replyToMessageId;
+    mailOptions.references = payload.references || [payload.replyToMessageId];
   }
 
   const info = await tr.sendMail(mailOptions);
-  return {
-    success: true,
-    messageId: info.messageId,
-    accepted: info.accepted || [],
-    rejected: info.rejected || [],
-  };
+  const messageId = info.messageId;
+
+  // Verify sent folder sync
+  let sentSync = { status: "pending" };
+  try {
+    const sentMsgId = await findInSent(messageId);
+    if (sentMsgId) {
+      sentSync = { status: "confirmed", folder: "Sent", messageId: sentMsgId };
+    } else {
+      sentSync = { status: "pending" };
+    }
+  } catch {}
+
+  const result = { success: true, messageId, accepted: info.accepted || [], rejected: info.rejected || [], sentSync };
+
+  if (requestId) setIdempotencyResult(requestId, result);
+  return result;
 }
 
-export async function starMessage({ messageId, isStarred }) {
-  const { folder, uid } = decodeId(messageId);
-  const client = await ensureConnected();
-  try {
-    await client.mailboxOpen(folderMap[folder] || folder);
-    if (isStarred) {
-      await client.messageFlagsAdd(uid, ["\\Flagged"]);
-    } else {
-      await client.messageFlagsRemove(uid, ["\\Flagged"]);
+async function findInSent(rfcMessageId) {
+  return withClient(async (client) => {
+    try { await client.mailboxOpen("Sent"); } catch { return null; }
+    const result = await client.search({ header: { "Message-ID": rfcMessageId } }, { returnOptions: ["ALL"] });
+    if (result?.all) {
+      const firstUid = parseInt(result.all.split(",")[0]);
+      if (firstUid) return encodeId("sent", firstUid);
     }
-    return { success: true };
-  } finally {
-    try { await client.logout(); } catch {}
-    imapClient = null;
-  }
+    // Retry once after short delay (async indexing)
+    await new Promise((r) => setTimeout(r, 1000));
+    const result2 = await client.search({ header: { "Message-ID": rfcMessageId } }, { returnOptions: ["ALL"] });
+    if (result2?.all) {
+      const firstUid = parseInt(result2.all.split(",")[0]);
+      if (firstUid) return encodeId("sent", firstUid);
+    }
+    return null;
+  });
 }
 
 export async function markMessageRead({ messageId, isRead }) {
-  const { folder, uid } = decodeId(messageId);
-  const client = await ensureConnected();
-  try {
-    await client.mailboxOpen(folderMap[folder] || folder);
-    if (isRead) {
-      await client.messageFlagsAdd(uid, ["\\Seen"]);
-    } else {
-      await client.messageFlagsRemove(uid, ["\\Seen"]);
-    }
+  const d = decodeId(messageId);
+  if (!d) { const e = new Error("Invalid message ID"); e.statusCode = 400; throw e; }
+  return withClient(async (client) => {
+    await client.mailboxOpen(folderMap[d.folder] || d.folder);
+    if (isRead) await client.messageFlagsAdd(d.uid, ["\\Seen"]);
+    else await client.messageFlagsRemove(d.uid, ["\\Seen"]);
     return { success: true };
-  } finally {
-    try { await client.logout(); } catch {}
-    imapClient = null;
-  }
+  });
+}
+
+export async function starMessage({ messageId, isStarred }) {
+  const d = decodeId(messageId);
+  if (!d) { const e = new Error("Invalid message ID"); e.statusCode = 400; throw e; }
+  return withClient(async (client) => {
+    await client.mailboxOpen(folderMap[d.folder] || d.folder);
+    if (isStarred) await client.messageFlagsAdd(d.uid, ["\\Flagged"]);
+    else await client.messageFlagsRemove(d.uid, ["\\Flagged"]);
+    return { success: true };
+  });
 }
 
 export async function moveMessage({ messageId, folder: targetFolder }) {
-  const { folder: sourceFolder, uid } = decodeId(messageId);
-  const resolvedTarget = resolveFolder(targetFolder);
-  const resolvedSource = folderMap[sourceFolder] || sourceFolder;
-  const client = await ensureConnected();
-  try {
+  const d = decodeId(messageId);
+  if (!d) { const e = new Error("Invalid message ID"); e.statusCode = 400; throw e; }
+  const resolvedTarget = folderMap[targetFolder] || targetFolder;
+  return withClient(async (client) => {
     const mailboxes = await client.list();
-    const targetExists = mailboxes.some(
-      (m) => m.path === resolvedTarget || m.name === resolvedTarget
-    );
+    const targetExists = mailboxes.some((m) => m.path === resolvedTarget || m.name === resolvedTarget);
     if (!targetExists) {
-      return { success: true, warning: `Folder "${resolvedTarget}" does not exist on server` };
+      return { success: true, warning: `Folder "${resolvedTarget}" does not exist` };
     }
-    await client.mailboxOpen(resolvedSource);
-    await client.messageMove(uid, resolvedTarget);
+    await client.mailboxOpen(folderMap[d.folder] || d.folder);
+    await client.messageMove(d.uid, resolvedTarget);
     return { success: true };
-  } finally {
-    try { await client.logout(); } catch {}
-    imapClient = null;
-  }
+  });
 }
 
 export async function deleteMessage({ messageId }) {
-  const { folder, uid } = decodeId(messageId);
-  const client = await ensureConnected();
-  try {
-    await client.mailboxOpen(folderMap[folder] || folder);
-    await client.messageDelete(uid);
+  const d = decodeId(messageId);
+  if (!d) { const e = new Error("Invalid message ID"); e.statusCode = 400; throw e; }
+  return withClient(async (client) => {
+    await client.mailboxOpen(folderMap[d.folder] || d.folder);
+    await client.messageDelete(d.uid);
     return { success: true };
-  } finally {
-    try { await client.logout(); } catch {}
-    imapClient = null;
-  }
+  });
 }
 
 export async function listFolders() {
-  const client = await ensureConnected();
-  try {
+  return withClient(async (client) => {
     const mailboxes = await client.list();
-    return mailboxes
-      .filter((m) => !m.name.startsWith("[Gmail]") || m.name === "[Gmail]/Spam" || m.name === "[Gmail]/Trash")
-      .map((m) => ({
-        name: m.name,
-        path: m.path,
-        delimiter: m.delimiter,
-        specialUse: m.specialUse || null,
-      }));
-  } finally {
-    try { await client.logout(); } catch {}
-    imapClient = null;
-  }
+    return mailboxes.map((m) => ({
+      name: m.name,
+      path: m.path,
+      specialUse: m.specialUse || null,
+    }));
+  });
 }
 
 export async function fetchAttachment({ messageId, attachmentId }) {
-  const { folder, uid } = decodeId(messageId);
-  const client = await ensureConnected();
-  try {
-    await client.mailboxOpen(folderMap[folder] || folder);
-    const msg = await client.fetchOne(uid, {
-      uid: true,
-      bodyStructure: true,
-    });
-    if (!msg) {
-      const err = new Error("Message not found");
-      err.statusCode = 404;
-      throw err;
-    }
+  const d = decodeId(messageId);
+  if (!d) { const e = new Error("Invalid message ID"); e.statusCode = 400; throw e; }
+  return withClient(async (client) => {
+    await client.mailboxOpen(folderMap[d.folder] || d.folder);
+    const msg = await client.fetchOne(d.uid, { uid: true, bodyStructure: true });
+    if (!msg) { const e = new Error("Message not found"); e.statusCode = 404; throw e; }
 
-    const att = (msg.bodyStructure?.attachments || []).find(
-      (a) => a.id === attachmentId || a.part === attachmentId
-    );
-    if (!att) {
-      const err = new Error("Attachment not found");
-      err.statusCode = 404;
-      throw err;
-    }
+    const att = (msg.bodyStructure?.attachments || []).find((a) => a.id === attachmentId || a.part === attachmentId);
+    if (!att) { const e = new Error("Attachment not found"); e.statusCode = 404; throw e; }
 
-    const fetchMsg = await client.fetchOne(uid, {
-      uid: true,
-      source: true,
-    });
-    if (!fetchMsg?.source) {
-      const err = new Error("Could not fetch attachment data");
-      err.statusCode = 500;
-      throw err;
-    }
+    const fetchMsg = await client.fetchOne(d.uid, { uid: true, source: true });
+    if (!fetchMsg?.source) { const e = new Error("Could not fetch attachment"); e.statusCode = 500; throw e; }
 
-    return {
-      filename: att.filename || "attachment",
-      mimeType: att.mimeType || "application/octet-stream",
-      size: att.size || 0,
-      content: fetchMsg.source,
-    };
-  } finally {
-    try { await client.logout(); } catch {}
-    imapClient = null;
-  }
+    return { filename: att.filename || "attachment", mimeType: att.mimeType || "application/octet-stream", size: att.size || 0, content: fetchMsg.source };
+  });
 }

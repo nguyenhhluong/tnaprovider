@@ -25,8 +25,8 @@ export function getMailConfig() {
   return getConnector().getMailConfig();
 }
 
-export async function listMessages({ mailbox, folder }) {
-  return getConnector().listMessages({ mailbox, folder });
+export async function listMessages({ mailbox, folder, page, pageSize }) {
+  return getConnector().listMessages({ mailbox, folder, page, pageSize });
 }
 
 export async function searchMessages({ mailbox, folder, search, from, to, since, before, unread, starred, page, pageSize }) {
@@ -52,8 +52,8 @@ export async function starMessage({ mailbox, messageId, isStarred }) {
   throw err;
 }
 
-export async function sendMessage({ mailbox, payload }) {
-  return getConnector().sendMessage({ mailbox, payload });
+export async function sendMessage({ mailbox, payload, requestId }) {
+  return getConnector().sendMessage({ mailbox, payload, requestId });
 }
 
 export async function markMessageRead({ mailbox, messageId, isRead }) {

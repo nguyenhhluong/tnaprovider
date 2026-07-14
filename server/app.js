@@ -121,11 +121,13 @@ export function createApp() {
         return res.json(result);
       }
 
-      const messages = await mailConnector.listMessages({
+      const result = await mailConnector.listMessages({
         mailbox: req.mailbox,
         folder: folder || "inbox",
+        page: parseInt(page) || 1,
+        pageSize: Math.min(parseInt(pageSize) || 25, 100),
       });
-      res.json(messages);
+      res.json(result);
     } catch (err) {
       console.error("listMessages error:", err.message);
       res.status(err.statusCode || 500).json({ error: err.message });
@@ -147,65 +149,84 @@ export function createApp() {
 
   app.post("/api/email/send", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
     try {
-      // Parse multipart form data
       let to = [], cc = [], bcc = [], subject = "", bodyText = "", bodyHtml = "";
-      let replyToMessageId = "", references = [];
+      let replyToMessageId = "", references = [], requestId = "";
       const attachments = [];
+      let totalBytes = 0;
+      const MAX_FILE_BYTES = 25 * 1024 * 1024;
+      const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
+      const MAX_FILES = 10;
 
       const contentType = req.headers["content-type"] || "";
 
       if (contentType.includes("multipart/form-data")) {
-        // busyboy/multipart parsing
+        let aborted = false;
         const busboy = (await import("busboy")).default;
-        const bb = busboy({ headers: req.headers, limits: { fileSize: 25 * 1024 * 1024, files: 10 } });
+        const bb = busboy({ headers: req.headers, limits: { fileSize: MAX_FILE_BYTES, files: MAX_FILES } });
 
         await new Promise((resolve, reject) => {
           bb.on("field", (name, val) => {
-            if (name === "to") try { const parsed = JSON.parse(val); to = Array.isArray(parsed) ? parsed : [parsed]; } catch { to = [{ email: val }]; }
-            else if (name === "cc") try { cc = JSON.parse(val); if (!Array.isArray(cc)) cc = [cc]; } catch {}
-            else if (name === "bcc") try { bcc = JSON.parse(val); if (!Array.isArray(bcc)) bcc = [bcc]; } catch {}
+            if (name === "to") try { const p = JSON.parse(val); to = Array.isArray(p) ? p : [p]; } catch { return reject(Object.assign(new Error("Invalid To field"), { statusCode: 400, code: "INVALID_RECIPIENTS" })); }
+            else if (name === "cc") try { const p = JSON.parse(val); cc = Array.isArray(p) ? p : [p]; } catch {}
+            else if (name === "bcc") try { const p = JSON.parse(val); bcc = Array.isArray(p) ? p : [p]; } catch {}
             else if (name === "subject") subject = val;
             else if (name === "bodyText") bodyText = val;
             else if (name === "bodyHtml") bodyHtml = val;
             else if (name === "replyToMessageId") replyToMessageId = val;
-            else if (name === "references") try { references = JSON.parse(val); if (!Array.isArray(references)) references = [references]; } catch {}
+            else if (name === "references") try { const p = JSON.parse(val); references = Array.isArray(p) ? p : [p]; } catch {}
+            else if (name === "requestId") requestId = val;
           });
 
           bb.on("file", (name, stream, info) => {
+            if (aborted) { stream.resume(); return; }
+            if (attachments.length >= MAX_FILES) {
+              aborted = true; stream.resume();
+              return reject(Object.assign(new Error(`Too many attachments (max ${MAX_FILES})`), { statusCode: 400, code: "TOO_MANY_ATTACHMENTS" }));
+            }
             const chunks = [];
-            stream.on("data", (chunk) => chunks.push(chunk));
-            stream.on("end", () => {
-              const buffer = Buffer.concat(chunks);
-              if (buffer.length > 0) {
-                attachments.push({
-                  filename: info.filename,
-                  mimeType: info.mimeType || info.mime || "application/octet-stream",
-                  buffer,
-                });
+            let fileSize = 0;
+            stream.on("data", (chunk) => {
+              fileSize += chunk.length;
+              if (fileSize > MAX_FILE_BYTES) {
+                aborted = true; stream.destroy();
+                return reject(Object.assign(new Error(`Attachment too large: ${info.filename} (max 25MB)`), { statusCode: 400, code: "ATTACHMENT_TOO_LARGE" }));
               }
+              chunks.push(chunk);
+            });
+            stream.on("end", () => {
+              if (aborted) return;
+              const buffer = Buffer.concat(chunks);
+              totalBytes += buffer.length;
+              if (totalBytes > MAX_TOTAL_BYTES) {
+                aborted = true;
+                return reject(Object.assign(new Error("Total attachment size exceeds 50MB limit"), { statusCode: 400, code: "TOTAL_ATTACHMENT_LIMIT_EXCEEDED" }));
+              }
+              attachments.push({ filename: info.filename, mimeType: info.mimeType || "application/octet-stream", buffer });
             });
           });
 
-          bb.on("finish", resolve);
+          bb.on("finish", () => { if (!aborted) resolve(); });
           bb.on("error", reject);
           req.pipe(bb);
         });
       } else {
-        // JSON fallback
-        ({ to = [], cc = [], bcc = [], subject = "", bodyText = "", bodyHtml = "", replyToMessageId = "", references = [] } = req.body);
+        ({ to = [], cc = [], bcc = [], subject = "", bodyText = "", bodyHtml = "", replyToMessageId = "", references = [], requestId = "" } = req.body);
+      }
+
+      if (!to || to.length === 0) {
+        return res.status(400).json({ error: "At least one recipient is required", code: "INVALID_RECIPIENTS" });
       }
 
       const payload = { to, cc, bcc, subject, bodyText, bodyHtml, replyToMessageId, references };
       if (attachments.length > 0) payload.attachments = attachments;
 
-      const result = await mailConnector.sendMessage({
-        mailbox: req.mailbox,
-        payload,
-      });
+      const result = await mailConnector.sendMessage({ mailbox: req.mailbox, payload, requestId });
       res.json(result);
     } catch (err) {
+      const code = err.code || "SMTP_SEND_FAILED";
+      const status = err.statusCode || 500;
       console.error("sendMessage error:", err.message);
-      res.status(err.statusCode || 500).json({ error: err.message });
+      res.status(status).json({ error: err.message, code });
     }
   });
 

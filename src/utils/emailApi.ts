@@ -44,28 +44,29 @@ export interface SearchResult {
   query: any;
 }
 
-export async function listMessages(folder: EmailFolder, searchParams?: SearchParams): Promise<EmailMessage[] | SearchResult> {
-  const params = new URLSearchParams({ folder });
+export async function listMessages(folder: EmailFolder, searchParams?: SearchParams): Promise<SearchResult> {
+  const params = new URLSearchParams({ folder, pageSize: "25", page: "1" });
   if (searchParams) {
     Object.entries(searchParams).forEach(([key, value]) => {
       if (value !== undefined && value !== "") params.set(key, String(value));
     });
   }
   const qs = params.toString();
-  const result = await apiRequest<any>("GET", `/messages?${qs}`);
-
-  if (result.items !== undefined) {
-    return result;
-  }
-  return result;
+  return apiRequest<SearchResult>("GET", `/messages?${qs}`);
 }
 
 export async function getMessage(messageId: string): Promise<EmailMessage> {
   return apiRequest("GET", `/messages/${encodeURIComponent(messageId)}`);
 }
 
-export async function sendEmail(payload: ComposeEmailPayload): Promise<{ success: boolean; messageId: string }> {
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export async function sendEmail(payload: ComposeEmailPayload): Promise<{ success: boolean; messageId: string; sentSync?: { status: string } }> {
   const form = new FormData();
+  form.append("requestId", generateIdempotencyKey());
   form.append("to", JSON.stringify(payload.to));
   if (payload.cc && payload.cc.length > 0) form.append("cc", JSON.stringify(payload.cc));
   if (payload.bcc && payload.bcc.length > 0) form.append("bcc", JSON.stringify(payload.bcc));
