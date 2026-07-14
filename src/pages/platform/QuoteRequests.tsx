@@ -205,7 +205,15 @@ export function QuoteRequests() {
           {/* Mobile cards */}
           <div className="md:hidden space-y-3">
             {data.requests.map((r) => (
-              <div key={r.id} onClick={() => handleSelect(r)} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+              <div
+                key={r.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleSelect(r)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(r); } }}
+                aria-label={`Open quote request from ${r.first_name} ${r.last_name}`}
+                className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:outline-none"
+              >
                 <div className="flex items-start justify-between mb-2">
                   <div className="min-w-0 flex-1 mr-2">
                     <p className="font-semibold text-sm truncate">{r.first_name} {r.last_name}</p>

@@ -359,14 +359,23 @@ export function TenderUploadForm() {
               PDF, DWG, DXF, ZIP, JPG, PNG, WEBP, RVT, IFC (max 20MB each)
             </p>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={ALLOWED_EXTENSIONS}
-            onChange={handleFileAdd}
-            className="hidden"
-          />
+          <div className="flex flex-wrap gap-2">
+            <label className="px-4 py-2 min-h-[44px] bg-brand-accent text-white rounded-lg text-sm font-medium hover:bg-brand-accent-hover cursor-pointer inline-flex items-center gap-2">
+              <span>📷</span> Take Photo
+              <input type="file" accept="image/*" capture="environment" onChange={handleFileAdd} className="hidden" />
+            </label>
+            <label className="px-4 py-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 inline-flex items-center gap-2">
+              <span>📎</span> Choose Files
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ALLOWED_EXTENSIONS}
+                onChange={handleFileAdd}
+                className="hidden"
+              />
+            </label>
+          </div>
           {errors.files && <span className="text-xs text-red-500">{errors.files}</span>}
         </div>
 
