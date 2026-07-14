@@ -11,8 +11,6 @@ import { logEmailAudit } from "../../../utils/emailAudit";
 import { cn } from "../../../utils/cn";
 import { ChevronDown, PenSquare, Menu } from "lucide-react";
 
-const MOCK_MODE = import.meta.env.VITE_EMAIL_MOCK_MODE !== "false";
-
 const folders: { id: EmailFolder; label: string }[] = [
   { id: "inbox", label: "Inbox" },
   { id: "sent", label: "Sent" },
@@ -41,29 +39,23 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
   const [mobileFolderPickerOpen, setMobileFolderPickerOpen] = useState(false);
 
   useEffect(() => {
-    if (!MOCK_MODE) {
-      getEmailStatus()
-        .then(setEmailStatus)
-        .catch(() => setEmailStatus(null));
-    } else {
-      setEmailStatus({
-        provider: "mock",
-        inboundReady: true,
-        outboundReady: true,
-        attachmentsReady: true,
-        mailbox: "info@tnaprovider.com.au",
-      });
-    }
+    getEmailStatus()
+      .then(setEmailStatus)
+      .catch(() => setEmailStatus(null));
   }, []);
 
   const {
     messages,
     loading,
     error,
+    searchResult,
     markRead,
     moveMessage,
     deleteMsg,
     addSentMessage,
+    refresh,
+    debouncedSearch,
+    setSearchParams,
   } = useEmailData(currentFolder);
 
   const selectedMessage = messages.find((m) => m.id === selectedMessageId) || null;
@@ -85,37 +77,17 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
   }, []);
 
   const handleSend = useCallback(async (payload: ComposeEmailPayload) => {
-    const newMsg: EmailMessage = {
-      id: `sent-${Date.now()}`,
-      folder: "sent",
-      from: payload.from,
-      to: payload.to,
-      cc: payload.cc,
-      bcc: payload.bcc,
-      subject: payload.subject,
-      preview: payload.bodyHtml.replace(/<[^>]*>/g, "").slice(0, 100),
-      bodyHtml: payload.bodyHtml,
-      sentAt: new Date().toISOString(),
-      receivedAt: new Date().toISOString(),
-      isRead: true,
-      isStarred: false,
-      hasAttachments: !!(payload.attachments && payload.attachments.length > 0),
-    };
-
-    if (MOCK_MODE) {
-      addSentMessage(newMsg);
-    } else {
-      const result = await sendEmail(payload);
-      newMsg.id = result.id;
-      addSentMessage(newMsg);
-    }
+    const result = await sendEmail(payload);
 
     setShowCompose(false);
     setReplyTo(null);
+    // Refresh sent folder to show the real Zoho Sent message
+    if (currentFolder === "sent") refresh();
+
     logEmailAudit("user-1", "info@tnaprovider.com.au", "email.sent", {
       recipientCount: payload.to.length + (payload.cc?.length || 0) + (payload.bcc?.length || 0),
     });
-  }, [addSentMessage]);
+  }, [refresh, currentFolder]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {
@@ -148,20 +120,24 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
     setSelectedMessageId(null);
   }, []);
 
-  const filteredMessages = messages.filter((m) => {
+  // Use server-side search when searchQuery is set, otherwise client-side filtering for unread/starred
+  const displayMessages = searchQuery ? messages : messages.filter((m) => {
     if (unreadOnly && m.isRead) return false;
     if (starredOnly && !m.isStarred) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return (
-        m.subject.toLowerCase().includes(q) ||
-        m.from.email.toLowerCase().includes(q) ||
-        (m.from.name || "").toLowerCase().includes(q) ||
-        m.preview.toLowerCase().includes(q)
-      );
-    }
     return true;
   });
+
+  // Trigger server-side search when searchQuery changes
+  useEffect(() => {
+    if (searchQuery) {
+      const params: any = { search: searchQuery, page: 1 };
+      if (unreadOnly) params.unread = "true";
+      if (starredOnly) params.starred = "true";
+      debouncedSearch(params);
+    } else {
+      setSearchParams(undefined);
+    }
+  }, [searchQuery, unreadOnly, starredOnly]);
 
   const currentFolderLabel = folders.find((f) => f.id === currentFolder)?.label || currentFolder;
 
@@ -269,12 +245,13 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
         selectedMessageId && "hidden lg:flex"
       )}>
         <MessageList
-          messages={filteredMessages}
+          messages={displayMessages}
           selectedId={selectedMessageId}
           onSelect={handleSelectMessage}
           loading={loading}
           error={error || uiError}
           onErrorDismiss={clearError}
+          searchResult={searchResult}
         />
       </div>
 

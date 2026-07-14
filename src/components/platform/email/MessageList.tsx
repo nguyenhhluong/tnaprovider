@@ -10,9 +10,10 @@ interface MessageListProps {
   loading: boolean;
   error: string | null;
   onErrorDismiss?: () => void;
+  searchResult?: { totalItems: number; totalPages: number; page: number; query: any } | null;
 }
 
-export function MessageList({ messages, selectedId, onSelect, loading, error, onErrorDismiss }: MessageListProps) {
+export function MessageList({ messages, selectedId, onSelect, loading, error, onErrorDismiss, searchResult }: MessageListProps) {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white dark:bg-brand-darker">
