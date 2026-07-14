@@ -153,11 +153,15 @@ export function createApp() {
       let replyToMessageId = "", references = [], requestId = "";
       const attachments = [];
       let totalBytes = 0;
-      const MAX_FILE_BYTES = parseInt(process.env.EMAIL_ATTACHMENT_MAX_FILE_BYTES || String(25 * 1024 * 1024), 10);
-      const MAX_TOTAL_BYTES = parseInt(process.env.EMAIL_ATTACHMENT_MAX_TOTAL_BYTES || String(50 * 1024 * 1024), 10);
-      const MAX_FILES = parseInt(process.env.EMAIL_ATTACHMENT_MAX_FILES || "10", 10);
+      const { getAttachmentLimits } = await import("./email/emailConfig.js");
+      const limits = getAttachmentLimits();
+      const MAX_FILE_BYTES = limits.maxFileBytes;
+      const MAX_TOTAL_BYTES = limits.maxTotalBytes;
+      const MAX_FILES = limits.maxFiles;
 
       const contentType = req.headers["content-type"] || "";
+
+      const { parseMultipartJsonField, validateRecipients, validateReferences: validateRefs } = await import("./email/emailConfig.js");
 
       if (contentType.includes("multipart/form-data")) {
         let aborted = false;
@@ -166,15 +170,17 @@ export function createApp() {
 
         await new Promise((resolve, reject) => {
           bb.on("field", (name, val) => {
-            if (name === "to") try { const p = JSON.parse(val); to = Array.isArray(p) ? p : [p]; } catch { return reject(Object.assign(new Error("Invalid To field"), { statusCode: 400, code: "INVALID_RECIPIENTS" })); }
-            else if (name === "cc") try { const p = JSON.parse(val); cc = Array.isArray(p) ? p : [p]; } catch {}
-            else if (name === "bcc") try { const p = JSON.parse(val); bcc = Array.isArray(p) ? p : [p]; } catch {}
-            else if (name === "subject") subject = val;
-            else if (name === "bodyText") bodyText = val;
-            else if (name === "bodyHtml") bodyHtml = val;
-            else if (name === "replyToMessageId") replyToMessageId = val;
-            else if (name === "references") try { const p = JSON.parse(val); references = Array.isArray(p) ? p : [p]; } catch {}
-            else if (name === "requestId") requestId = val;
+            try {
+              if (name === "to") to = parseMultipartJsonField(val, { fieldName: "To", code: "INVALID_RECIPIENTS" });
+              else if (name === "cc") cc = parseMultipartJsonField(val, { fieldName: "Cc", code: "INVALID_RECIPIENTS" });
+              else if (name === "bcc") bcc = parseMultipartJsonField(val, { fieldName: "Bcc", code: "INVALID_RECIPIENTS" });
+              else if (name === "subject") subject = val;
+              else if (name === "bodyText") bodyText = val;
+              else if (name === "bodyHtml") bodyHtml = val;
+              else if (name === "replyToMessageId") replyToMessageId = val;
+              else if (name === "references") references = parseMultipartJsonField(val, { fieldName: "References", code: "INVALID_REFERENCES" });
+              else if (name === "requestId") requestId = val;
+            } catch (err) { reject(err); }
           });
 
           bb.on("file", (name, stream, info) => {
@@ -189,7 +195,8 @@ export function createApp() {
               fileSize += chunk.length;
               if (fileSize > MAX_FILE_BYTES) {
                 aborted = true; stream.destroy();
-                return reject(Object.assign(new Error(`Attachment too large: ${info.filename} (max 25MB)`), { statusCode: 400, code: "ATTACHMENT_TOO_LARGE" }));
+                const maxMb = Math.floor(MAX_FILE_BYTES / 1024 / 1024);
+                return reject(Object.assign(new Error(`Attachment too large: ${info.filename} (max ${maxMb}MB)`), { statusCode: 400, code: "ATTACHMENT_TOO_LARGE" }));
               }
               chunks.push(chunk);
             });
@@ -199,7 +206,8 @@ export function createApp() {
               totalBytes += buffer.length;
               if (totalBytes > MAX_TOTAL_BYTES) {
                 aborted = true;
-                return reject(Object.assign(new Error("Total attachment size exceeds 50MB limit"), { statusCode: 400, code: "TOTAL_ATTACHMENT_LIMIT_EXCEEDED" }));
+                const totalMb = Math.floor(MAX_TOTAL_BYTES / 1024 / 1024);
+                return reject(Object.assign(new Error(`Total attachment size exceeds ${totalMb}MB limit`), { statusCode: 400, code: "TOTAL_ATTACHMENT_LIMIT_EXCEEDED" }));
               }
               attachments.push({ filename: info.filename, mimeType: info.mimeType || "application/octet-stream", buffer });
             });
@@ -216,7 +224,18 @@ export function createApp() {
       if (!requestId) {
         return res.status(400).json({ error: "requestId is required", code: "MISSING_REQUEST_ID" });
       }
-      if (!to || to.length === 0) {
+
+      // Validate recipients and references
+      try {
+        validateRecipients(to);
+        if (cc.length > 0) validateRecipients(cc);
+        if (bcc.length > 0) validateRecipients(bcc);
+        if (references.length > 0) validateRefs(references);
+      } catch (err) {
+        return res.status(err.statusCode || 400).json({ error: err.message, code: err.code || "INVALID_MULTIPART_PAYLOAD" });
+      }
+
+      if (to.length === 0) {
         return res.status(400).json({ error: "At least one recipient is required", code: "INVALID_RECIPIENTS" });
       }
 
