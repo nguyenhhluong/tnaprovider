@@ -10,6 +10,7 @@ const VALID_TYPES = [
 ];
 
 const VALID_STATUSES = ['PENDING', 'PROCESSING', 'SENT', 'FAILED', 'CANCELLED'];
+const VALID_SORT_COLUMNS = ['created_at', 'sent_at', 'updated_at', 'recipient', 'status'];
 
 function validateJobData(data) {
   if (!VALID_TYPES.includes(data.type)) {
@@ -53,29 +54,99 @@ export function getEmailJob(id) {
   return db.prepare('SELECT * FROM email_jobs WHERE id = ?').get(id) || null;
 }
 
-export function listEmailJobs({ relatedEntityType, relatedEntityId, status, limit = 50, offset = 0 } = {}) {
+export function listEmailJobs({
+  relatedEntityType,
+  relatedEntityId,
+  status,
+  type,
+  search,
+  dateFrom,
+  dateTo,
+  sort,
+  sortOrder,
+  limit = 50,
+  offset = 0,
+} = {}) {
   const db = getDb();
   const conditions = [];
   const params = [];
 
   if (relatedEntityType) {
-    conditions.push('related_entity_type = ?');
+    conditions.push('e.related_entity_type = ?');
     params.push(relatedEntityType);
   }
   if (relatedEntityId) {
-    conditions.push('related_entity_id = ?');
+    conditions.push('e.related_entity_id = ?');
     params.push(relatedEntityId);
   }
   if (status) {
-    conditions.push('status = ?');
-    params.push(status);
+    const statuses = status.split(',');
+    conditions.push(`e.status IN (${statuses.map(() => '?').join(',')})`);
+    params.push(...statuses);
+  }
+  if (type) {
+    const types = type.split(',');
+    conditions.push(`e.type IN (${types.map(() => '?').join(',')})`);
+    params.push(...types);
+  }
+  if (search) {
+    conditions.push('(e.recipient LIKE ? OR e.subject LIKE ? OR e.smtp_message_id LIKE ? OR e.related_entity_id LIKE ?)');
+    const s = `%${search}%`;
+    params.push(s, s, s, s);
+  }
+  if (dateFrom) {
+    conditions.push('e.created_at >= ?');
+    params.push(dateFrom);
+  }
+  if (dateTo) {
+    conditions.push('e.created_at <= ?');
+    params.push(dateTo);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-  const rows = db.prepare(`SELECT * FROM email_jobs ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
-  const count = db.prepare(`SELECT COUNT(*) as cnt FROM email_jobs ${where}`).get(...params).cnt;
 
-  return { data: rows, total: count };
+  let orderClause = 'ORDER BY e.created_at DESC';
+  if (sort && VALID_SORT_COLUMNS.includes(sort)) {
+    const dir = sortOrder === 'asc' ? 'ASC' : 'DESC';
+    orderClause = `ORDER BY e.${sort} ${dir}`;
+  }
+
+  const count = db.prepare(`SELECT COUNT(*) as cnt FROM email_jobs e ${where}`).get(...params).cnt;
+  const rows = db.prepare(`SELECT e.* FROM email_jobs e ${where} ${orderClause} LIMIT ? OFFSET ?`).all(...params, limit, offset);
+
+  return { data: rows, total: count, page: Math.floor(offset / limit) + 1, pageSize: limit, totalPages: Math.ceil(count / limit) };
+}
+
+export function getEmailCenterSummary() {
+  const db = getDb();
+
+  const total = db.prepare('SELECT COUNT(*) as cnt FROM email_jobs').get().cnt;
+  const sent = db.prepare("SELECT COUNT(*) as cnt FROM email_jobs WHERE status = 'SENT'").get().cnt;
+  const pending = db.prepare("SELECT COUNT(*) as cnt FROM email_jobs WHERE status = 'PENDING'").get().cnt;
+  const processing = db.prepare("SELECT COUNT(*) as cnt FROM email_jobs WHERE status = 'PROCESSING'").get().cnt;
+  const failed = db.prepare("SELECT COUNT(*) as cnt FROM email_jobs WHERE status = 'FAILED'").get().cnt;
+  const cancelled = db.prepare("SELECT COUNT(*) as cnt FROM email_jobs WHERE status = 'CANCELLED'").get().cnt;
+  const sentLast24Hours = db.prepare("SELECT COUNT(*) as cnt FROM email_jobs WHERE status = 'SENT' AND sent_at >= datetime('now', '-1 day')").get().cnt;
+  const successRate = total > 0 ? Math.round((sent / total) * 100) : 0;
+
+  const byType = db.prepare('SELECT type, COUNT(*) as cnt, SUM(CASE WHEN status = \'FAILED\' THEN 1 ELSE 0 END) as failed_count FROM email_jobs GROUP BY type ORDER BY cnt DESC').all();
+
+  const recentFailed = db.prepare("SELECT * FROM email_jobs WHERE status = 'FAILED' ORDER BY updated_at DESC LIMIT 5").all();
+  const recentSent = db.prepare("SELECT * FROM email_jobs WHERE status = 'SENT' ORDER BY sent_at DESC LIMIT 5").all();
+
+  return {
+    total,
+    sent,
+    pending,
+    processing,
+    failed,
+    cancelled,
+    sentLast24Hours,
+    successRate,
+    byType,
+    recentFailed,
+    recentSent,
+  };
 }
 
 export function updateEmailJobStatus(id, status, result = {}) {
@@ -105,6 +176,39 @@ export function updateEmailJobStatus(id, status, result = {}) {
   db.prepare(`UPDATE email_jobs SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 }
 
+function createAttemptRecord(jobId, attemptNumber) {
+  const db = getDb();
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO email_job_attempts (id, email_job_id, attempt_number, status, started_at, created_at)
+    VALUES (?, ?, ?, 'PROCESSING', ?, ?)
+  `).run(id, jobId, attemptNumber, now, now);
+  return id;
+}
+
+function updateAttemptRecord(id, status, result = {}) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const sets = ['status = ?', 'completed_at = ?'];
+  const params = [status, now];
+  if (result.smtpMessageId !== undefined) {
+    sets.push('smtp_message_id = ?');
+    params.push(result.smtpMessageId);
+  }
+  if (result.errorMessage !== undefined) {
+    sets.push('error_message = ?');
+    params.push(result.errorMessage);
+  }
+  params.push(id);
+  db.prepare(`UPDATE email_job_attempts SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+}
+
+export function getAttemptsForJob(jobId) {
+  const db = getDb();
+  return db.prepare('SELECT * FROM email_job_attempts WHERE email_job_id = ? ORDER BY attempt_number DESC').all(jobId);
+}
+
 export async function processEmailJob(id) {
   const job = getEmailJob(id);
   if (!job) {
@@ -118,6 +222,9 @@ export async function processEmailJob(id) {
   }
 
   updateEmailJobStatus(id, 'PROCESSING');
+
+  const attemptNumber = job.attempt_count + 1;
+  const attemptId = createAttemptRecord(id, attemptNumber);
 
   try {
     const { sendEmail } = await import('./mailer.js');
@@ -134,18 +241,25 @@ export async function processEmailJob(id) {
       replyTo: payload?.replyTo,
     });
 
+    updateAttemptRecord(attemptId, 'SENT', {
+      smtpMessageId: result.messageId,
+    });
+
     updateEmailJobStatus(id, 'SENT', {
       smtpMessageId: result.messageId,
       sentAt: new Date().toISOString(),
-      attemptCount: job.attempt_count + 1,
+      attemptCount: attemptNumber,
     });
 
     return { success: true, messageId: result.messageId };
   } catch (err) {
-    const newAttemptCount = job.attempt_count + 1;
+    updateAttemptRecord(attemptId, 'FAILED', {
+      errorMessage: err.message,
+    });
+
     updateEmailJobStatus(id, 'FAILED', {
       lastError: err.message,
-      attemptCount: newAttemptCount,
+      attemptCount: attemptNumber,
     });
 
     return { success: false, error: err.message };
@@ -178,6 +292,7 @@ export function getEmailDeliveryStatusForEntity(entityType, entityId) {
         type: job.type,
         status: job.status,
         recipient: job.recipient,
+        subject: job.subject,
         lastError: job.last_error,
         attemptCount: job.attempt_count,
         sentAt: job.sent_at,
@@ -187,4 +302,69 @@ export function getEmailDeliveryStatusForEntity(entityType, entityId) {
     }
   }
   return statuses;
+}
+
+export function bulkRetryEmailJobs(jobIds) {
+  if (!Array.isArray(jobIds) || jobIds.length === 0) {
+    throw new Error('jobIds must be a non-empty array');
+  }
+
+  const uniqueIds = [...new Set(jobIds)];
+  const results = [];
+  let accepted = 0;
+  let rejected = 0;
+
+  for (const id of uniqueIds) {
+    try {
+      const job = getEmailJob(id);
+      if (!job) {
+        results.push({ id, status: 'rejected', reason: 'Email job not found' });
+        rejected++;
+        continue;
+      }
+      if (job.status === 'SENT') {
+        results.push({ id, status: 'rejected', reason: 'Job has already been sent successfully' });
+        rejected++;
+        continue;
+      }
+      if (job.status === 'CANCELLED') {
+        results.push({ id, status: 'rejected', reason: 'Job is cancelled' });
+        rejected++;
+        continue;
+      }
+
+      retryEmailJob(id);
+      results.push({ id, status: 'accepted' });
+      accepted++;
+    } catch (err) {
+      results.push({ id, status: 'rejected', reason: err.message });
+      rejected++;
+    }
+  }
+
+  return { requested: jobIds.length, accepted, rejected, results };
+}
+
+export async function resendEmailJob(id) {
+  const job = getEmailJob(id);
+  if (!job) {
+    throw new Error(`Email job not found: ${id}`);
+  }
+
+  let payload = null;
+  if (job.payload_json) {
+    try { payload = JSON.parse(job.payload_json); } catch {}
+  }
+
+  const newJobId = createEmailJob({
+    type: job.type,
+    recipient: job.recipient,
+    subject: job.subject,
+    relatedEntityType: job.related_entity_type,
+    relatedEntityId: job.related_entity_id,
+    payloadJson: payload || undefined,
+  });
+
+  const result = await processEmailJob(newJobId);
+  return { newJobId, ...result };
 }

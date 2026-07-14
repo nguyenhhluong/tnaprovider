@@ -21,6 +21,7 @@ export interface EmailAttachment {
 
 export interface EmailMessage {
   id: string;
+  messageId?: string;
   threadId?: string;
   folder: EmailFolder;
   from: EmailAddress;
@@ -45,9 +46,11 @@ export interface ComposeEmailPayload {
   cc?: EmailAddress[];
   bcc?: EmailAddress[];
   subject: string;
-  bodyHtml: string;
+  bodyText: string;
+  bodyHtml?: string;
   attachments?: File[];
   replyToMessageId?: string;
+  references?: string[];
 }
 
 export interface MailboxAccount {

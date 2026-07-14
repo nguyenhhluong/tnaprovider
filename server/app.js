@@ -101,12 +101,33 @@ export function createApp() {
 
   app.get("/api/email/messages", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
     try {
-      const { folder } = req.query;
-      const messages = await mailConnector.listMessages({
+      const { folder, search, from, to, since, before, unread, starred, page, pageSize } = req.query;
+
+      // If any search parameters are provided, use server-side IMAP search
+      if (search || from || to || since || before || unread !== undefined || starred !== undefined) {
+        const result = await mailConnector.searchMessages({
+          mailbox: req.mailbox,
+          folder: folder || "inbox",
+          search,
+          from,
+          to,
+          since,
+          before,
+          unread,
+          starred,
+          page: parseInt(page) || 1,
+          pageSize: Math.min(parseInt(pageSize) || 25, 100),
+        });
+        return res.json(result);
+      }
+
+      const result = await mailConnector.listMessages({
         mailbox: req.mailbox,
         folder: folder || "inbox",
+        page: parseInt(page) || 1,
+        pageSize: Math.min(parseInt(pageSize) || 25, 100),
       });
-      res.json(messages);
+      res.json(result);
     } catch (err) {
       console.error("listMessages error:", err.message);
       res.status(err.statusCode || 500).json({ error: err.message });
@@ -128,14 +149,87 @@ export function createApp() {
 
   app.post("/api/email/send", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
     try {
-      const result = await mailConnector.sendMessage({
-        mailbox: req.mailbox,
-        payload: req.body,
-      });
+      let to = [], cc = [], bcc = [], subject = "", bodyText = "", bodyHtml = "";
+      let replyToMessageId = "", references = [], requestId = "";
+      const attachments = [];
+      let totalBytes = 0;
+      const MAX_FILE_BYTES = 25 * 1024 * 1024;
+      const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
+      const MAX_FILES = 10;
+
+      const contentType = req.headers["content-type"] || "";
+
+      if (contentType.includes("multipart/form-data")) {
+        let aborted = false;
+        const busboy = (await import("busboy")).default;
+        const bb = busboy({ headers: req.headers, limits: { fileSize: MAX_FILE_BYTES, files: MAX_FILES } });
+
+        await new Promise((resolve, reject) => {
+          bb.on("field", (name, val) => {
+            if (name === "to") try { const p = JSON.parse(val); to = Array.isArray(p) ? p : [p]; } catch { return reject(Object.assign(new Error("Invalid To field"), { statusCode: 400, code: "INVALID_RECIPIENTS" })); }
+            else if (name === "cc") try { const p = JSON.parse(val); cc = Array.isArray(p) ? p : [p]; } catch {}
+            else if (name === "bcc") try { const p = JSON.parse(val); bcc = Array.isArray(p) ? p : [p]; } catch {}
+            else if (name === "subject") subject = val;
+            else if (name === "bodyText") bodyText = val;
+            else if (name === "bodyHtml") bodyHtml = val;
+            else if (name === "replyToMessageId") replyToMessageId = val;
+            else if (name === "references") try { const p = JSON.parse(val); references = Array.isArray(p) ? p : [p]; } catch {}
+            else if (name === "requestId") requestId = val;
+          });
+
+          bb.on("file", (name, stream, info) => {
+            if (aborted) { stream.resume(); return; }
+            if (attachments.length >= MAX_FILES) {
+              aborted = true; stream.resume();
+              return reject(Object.assign(new Error(`Too many attachments (max ${MAX_FILES})`), { statusCode: 400, code: "TOO_MANY_ATTACHMENTS" }));
+            }
+            const chunks = [];
+            let fileSize = 0;
+            stream.on("data", (chunk) => {
+              fileSize += chunk.length;
+              if (fileSize > MAX_FILE_BYTES) {
+                aborted = true; stream.destroy();
+                return reject(Object.assign(new Error(`Attachment too large: ${info.filename} (max 25MB)`), { statusCode: 400, code: "ATTACHMENT_TOO_LARGE" }));
+              }
+              chunks.push(chunk);
+            });
+            stream.on("end", () => {
+              if (aborted) return;
+              const buffer = Buffer.concat(chunks);
+              totalBytes += buffer.length;
+              if (totalBytes > MAX_TOTAL_BYTES) {
+                aborted = true;
+                return reject(Object.assign(new Error("Total attachment size exceeds 50MB limit"), { statusCode: 400, code: "TOTAL_ATTACHMENT_LIMIT_EXCEEDED" }));
+              }
+              attachments.push({ filename: info.filename, mimeType: info.mimeType || "application/octet-stream", buffer });
+            });
+          });
+
+          bb.on("finish", () => { if (!aborted) resolve(); });
+          bb.on("error", reject);
+          req.pipe(bb);
+        });
+      } else {
+        ({ to = [], cc = [], bcc = [], subject = "", bodyText = "", bodyHtml = "", replyToMessageId = "", references = [], requestId = "" } = req.body);
+      }
+
+      if (!requestId) {
+        return res.status(400).json({ error: "requestId is required", code: "MISSING_REQUEST_ID" });
+      }
+      if (!to || to.length === 0) {
+        return res.status(400).json({ error: "At least one recipient is required", code: "INVALID_RECIPIENTS" });
+      }
+
+      const payload = { to, cc, bcc, subject, bodyText, bodyHtml, replyToMessageId, references };
+      if (attachments.length > 0) payload.attachments = attachments;
+
+      const result = await mailConnector.sendMessage({ mailbox: req.mailbox, payload, requestId });
       res.json(result);
     } catch (err) {
+      const code = err.code || "SMTP_SEND_FAILED";
+      const status = err.statusCode || 500;
       console.error("sendMessage error:", err.message);
-      res.status(err.statusCode || 500).json({ error: err.message });
+      res.status(status).json({ error: err.message, code });
     }
   });
 
@@ -177,6 +271,58 @@ export function createApp() {
     } catch (err) {
       console.error("deleteMessage error:", err.message);
       res.status(err.statusCode || 500).json({ error: err.message });
+    }
+  });
+
+  // Business Email folders
+  app.get("/api/email/folders", requireSessionAuth, requirePasswordChanged, async (req, res) => {
+    try {
+      const folders = await mailConnector.listFolders();
+      res.json(folders);
+    } catch (err) {
+      console.error("listFolders error:", err.message);
+      res.status(err.statusCode || 500).json({ error: err.message });
+    }
+  });
+
+  // Star/unstar message
+  app.post("/api/email/messages/:id/star", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+    try {
+      const result = await mailConnector.starMessage({
+        mailbox: req.mailbox,
+        messageId: req.params.id,
+        isStarred: req.body.isStarred,
+      });
+      res.json(result);
+    } catch (err) {
+      console.error("starMessage error:", err.message);
+      res.status(err.statusCode || 500).json({ error: err.message });
+    }
+  });
+
+  // Download attachment
+  app.get("/api/email/messages/:id/attachments/:attachmentId", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+    try {
+      const result = await mailConnector.fetchAttachment({
+        mailbox: req.mailbox,
+        messageId: req.params.id,
+        attachmentId: req.params.attachmentId,
+      });
+      res.setHeader("Content-Type", result.mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+      res.setHeader("Content-Length", result.size);
+      if (result.content instanceof Buffer) {
+        res.send(result.content);
+      } else {
+        res.send(result.content);
+      }
+    } catch (err) {
+      console.error("fetchAttachment error:", err.message);
+      if (err.statusCode === 404) {
+        res.status(404).json({ error: "Attachment not found" });
+      } else {
+        res.status(err.statusCode || 500).json({ error: err.message });
+      }
     }
   });
 

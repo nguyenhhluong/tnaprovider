@@ -28,6 +28,7 @@ import { ClientPortal } from "./pages/platform/ClientPortal";
 import { Maintenance } from "./pages/platform/Maintenance";
 import { Analytics } from "./pages/platform/Analytics";
 import { Email } from "./pages/platform/Email";
+import { EmailCenter } from "./pages/platform/EmailCenter";
 import { Login } from "./pages/Login";
 import { ForgotPassword } from "./pages/ForgotPassword";
 import { ResetPassword } from "./pages/ResetPassword";
@@ -156,6 +157,8 @@ const router = createBrowserRouter([
       { path: "maintenance", element: <Maintenance /> },
       { path: "analytics", element: <Analytics /> },
       { path: "email", element: <Email /> },
+      { path: "email-center", element: <ProtectedRoute roles={["owner", "admin"]}><EmailCenter /></ProtectedRoute> },
+      { path: "email-center/:jobId", element: <ProtectedRoute roles={["owner", "admin"]}><EmailCenter /></ProtectedRoute> },
       { path: "admin-tools", element: <ProtectedRoute roles={["owner", "admin"]}><AdminTools /></ProtectedRoute> },
       { path: "lead-automation", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><LeadAutomation /></ProtectedRoute> },
       { path: "quotes", element: <ProtectedRoute roles={["owner", "admin", "manager"]}><Quotes /></ProtectedRoute> },
@@ -190,6 +193,8 @@ const router = createBrowserRouter([
       { path: "maintenance", element: <Maintenance /> },
       { path: "analytics", element: <Analytics /> },
       { path: "email", element: <Email /> },
+      { path: "email-center", element: <ProtectedRoute roles={["owner", "admin"]}><EmailCenter /></ProtectedRoute> },
+      { path: "email-center/:jobId", element: <ProtectedRoute roles={["owner", "admin"]}><EmailCenter /></ProtectedRoute> },
       { path: "security", element: <ProtectedRoute roles={["owner", "admin"]}><Security /></ProtectedRoute> },
       { path: "settings", element: <ProtectedRoute roles={["owner", "admin"]}><Settings /></ProtectedRoute> },
       { path: "users", element: <ProtectedRoute roles={["owner", "admin"]}><PlatformUsers /></ProtectedRoute> },

@@ -1,7 +1,20 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { EmailMessage, EmailAddress, ComposeEmailPayload } from "../../../types/email";
-import { isValidEmail, formatEmailAddress, sanitizeEmailHtml } from "../../../utils/emailFormat";
+import { isValidEmail, formatEmailAddress } from "../../../utils/emailFormat";
 import { X, Paperclip, Send, Loader2, AlertTriangle, ArrowLeft } from "lucide-react";
+
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function textToHtml(text: string): string {
+  return text
+    .split("\n")
+    .filter((p) => p.trim())
+    .map((p) => `<p>${p.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`)
+    .join("\n") || "<p></p>";
+}
 
 interface ComposeEmailProps {
   replyTo?: EmailMessage | null;
@@ -10,15 +23,19 @@ interface ComposeEmailProps {
 }
 
 export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) {
+  // Generate idempotency key once per compose session
+  const requestIdRef = useRef(generateIdempotencyKey());
+  function getRequestId() { return requestIdRef.current; }
+
   const [to, setTo] = useState(
     replyTo ? formatEmailAddress(replyTo.from) : ""
   );
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
   const [subject, setSubject] = useState(
-    replyTo ? `Re: ${replyTo.subject}` : ""
+    replyTo ? (replyTo.subject.startsWith("Re:") ? replyTo.subject : `Re: ${replyTo.subject}`) : ""
   );
-  const [bodyHtml, setBodyHtml] = useState("");
+  const [bodyText, setBodyText] = useState("");
   const [attachments, setAttachments] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -65,15 +82,18 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
     setError("");
     setSending(true);
 
-    const payload: ComposeEmailPayload = {
+    const payload: ComposeEmailPayload & { requestId?: string } = {
       from: { name: "TNA Provider", email: "info@tnaprovider.com.au" },
       to: parseAddressList(to),
       cc: cc ? parseAddressList(cc) : undefined,
       bcc: bcc ? parseAddressList(bcc) : undefined,
       subject: subject.trim(),
-      bodyHtml: bodyHtml || "<p></p>",
+      bodyText: bodyText,
+      bodyHtml: textToHtml(bodyText),
       attachments: attachments.length > 0 ? attachments : undefined,
-      replyToMessageId: replyTo?.id,
+      replyToMessageId: replyTo?.messageId,
+      references: replyTo?.messageId ? [replyTo.messageId] : undefined,
+      requestId: getRequestId(),
     };
 
     try {
@@ -84,7 +104,7 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
     } finally {
       setSending(false);
     }
-  }, [to, cc, bcc, subject, bodyHtml, attachments, replyTo, onSend, validate]);
+  }, [to, cc, bcc, subject, bodyText, attachments, replyTo, onSend, validate]);
 
   const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -197,8 +217,8 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Message</label>
             <textarea
-              value={bodyHtml}
-              onChange={(e) => setBodyHtml(e.target.value)}
+              value={bodyText}
+              onChange={(e) => setBodyText(e.target.value)}
               rows={6}
               placeholder="Write your message..."
               className="w-full px-3 py-3 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-brand-darker rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-accent/50 resize-y font-sans min-h-[120px]"
