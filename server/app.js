@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import * as mailConnector from './email/mailConnector.js';
 import { requireAuth as requireSessionAuth } from './middleware/auth.js';
 import { requirePasswordChanged } from './middleware/passwordChange.js';
+import { requireRole } from './middleware/roles.js';
 import { errorMiddleware } from './shared/errors/errorMiddleware.js';
 
 import authRoutes from './routes/auth.js';
@@ -99,7 +100,9 @@ export function createApp() {
     });
   });
 
-  app.get("/api/email/messages", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  const requireAdmin = [requireSessionAuth, requirePasswordChanged, requireRole("owner", "admin")];
+
+  app.get("/api/email/messages", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const { folder, search, from, to, since, before, unread, starred, page, pageSize } = req.query;
 
@@ -263,8 +266,8 @@ export function createApp() {
     }
   });
 
-  // User preferences
-  app.get("/api/email/preferences", requireSessionAuth, async (req, res) => {
+  // User preferences (owner/admin only - mailbox settings)
+  app.get("/api/email/preferences", ...requireAdmin, async (req, res) => {
     const { getDb } = await import('./db/database.js');
     const db = getDb();
     db.exec("CREATE TABLE IF NOT EXISTS email_preferences (user_id TEXT PRIMARY KEY, preferences TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))");
@@ -272,7 +275,7 @@ export function createApp() {
     res.json(row ? JSON.parse(row.preferences) : {});
   });
 
-  app.post("/api/email/preferences", requireSessionAuth, async (req, res) => {
+  app.post("/api/email/preferences", ...requireAdmin, async (req, res) => {
     const { getDb } = await import('./db/database.js');
     const db = getDb();
     db.exec("CREATE TABLE IF NOT EXISTS email_preferences (user_id TEXT PRIMARY KEY, preferences TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))");
@@ -323,7 +326,7 @@ export function createApp() {
   });
 
   // Business Email folders
-  app.get("/api/email/folders", requireSessionAuth, requirePasswordChanged, async (req, res) => {
+  app.get("/api/email/folders", ...requireAdmin, async (req, res) => {
     try {
       const folders = await mailConnector.listFolders();
       res.json(folders);
