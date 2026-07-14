@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, FolderKanban, DollarSign, Mail, MoreHorizontal, X,
@@ -9,11 +9,9 @@ import { cn } from "../../utils/cn";
 import { appPath } from "../../utils/host";
 import { useAuth } from "../../context/AuthContext";
 
-function useActiveMatch(path: string): boolean {
-  const location = useLocation();
-  // Match prefix for nested routes
-  if (path === appPath("/platform/dashboard")) return location.pathname === path;
-  return location.pathname.startsWith(path) || location.pathname.startsWith(path.replace("/platform", ""));
+// Pure function — not a hook
+function isRouteActive(pathname: string, target: string): boolean {
+  return pathname === target || pathname.startsWith(target + "/");
 }
 
 export function MobileBottomNav() {
@@ -23,21 +21,48 @@ export function MobileBottomNav() {
   const [moreOpen, setMoreOpen] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const firstItemRef = useRef<HTMLButtonElement>(null);
   const role = user?.role || "";
 
   // Focus trap
   useEffect(() => {
     if (!moreOpen) return;
+    // Focus first item
+    setTimeout(() => firstItemRef.current?.focus(), 50);
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setMoreOpen(false); moreBtnRef.current?.focus(); }
+      if (e.key === "Escape") { closeMore(); return; }
+      if (e.key === "Tab") {
+        const focusable = sheetRef.current?.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable || focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else {
+          if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+      }
     };
+    // Lock background scroll
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [moreOpen]);
+
+  const closeMore = useCallback(() => {
+    setMoreOpen(false);
+    setTimeout(() => moreBtnRef.current?.focus(), 50);
+  }, []);
 
   const tabs = [
     { name: "Home", path: appPath("/platform/dashboard"), icon: LayoutDashboard, roles: ["owner", "admin", "manager", "worker", "client"] },
-    { name: "Projects", path: appPath("/platform/projects"), icon: FolderKanban, roles: ["owner", "admin", "manager", "client"] },
+    { name: "Projects", path: appPath("/platform/projects"), icon: FolderKanban, roles: ["owner", "admin", "manager", "worker", "client"] },
     { name: "Quotes", path: appPath("/platform/quotes"), icon: DollarSign, roles: ["owner", "admin", "manager"] },
     { name: "Email", path: appPath("/platform/email"), icon: Mail, roles: ["owner", "admin"] },
   ].filter((t) => t.roles.includes(role));
@@ -50,7 +75,7 @@ export function MobileBottomNav() {
     { name: "Reports", path: appPath("/platform/reports"), icon: BarChart, roles: ["owner", "admin", "manager"] },
     { name: "Email Center", path: appPath("/platform/email-center"), icon: Mail, roles: ["owner", "admin"] },
     { name: "Admin Tools", path: appPath("/platform/admin-tools"), icon: HardDrive, roles: ["owner", "admin"] },
-    { name: "Settings", path: appPath("/platform/settings"), icon: Settings, roles: ["owner", "admin"] },
+    { name: "Settings", path: appPath("/platform/settings"), icon: Settings, roles: ["owner", "admin", "manager", "worker", "client"] },
   ].filter((m) => m.roles.includes(role));
 
   return (
@@ -61,7 +86,7 @@ export function MobileBottomNav() {
       >
         <div className="flex items-center justify-around h-16">
           {tabs.map((tab) => {
-            const active = useActiveMatch(tab.path);
+            const active = isRouteActive(location.pathname, tab.path);
             return (
               <Link
                 key={tab.name}
@@ -90,8 +115,8 @@ export function MobileBottomNav() {
       </nav>
 
       {moreOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex flex-col" role="dialog" aria-label="Navigation menu">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setMoreOpen(false)} />
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="Navigation menu">
+          <div className="absolute inset-0 bg-black/50" onClick={closeMore} />
           <div
             ref={sheetRef}
             className="relative mt-auto bg-white dark:bg-brand-darker rounded-t-2xl shadow-2xl max-h-[80vh] overflow-y-auto"
@@ -100,7 +125,7 @@ export function MobileBottomNav() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white dark:bg-brand-darker z-10">
               <h2 className="font-display font-bold text-lg">Navigation</h2>
               <button
-                onClick={() => { setMoreOpen(false); moreBtnRef.current?.focus(); }}
+                onClick={closeMore}
                 className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
                 aria-label="Close menu"
               >
@@ -108,12 +133,13 @@ export function MobileBottomNav() {
               </button>
             </div>
             <div className="px-3 py-2 space-y-0.5">
-              {moreItems.map((item) => {
-                const active = useActiveMatch(item.path);
+              {moreItems.map((item, idx) => {
+                const active = isRouteActive(location.pathname, item.path);
                 return (
                   <button
                     key={item.name}
-                    onClick={() => { navigate(item.path); setMoreOpen(false); }}
+                    ref={idx === 0 ? firstItemRef : undefined}
+                    onClick={() => { navigate(item.path); closeMore(); }}
                     className={cn(
                       "flex items-center gap-3 w-full px-4 py-3 min-h-[44px] rounded-xl text-sm font-medium transition-colors text-left",
                       active
@@ -129,7 +155,7 @@ export function MobileBottomNav() {
             </div>
             <div className="px-3 py-3 border-t border-gray-200 dark:border-gray-800">
               <button
-                onClick={logout}
+                onClick={() => { logout(); closeMore(); }}
                 className="flex items-center gap-3 w-full px-4 py-3 min-h-[44px] rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 <LogOut className="w-5 h-5" />

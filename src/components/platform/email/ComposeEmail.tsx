@@ -24,12 +24,17 @@ interface ComposeEmailProps {
 }
 
 export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: ComposeEmailProps) {
-  // Generate idempotency key once per compose session
+  // Generate idempotency key and draft key once per compose session
   const requestIdRef = useRef(generateIdempotencyKey());
   function getRequestId() { return requestIdRef.current; }
 
+  const mode = forwardMsg ? "forward" : replyTo ? "reply" : "new";
+  const sourceId = forwardMsg?.messageId || replyTo?.messageId || "";
+  const DRAFT_KEY = `tna-email-draft:v1:${mode}:${sourceId}`;
+  const discardRef = useRef(false);
+
   const [to, setTo] = useState(
-    replyTo ? formatEmailAddress(replyTo.from) : ""
+    replyTo ? formatEmailAddress(replyTo.from) : forwardMsg ? "" : ""
   );
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
@@ -44,13 +49,21 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
   const [sent, setSent] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
 
-  // Offline draft preservation
-  const DRAFT_KEY = "tna-email-draft";
+  // Offline draft preservation — scoped by mode + messageId
   useEffect(() => {
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
       if (saved) {
         const d = JSON.parse(saved);
+        // Validate version and shape
+        if (d.version !== 1) return;
+        if (d.mode !== mode) return;
+        if (d.sourceMessageId !== sourceId) return;
+        // Check expiry (7 days)
+        if (d.savedAt && Date.now() - new Date(d.savedAt).getTime() > 7 * 86400000) {
+          localStorage.removeItem(DRAFT_KEY);
+          return;
+        }
         if (d.to) setTo(d.to);
         if (d.cc) setCc(d.cc);
         if (d.bcc) setBcc(d.bcc);
@@ -61,15 +74,22 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
     } catch {}
   }, []);
 
-  // Save draft on changes
+  // Save draft on changes — skip if discarding
   useEffect(() => {
+    if (discardRef.current) return;
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({ to, cc, bcc, subject, bodyText }));
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          version: 1,
+          mode,
+          sourceMessageId: sourceId,
+          savedAt: new Date().toISOString(),
+          to, cc, bcc, subject, bodyText,
+        }));
       } catch {}
     }, 2000);
     return () => clearTimeout(timer);
-  }, [to, cc, bcc, subject, bodyText]);
+  }, [to, cc, bcc, subject, bodyText, DRAFT_KEY, mode, sourceId]);
 
   const parseAddressList = (raw: string): EmailAddress[] => {
     return raw
@@ -137,6 +157,20 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
     }
   }, [to, cc, bcc, subject, bodyText, attachments, replyTo, onSend, validate]);
 
+  const handleDiscard = useCallback(() => {
+    discardRef.current = true;
+    localStorage.removeItem(DRAFT_KEY);
+    setTo("");
+    setCc("");
+    setBcc("");
+    setSubject("");
+    setBodyText("");
+    setAttachments([]);
+    setError("");
+    setDraftRestored(false);
+    onDiscard();
+  }, [DRAFT_KEY, onDiscard]);
+
   const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const maxSize = 25 * 1024 * 1024;
@@ -180,14 +214,14 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 shrink-0">
           <div className="flex items-center gap-2">
             <button
-              onClick={onDiscard}
+              onClick={handleDiscard}
               className="lg:hidden p-2 min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h3 className="font-display font-bold">{replyTo ? "Reply" : "New Message"}</h3>
+            <h3 className="font-display font-bold">{replyTo ? "Reply" : forwardMsg ? "Forward" : "New Message"}</h3>
           </div>
-          <button onClick={onDiscard} className="hidden lg:flex p-2 min-h-[44px] min-w-[44px] items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+          <button onClick={handleDiscard} className="hidden lg:flex p-2 min-h-[44px] min-w-[44px] items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -290,14 +324,21 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
 
         {/* Bottom bar — sticky */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-brand-darker shrink-0">
+          <div className="flex items-center gap-1">
+            <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer hover:text-gray-700 min-h-[44px] px-2" aria-label="Take photo">
+              <span>📷</span>
+              Photo
+              <input type="file" accept="image/*" capture="environment" onChange={handleAttachmentChange} className="hidden" />
+            </label>
             <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer hover:text-gray-700 min-h-[44px] px-2" aria-label="Attach file">
               <Paperclip className="w-4 h-4" />
               Attach
-              <input type="file" multiple onChange={handleAttachmentChange} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" capture="environment" />
+              <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" onChange={handleAttachmentChange} className="hidden" />
             </label>
+          </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={onDiscard}
+              onClick={handleDiscard}
               className="px-3 py-2 min-h-[44px] text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
             >
               Discard
