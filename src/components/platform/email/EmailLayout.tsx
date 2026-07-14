@@ -77,33 +77,17 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
   }, []);
 
   const handleSend = useCallback(async (payload: ComposeEmailPayload) => {
-    const newMsg: EmailMessage = {
-      id: `sent-${Date.now()}`,
-      folder: "sent",
-      from: payload.from,
-      to: payload.to,
-      cc: payload.cc,
-      bcc: payload.bcc,
-      subject: payload.subject,
-      preview: payload.bodyHtml.replace(/<[^>]*>/g, "").slice(0, 100),
-      bodyHtml: payload.bodyHtml,
-      sentAt: new Date().toISOString(),
-      receivedAt: new Date().toISOString(),
-      isRead: true,
-      isStarred: false,
-      hasAttachments: !!(payload.attachments && payload.attachments.length > 0),
-    };
-
     const result = await sendEmail(payload);
-    newMsg.id = result.id;
-    addSentMessage(newMsg);
 
     setShowCompose(false);
     setReplyTo(null);
+    // Refresh sent folder to show the real Zoho Sent message
+    if (currentFolder === "sent") refresh();
+
     logEmailAudit("user-1", "info@tnaprovider.com.au", "email.sent", {
       recipientCount: payload.to.length + (payload.cc?.length || 0) + (payload.bcc?.length || 0),
     });
-  }, [addSentMessage]);
+  }, [refresh, currentFolder]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {

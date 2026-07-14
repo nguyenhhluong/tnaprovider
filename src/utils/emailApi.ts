@@ -54,40 +54,65 @@ export async function listMessages(folder: EmailFolder, searchParams?: SearchPar
   const qs = params.toString();
   const result = await apiRequest<any>("GET", `/messages?${qs}`);
 
-  // If it has items and totalItems, it's a search result (paginated)
   if (result.items !== undefined) {
     return result;
   }
-  // Otherwise it's a flat array of messages (legacy)
   return result;
 }
 
 export async function getMessage(messageId: string): Promise<EmailMessage> {
-  return apiRequest("GET", `/messages/${messageId}`);
+  return apiRequest("GET", `/messages/${encodeURIComponent(messageId)}`);
 }
 
-export async function sendEmail(payload: ComposeEmailPayload): Promise<{ id: string }> {
-  return apiRequest("POST", "/send", payload);
+export async function sendEmail(payload: ComposeEmailPayload): Promise<{ success: boolean; messageId: string }> {
+  const form = new FormData();
+  form.append("to", JSON.stringify(payload.to));
+  if (payload.cc && payload.cc.length > 0) form.append("cc", JSON.stringify(payload.cc));
+  if (payload.bcc && payload.bcc.length > 0) form.append("bcc", JSON.stringify(payload.bcc));
+  form.append("subject", payload.subject);
+  form.append("bodyText", payload.bodyText);
+  if (payload.bodyHtml) form.append("bodyHtml", payload.bodyHtml);
+  if (payload.replyToMessageId) form.append("replyToMessageId", payload.replyToMessageId);
+  if (payload.references) form.append("references", JSON.stringify(payload.references));
+
+  if (payload.attachments && payload.attachments.length > 0) {
+    for (const file of payload.attachments) {
+      form.append("attachments", file, file.name);
+    }
+  }
+
+  const res = await fetch(`${API_BASE}/send`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || `Email API error: ${res.status}`);
+  }
+
+  return res.json();
 }
 
 export async function markEmailRead(messageId: string, isRead: boolean): Promise<void> {
-  return apiRequest("POST", `/messages/${messageId}/read`, { isRead });
+  return apiRequest("POST", `/messages/${encodeURIComponent(messageId)}/read`, { isRead });
+}
+
+export async function starEmail(messageId: string, isStarred: boolean): Promise<void> {
+  return apiRequest("POST", `/messages/${encodeURIComponent(messageId)}/star`, { isStarred });
 }
 
 export async function moveEmail(messageId: string, folder: EmailFolder): Promise<void> {
-  return apiRequest("POST", `/messages/${messageId}/move`, { folder });
+  return apiRequest("POST", `/messages/${encodeURIComponent(messageId)}/move`, { folder });
 }
 
 export async function deleteEmail(messageId: string): Promise<void> {
-  return apiRequest("DELETE", `/messages/${messageId}`);
+  return apiRequest("DELETE", `/messages/${encodeURIComponent(messageId)}`);
 }
 
 export async function getEmailStatus(): Promise<EmailStatus> {
   return apiRequest("GET", "/status/detailed");
-}
-
-export async function starEmail(messageId: string, isStarred: boolean): Promise<void> {
-  return apiRequest("POST", `/messages/${messageId}/star`, { isStarred });
 }
 
 export async function listFolders(): Promise<Array<{ name: string; path: string; specialUse: string | null }>> {

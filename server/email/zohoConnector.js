@@ -5,6 +5,22 @@ import { simpleParser } from "mailparser";
 let imapClient = null;
 let smtpTransporter = null;
 
+// Encode folder + UID into a stable identifier
+function encodeId(folder, uid) {
+  const folderKey = Object.entries(folderMap).find(([, v]) => v === folder)?.[0] || folder;
+  return `${folderKey}:${uid}`;
+}
+
+// Decode a stable identifier back to folder and UID
+function decodeId(id) {
+  const colonIdx = id.indexOf(":");
+  if (colonIdx === -1) return { folder: "inbox", uid: parseInt(id) };
+  const folderKey = id.substring(0, colonIdx);
+  const uid = parseInt(id.substring(colonIdx + 1));
+  const folder = folderMap[folderKey] || folderKey;
+  return { folder, uid };
+}
+
 const folderMap = {
   inbox: "INBOX",
   sent: "Sent",
@@ -110,7 +126,7 @@ function convertMessage(src, folder) {
   const preview = textPart.slice(0, 100) || htmlPart.replace(/<[^>]*>/g, "").slice(0, 100) || (envelope.subject || "").slice(0, 100);
 
   return {
-    id: String(src.uid),
+    id: encodeId(folder, src.uid),
     uid: src.uid,
     folder,
     messageId: envelope.messageId || "",
@@ -168,18 +184,15 @@ export async function listMessages({ folder }) {
       uid: true,
       envelope: true,
       flags: true,
-      bodyStructure: true,
       internalDate: true,
       body: true,
     })) {
       const parsed = convertMessage(msg, folder);
-      // If ImapFlow didn't extract text/html, use simpleParser on body bytes
-      if (!parsed.bodyText && !parsed.bodyHtml && msg.body && msg.body instanceof Buffer) {
+      // Try to get a text preview from the body (ImapFlow decodes text/plain parts)
+      if (!parsed.preview && msg.body && msg.body instanceof Buffer) {
         try {
-          const parsedMail = await simpleParser(msg.body);
-          parsed.bodyText = parsedMail.text || undefined;
-          parsed.bodyHtml = parsedMail.html || undefined;
-          parsed.preview = (parsedMail.text || parsedMail.html?.replace(/<[^>]*>/g, "") || "").slice(0, 100);
+          const rawText = msg.body.toString("utf-8").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+          parsed.preview = rawText.slice(0, 100);
         } catch {}
       }
       messages.push(parsed);
@@ -266,11 +279,11 @@ export async function searchMessages({ folder, search, from, to, since, before, 
       return { items: [], page, pageSize, totalItems, totalPages, folder: resolvedFolder, query: { search, from } };
     }
 
-    // Fetch metadata for the requested page
+    // Fetch metadata for the requested page (no bodyStructure to save bandwidth)
     const items = [];
     for await (const msg of client.fetch(
       { uid: pageUids },
-      { uid: true, envelope: true, flags: true, bodyStructure: true, internalDate: true, body: true }
+      { uid: true, envelope: true, flags: true, internalDate: true, body: true }
     )) {
       const envelope = msg.envelope || {};
       const fromAddr = (envelope.from || [])[0] || {};
@@ -288,7 +301,7 @@ export async function searchMessages({ folder, search, from, to, since, before, 
       }
 
       items.push({
-        id: String(msg.uid),
+        id: encodeId(folder, msg.uid),
         uid: msg.uid,
         folder,
         messageId: envelope.messageId || "",
@@ -314,37 +327,26 @@ export async function searchMessages({ folder, search, from, to, since, before, 
 }
 
 export async function getMessage({ messageId }) {
+  const { folder, uid } = decodeId(messageId);
   const client = await ensureConnected();
   try {
-    // Try INBOX first, then search other folders
+    // Open the specific folder first, then try others if not found
     let msg = null;
-    try {
-      await client.mailboxOpen("INBOX");
-      msg = await client.fetchOne(parseInt(messageId), {
-        uid: true,
-        envelope: true,
-        flags: true,
-        bodyStructure: true,
-        internalDate: true,
-        source: true,
-      });
-    } catch {}
+    const foldersToTry = [folderMap[folder] || folder, ...Object.values(folderMap).filter(f => f !== (folderMap[folder] || folder))];
     
-    if (!msg) {
-      for (const f of Object.values(folderMap)) {
-        try {
-          await client.mailboxOpen(f);
-          msg = await client.fetchOne(parseInt(messageId), {
-            uid: true,
-            envelope: true,
-            flags: true,
-            bodyStructure: true,
-            internalDate: true,
-            source: true,
-          });
-          if (msg) break;
-        } catch {}
-      }
+    for (const f of foldersToTry) {
+      try {
+        await client.mailboxOpen(f);
+        msg = await client.fetchOne(uid, {
+          uid: true,
+          envelope: true,
+          flags: true,
+          bodyStructure: true,
+          internalDate: true,
+          source: true,
+        });
+        if (msg) break;
+      } catch {}
     }
 
     if (!msg) {
@@ -353,7 +355,7 @@ export async function getMessage({ messageId }) {
       throw err;
     }
 
-    const result = convertMessage(msg, "inbox");
+    const result = convertMessage(msg, folder);
 
     // Use mailparser to properly parse MIME structure
     if (msg.source) {
@@ -361,8 +363,8 @@ export async function getMessage({ messageId }) {
         const parsed = await simpleParser(msg.source);
         result.bodyText = parsed.text || undefined;
         result.bodyHtml = parsed.html || undefined;
-        result.attachments = parsed.attachments.map((att) => ({
-          id: att.contentId || att.filename || String(Math.random()),
+        result.attachments = parsed.attachments.map((att, idx) => ({
+          id: att.contentId || `part${idx + 1}`,
           filename: att.filename || "unnamed",
           mimeType: att.contentType || "application/octet-stream",
           sizeBytes: att.size || 0,
@@ -382,7 +384,15 @@ export async function getMessage({ messageId }) {
 }
 
 export async function sendMessage({ mailbox, payload }) {
-  const { to, subject, bodyHtml, attachments, cc, bcc, replyToMessageId } = payload;
+  const { to, subject, bodyText, bodyHtml, attachments, cc, bcc, replyToMessageId, references } = payload;
+
+  // Validate SMTP config before attempting send
+  const config = getSmtpConfig();
+  if (!config.host || !config.pass) {
+    const err = new Error("SMTP is not configured for Business Email. Check ZOHO_SMTP_* environment variables.");
+    err.statusCode = 503;
+    throw err;
+  }
 
   if (!to || to.length === 0) {
     const err = new Error("At least one recipient is required");
@@ -390,7 +400,6 @@ export async function sendMessage({ mailbox, payload }) {
     throw err;
   }
 
-  const config = getSmtpConfig();
   const tr = getSmtpTransporter();
 
   const mailOptions = {
@@ -399,32 +408,49 @@ export async function sendMessage({ mailbox, payload }) {
     cc: cc?.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
     bcc: bcc?.map((a) => (a.name ? `"${a.name}" <${a.email}>` : a.email)).join(", "),
     subject,
-    html: bodyHtml,
-    text: bodyHtml ? bodyHtml.replace(/<[^>]*>/g, "") : "",
-    attachments: attachments?.map((att) => ({
-      filename: att.filename,
-      content: att.content,
-      contentType: att.mimeType,
-    })),
+    text: bodyText || (bodyHtml ? bodyHtml.replace(/<[^>]*>/g, "") : ""),
+    html: bodyHtml || undefined,
   };
 
+  // Attachments from multipart form
+  if (attachments && attachments.length > 0) {
+    mailOptions.attachments = [];
+    for (const att of attachments) {
+      if (att.buffer || att.content) {
+        mailOptions.attachments.push({
+          filename: att.filename || "attachment",
+          content: att.buffer || att.content,
+          contentType: att.mimeType || att.contentType || "application/octet-stream",
+        });
+      }
+    }
+    if (mailOptions.attachments.length === 0) delete mailOptions.attachments;
+  }
+
+  // Reply threading - use RFC Message-ID, not IMAP UID
   if (replyToMessageId) {
     mailOptions.inReplyTo = replyToMessageId;
-    mailOptions.references = replyToMessageId;
+    mailOptions.references = references || [replyToMessageId];
   }
 
   const info = await tr.sendMail(mailOptions);
-  return { id: info.messageId, messageId: info.messageId };
+  return {
+    success: true,
+    messageId: info.messageId,
+    accepted: info.accepted || [],
+    rejected: info.rejected || [],
+  };
 }
 
-export async function markMessageRead({ messageId, isRead }) {
+export async function starMessage({ messageId, isStarred }) {
+  const { folder, uid } = decodeId(messageId);
   const client = await ensureConnected();
   try {
-    const mailbox = await client.mailboxOpen("INBOX");
-    if (isRead) {
-      await client.messageFlagsAdd(parseInt(messageId), ["\\Seen"]);
+    await client.mailboxOpen(folderMap[folder] || folder);
+    if (isStarred) {
+      await client.messageFlagsAdd(uid, ["\\Flagged"]);
     } else {
-      await client.messageFlagsRemove(parseInt(messageId), ["\\Seen"]);
+      await client.messageFlagsRemove(uid, ["\\Flagged"]);
     }
     return { success: true };
   } finally {
@@ -433,18 +459,38 @@ export async function markMessageRead({ messageId, isRead }) {
   }
 }
 
-export async function moveMessage({ messageId, folder }) {
-  const resolvedFolder = resolveFolder(folder);
+export async function markMessageRead({ messageId, isRead }) {
+  const { folder, uid } = decodeId(messageId);
+  const client = await ensureConnected();
+  try {
+    await client.mailboxOpen(folderMap[folder] || folder);
+    if (isRead) {
+      await client.messageFlagsAdd(uid, ["\\Seen"]);
+    } else {
+      await client.messageFlagsRemove(uid, ["\\Seen"]);
+    }
+    return { success: true };
+  } finally {
+    try { await client.logout(); } catch {}
+    imapClient = null;
+  }
+}
+
+export async function moveMessage({ messageId, folder: targetFolder }) {
+  const { folder: sourceFolder, uid } = decodeId(messageId);
+  const resolvedTarget = resolveFolder(targetFolder);
+  const resolvedSource = folderMap[sourceFolder] || sourceFolder;
   const client = await ensureConnected();
   try {
     const mailboxes = await client.list();
     const targetExists = mailboxes.some(
-      (m) => m.path === resolvedFolder || m.name === resolvedFolder
+      (m) => m.path === resolvedTarget || m.name === resolvedTarget
     );
     if (!targetExists) {
-      return { success: true, warning: `Folder "${resolvedFolder}" does not exist on server` };
+      return { success: true, warning: `Folder "${resolvedTarget}" does not exist on server` };
     }
-    await client.messageMove(parseInt(messageId), resolvedFolder);
+    await client.mailboxOpen(resolvedSource);
+    await client.messageMove(uid, resolvedTarget);
     return { success: true };
   } finally {
     try { await client.logout(); } catch {}
@@ -453,9 +499,11 @@ export async function moveMessage({ messageId, folder }) {
 }
 
 export async function deleteMessage({ messageId }) {
+  const { folder, uid } = decodeId(messageId);
   const client = await ensureConnected();
   try {
-    await client.messageDelete(parseInt(messageId));
+    await client.mailboxOpen(folderMap[folder] || folder);
+    await client.messageDelete(uid);
     return { success: true };
   } finally {
     try { await client.logout(); } catch {}
@@ -482,10 +530,11 @@ export async function listFolders() {
 }
 
 export async function fetchAttachment({ messageId, attachmentId }) {
+  const { folder, uid } = decodeId(messageId);
   const client = await ensureConnected();
   try {
-    await client.mailboxOpen("INBOX");
-    const msg = await client.fetchOne(parseInt(messageId), {
+    await client.mailboxOpen(folderMap[folder] || folder);
+    const msg = await client.fetchOne(uid, {
       uid: true,
       bodyStructure: true,
     });
@@ -504,7 +553,7 @@ export async function fetchAttachment({ messageId, attachmentId }) {
       throw err;
     }
 
-    const fetchMsg = await client.fetchOne(parseInt(messageId), {
+    const fetchMsg = await client.fetchOne(uid, {
       uid: true,
       source: true,
     });

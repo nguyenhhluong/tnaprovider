@@ -147,9 +147,60 @@ export function createApp() {
 
   app.post("/api/email/send", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
     try {
+      // Parse multipart form data
+      let to = [], cc = [], bcc = [], subject = "", bodyText = "", bodyHtml = "";
+      let replyToMessageId = "", references = [];
+      const attachments = [];
+
+      const contentType = req.headers["content-type"] || "";
+
+      if (contentType.includes("multipart/form-data")) {
+        // busyboy/multipart parsing
+        const busboy = (await import("busboy")).default;
+        const bb = busboy({ headers: req.headers, limits: { fileSize: 25 * 1024 * 1024, files: 10 } });
+
+        await new Promise((resolve, reject) => {
+          bb.on("field", (name, val) => {
+            if (name === "to") try { const parsed = JSON.parse(val); to = Array.isArray(parsed) ? parsed : [parsed]; } catch { to = [{ email: val }]; }
+            else if (name === "cc") try { cc = JSON.parse(val); if (!Array.isArray(cc)) cc = [cc]; } catch {}
+            else if (name === "bcc") try { bcc = JSON.parse(val); if (!Array.isArray(bcc)) bcc = [bcc]; } catch {}
+            else if (name === "subject") subject = val;
+            else if (name === "bodyText") bodyText = val;
+            else if (name === "bodyHtml") bodyHtml = val;
+            else if (name === "replyToMessageId") replyToMessageId = val;
+            else if (name === "references") try { references = JSON.parse(val); if (!Array.isArray(references)) references = [references]; } catch {}
+          });
+
+          bb.on("file", (name, stream, info) => {
+            const chunks = [];
+            stream.on("data", (chunk) => chunks.push(chunk));
+            stream.on("end", () => {
+              const buffer = Buffer.concat(chunks);
+              if (buffer.length > 0) {
+                attachments.push({
+                  filename: info.filename,
+                  mimeType: info.mimeType || info.mime || "application/octet-stream",
+                  buffer,
+                });
+              }
+            });
+          });
+
+          bb.on("finish", resolve);
+          bb.on("error", reject);
+          req.pipe(bb);
+        });
+      } else {
+        // JSON fallback
+        ({ to = [], cc = [], bcc = [], subject = "", bodyText = "", bodyHtml = "", replyToMessageId = "", references = [] } = req.body);
+      }
+
+      const payload = { to, cc, bcc, subject, bodyText, bodyHtml, replyToMessageId, references };
+      if (attachments.length > 0) payload.attachments = attachments;
+
       const result = await mailConnector.sendMessage({
         mailbox: req.mailbox,
-        payload: req.body,
+        payload,
       });
       res.json(result);
     } catch (err) {
@@ -213,33 +264,12 @@ export function createApp() {
   // Star/unstar message
   app.post("/api/email/messages/:id/star", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
     try {
-      const client = await import('./email/zohoConnector.js');
-      const { ImapFlow } = await import('imapflow');
-      const config = client.getMailConfig();
-      const imapConfig = {
-        host: process.env.ZOHO_IMAP_HOST || "imap.zoho.com.au",
-        port: parseInt(process.env.ZOHO_IMAP_PORT || "993", 10),
-        secure: process.env.ZOHO_IMAP_SECURE !== "false",
-        auth: {
-          user: process.env.ZOHO_IMAP_USER || "info@tnaprovider.com.au",
-          pass: process.env.ZOHO_IMAP_PASSWORD || "",
-        },
-        logger: false,
-      };
-      const conn = new ImapFlow(imapConfig);
-      await conn.connect();
-      try {
-        await conn.mailboxOpen("INBOX");
-        const isStarred = req.body.isStarred;
-        if (isStarred) {
-          await conn.messageFlagsAdd(parseInt(req.params.id), ["\\Flagged"]);
-        } else {
-          await conn.messageFlagsRemove(parseInt(req.params.id), ["\\Flagged"]);
-        }
-        res.json({ success: true });
-      } finally {
-        await conn.logout();
-      }
+      const result = await mailConnector.starMessage({
+        mailbox: req.mailbox,
+        messageId: req.params.id,
+        isStarred: req.body.isStarred,
+      });
+      res.json(result);
     } catch (err) {
       console.error("starMessage error:", err.message);
       res.status(err.statusCode || 500).json({ error: err.message });

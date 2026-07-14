@@ -42,6 +42,16 @@ export async function getMessage({ mailbox, messageId }) {
   return getConnector().getMessage({ mailbox, messageId });
 }
 
+export async function starMessage({ mailbox, messageId, isStarred }) {
+  const connector = getConnector();
+  if (connector.starMessage) {
+    return connector.starMessage({ messageId, isStarred });
+  }
+  const err = new Error("Star not supported in current provider mode");
+  err.statusCode = 501;
+  throw err;
+}
+
 export async function sendMessage({ mailbox, payload }) {
   return getConnector().sendMessage({ mailbox, payload });
 }
