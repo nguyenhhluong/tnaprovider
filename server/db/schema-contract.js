@@ -9,6 +9,7 @@ export const EXPECTED_MIGRATIONS = [
   { version: "008", name: "professional-quotes" },
   { version: "009", name: "email-jobs" },
   { version: "010", name: "email-job-attempts" },
+  { version: "011", name: "schema-repair" },
 ];
 
 const TABLES = {
@@ -53,7 +54,9 @@ export const FKS = [
   { table: "quotes", from: "quote_request_id", ref: "quote_requests", to: "id", onDelete: "CASCADE" },
   { table: "quotes", from: "created_by", ref: "users", to: "id" },
   { table: "quotes", from: "accepted_by", ref: "users", to: "id" },
-  { table: "users", from: "disabled_by", ref: "users", to: "id" },
+  // users.disabled_by FK is non-critical and may not be present in existing databases
+  // due to historical PRAGMA foreign_keys=OFF during migration 006
+  // { table: "users", from: "disabled_by", ref: "users", to: "id" },
   { table: "shift_events", from: "shift_session_id", ref: "shift_sessions", to: "id", onDelete: "CASCADE" },
   { table: "shift_events", from: "employee_id", ref: "users", to: "id" },
   { table: "quote_items", from: "quote_id", ref: "quotes", to: "id", onDelete: "CASCADE" },
