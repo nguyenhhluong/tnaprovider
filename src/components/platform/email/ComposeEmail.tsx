@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { EmailMessage, EmailAddress, ComposeEmailPayload } from "../../../types/email";
 import { isValidEmail, formatEmailAddress } from "../../../utils/emailFormat";
 import { X, Paperclip, Send, Loader2, AlertTriangle, ArrowLeft } from "lucide-react";
@@ -42,6 +42,34 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // Offline draft preservation
+  const DRAFT_KEY = "tna-email-draft";
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const d = JSON.parse(saved);
+        if (d.to) setTo(d.to);
+        if (d.cc) setCc(d.cc);
+        if (d.bcc) setBcc(d.bcc);
+        if (d.subject) setSubject(d.subject);
+        if (d.bodyText) setBodyText(d.bodyText);
+        setDraftRestored(true);
+      }
+    } catch {}
+  }, []);
+
+  // Save draft on changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ to, cc, bcc, subject, bodyText }));
+      } catch {}
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [to, cc, bcc, subject, bodyText]);
 
   const parseAddressList = (raw: string): EmailAddress[] => {
     return raw
@@ -100,6 +128,7 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
 
     try {
       await onSend(payload);
+      localStorage.removeItem(DRAFT_KEY);
       setSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -165,6 +194,12 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
 
         {/* Scrollable form */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          {draftRestored && (
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between">
+              <span>Draft restored</span>
+              <button onClick={() => { localStorage.removeItem(DRAFT_KEY); setDraftRestored(false); }} className="underline">Discard</button>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
             <p className="text-sm px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-lg">
@@ -255,11 +290,11 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
 
         {/* Bottom bar — sticky */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-brand-darker shrink-0">
-          <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer hover:text-gray-700 min-h-[44px] px-2">
-            <Paperclip className="w-4 h-4" />
-            Attach
-            <input type="file" multiple onChange={handleAttachmentChange} className="hidden" />
-          </label>
+            <label className="flex items-center gap-1.5 text-sm text-gray-500 cursor-pointer hover:text-gray-700 min-h-[44px] px-2" aria-label="Attach file">
+              <Paperclip className="w-4 h-4" />
+              Attach
+              <input type="file" multiple onChange={handleAttachmentChange} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" capture="environment" />
+            </label>
           <div className="flex items-center gap-2">
             <button
               onClick={onDiscard}

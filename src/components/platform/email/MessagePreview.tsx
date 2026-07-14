@@ -89,7 +89,7 @@ export function MessagePreview({ message, onReply, onForward, onDelete, onArchiv
             </div>
           )}
           {sanitizedHtml ? (
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-img:max-w-full prose-img:h-auto dark:prose-headings:text-gray-100 dark:prose-p:text-gray-300 dark:prose-a:text-blue-400 dark:prose-strong:text-gray-100 dark:prose-code:text-gray-200 dark:prose-pre:bg-gray-800 dark:prose-pre:text-gray-200" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
+            <div className="prose prose-sm dark:prose-invert max-w-none prose-img:max-w-full prose-img:h-auto dark:prose-headings:text-gray-100 dark:prose-p:text-gray-300 dark:prose-a:text-blue-400 dark:prose-strong:text-gray-100 dark:prose-code:text-gray-200 dark:prose-pre:bg-gray-800 dark:prose-pre:text-gray-200 email-body" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
           ) : message.bodyText ? (
             <pre className="text-sm whitespace-pre-wrap font-sans text-gray-700 dark:text-gray-300 break-words">{message.bodyText}</pre>
           ) : (

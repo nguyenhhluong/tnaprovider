@@ -47,18 +47,13 @@ html {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
-/* Mobile tap targets */
-@media (max-width: 767px) {
-  button, a, [role="button"], input[type="checkbox"], input[type="radio"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-  
-  /* Allow small inline buttons to stay compact */
-  .compact-target, .compact-target button, .compact-target a {
-    min-height: unset;
-    min-width: unset;
-  }
+/* Mobile touch targets — use .touch-target class */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Prevent horizontal overflow on mobile */
@@ -76,6 +71,30 @@ html {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Email body — prevent overflow in HTML messages */
+.email-body {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.email-body img {
+  max-width: 100% !important;
+  height: auto !important;
+}
+.email-body table {
+  max-width: 100% !important;
+  overflow-x: auto;
+  display: block;
+}
+.email-body pre, .email-body code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.email-body iframe {
+  max-width: 100%;
 }
 
 /* Mobile card layout for tables */
