@@ -15,10 +15,10 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: process.env.E2E_BASE_URL ? undefined : {
-    command: 'node server.js',
+    command: 'npm run start:e2e',
     url: baseURL,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 180_000,
   },
   projects: [
     {
