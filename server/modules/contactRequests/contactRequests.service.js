@@ -128,7 +128,7 @@ async function createQuoteEmailJobs(submission, contactId, referenceNumber) {
     });
 
     const { buildAppUrl } = await import('../../config/appUrl.js');
-    const adminEmail = newQuoteAdminTemplate.newQuoteAdmin({
+    const adminEmail = newQuoteAdmin({
       referenceNumber,
       customerName: `${submission.firstName} ${submission.lastName}`,
       customerEmail: submission.email,

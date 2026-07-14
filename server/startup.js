@@ -5,10 +5,11 @@ export async function runStartupChecks() {
   const strict = process.env.APP_ENV === 'production';
   const result = validateAppBaseUrl(strict);
   if (!result.valid) {
-    console.warn(`[startup] APP_BASE_URL validation: ${result.reason}`);
+    const msg = `[startup] APP_BASE_URL validation: ${result.reason}`;
     if (strict) {
-      console.error('[startup] APP_BASE_URL is invalid or missing in production. Email links will be broken.');
+      throw new Error(msg);
     }
+    console.warn(msg);
   } else {
     console.log(`[startup] APP_BASE_URL: ${result.value}`);
   }
