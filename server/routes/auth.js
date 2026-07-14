@@ -121,11 +121,11 @@ router.post("/change-password", requireAuth, validate(schemas.changePassword), (
 
 // ── Forgot Password ──
 
-router.post("/forgot-password", rateLimitLogin, validate(schemas.forgotPassword), (req, res) => {
+router.post("/forgot-password", rateLimitLogin, validate(schemas.forgotPassword), async (req, res) => {
   const { email } = req.body;
   const db = getDb();
 
-  const user = db.prepare("SELECT id FROM users WHERE email = ? AND status = 'active'").get(email.toLowerCase().trim());
+  const user = db.prepare("SELECT id, name FROM users WHERE email = ? AND status = 'active'").get(email.toLowerCase().trim());
 
   // Always return the same message to avoid revealing whether the user exists
   const genericMsg = "If this email is registered, you will receive password reset instructions.";
@@ -136,14 +136,14 @@ router.post("/forgot-password", rateLimitLogin, validate(schemas.forgotPassword)
 
   const rawToken = generateToken();
   const tokenHash = hashToken(rawToken);
-  const id = crypto.randomUUID();
+  const tokenId = crypto.randomUUID();
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
   db.prepare(`
     INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at, created_ip)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, user.id, tokenHash, expiresAt, now, req.ip);
+  `).run(tokenId, user.id, tokenHash, expiresAt, now, req.ip);
 
   createAuditLog({
     userId: user.id,
@@ -154,8 +154,38 @@ router.post("/forgot-password", rateLimitLogin, validate(schemas.forgotPassword)
     userAgent: req.headers["user-agent"],
   });
 
+  // Send password reset email
+  try {
+    const { passwordReset } = await import('../email/templates/passwordReset.js');
+    const { createEmailJob, processEmailJob } = await import('../email/emailJobService.js');
+
+    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
+    const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
+
+    const emailContent = passwordReset({ name: user.name, resetUrl, expiresAt });
+
+    const jobId = createEmailJob({
+      type: 'PASSWORD_RESET',
+      recipient: email.toLowerCase().trim(),
+      subject: emailContent.subject,
+      relatedEntityType: 'password_reset_token',
+      relatedEntityId: tokenId,
+      payloadJson: {
+        html: emailContent.html,
+        text: emailContent.text,
+      },
+      scheduledAt: now,
+    });
+
+    processEmailJob(jobId).catch(err => {
+      console.error('[email] Failed to send password reset email:', err.message);
+    });
+  } catch (err) {
+    console.error('[email] Failed to create password reset email:', err.message);
+  }
+
   if (process.env.APP_ENV !== "production") {
-    res.json({ message: genericMsg, devToken: rawToken, tokenId: id });
+    res.json({ message: genericMsg, devToken: rawToken, tokenId });
   } else {
     res.json({ message: genericMsg });
   }
@@ -257,7 +287,7 @@ router.post("/accept-invite", validate(schemas.acceptInvite), (req, res) => {
 
 // ── Resend Invite ──
 
-router.post("/resend-invite", requireAuth, requireRole("owner", "admin"), validate(schemas.resendInvite), (req, res) => {
+router.post("/resend-invite", requireAuth, requireRole("owner", "admin"), validate(schemas.resendInvite), async (req, res) => {
   const { email } = req.body;
   const db = getDb();
 
@@ -287,6 +317,36 @@ router.post("/resend-invite", requireAuth, requireRole("owner", "admin"), valida
     ip: req.ip,
     userAgent: req.headers["user-agent"],
   });
+
+  // Send invitation email
+  try {
+    const { userInvitation } = await import('../email/templates/userInvitation.js');
+    const { createEmailJob, processEmailJob } = await import('../email/emailJobService.js');
+
+    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
+    const inviteUrl = `${appUrl}/accept-invite?token=${encodeURIComponent(rawToken)}`;
+
+    const emailContent = userInvitation({ name: existing.name, email: existing.email, inviteUrl, expiresAt });
+
+    const jobId = createEmailJob({
+      type: 'USER_INVITATION',
+      recipient: existing.email,
+      subject: emailContent.subject,
+      relatedEntityType: 'user_invite_token',
+      relatedEntityId: existing.id,
+      payloadJson: {
+        html: emailContent.html,
+        text: emailContent.text,
+      },
+      scheduledAt: now,
+    });
+
+    processEmailJob(jobId).catch(err => {
+      console.error('[email] Failed to resend invitation email:', err.message);
+    });
+  } catch (err) {
+    console.error('[email] Failed to create resend invitation email:', err.message);
+  }
 
   if (process.env.APP_ENV !== "production") {
     res.json({ message: "Invite resent", devToken: rawToken, tokenId: existing.id });

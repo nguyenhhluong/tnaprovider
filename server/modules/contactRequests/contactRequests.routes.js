@@ -7,10 +7,16 @@ import { submitContactRequest as submitSchema, updateContactRequest as updateSch
 
 const router = Router();
 
-router.post("/contact", validate(submitSchema), (req, res) => {
+router.post("/contact", validate(submitSchema), async (req, res) => {
   try {
     const result = submitContactRequest(req.body);
-    res.status(200).json({ success: true, data: result });
+    const emailDeliveryStatus = await getEmailDeliveryForContact(result.id);
+    res.status(200).json({
+      success: true,
+      referenceNumber: result.referenceNumber,
+      data: result,
+      emailDelivery: emailDeliveryStatus === 'sent' ? 'sent' : 'pending',
+    });
   } catch (err) {
     console.error("Error submitting contact request:", err.message);
     if (err.message === "Privacy consent is required") {
@@ -19,6 +25,20 @@ router.post("/contact", validate(submitSchema), (req, res) => {
     res.status(500).json({ error: "Submission failed" });
   }
 });
+
+async function getEmailDeliveryForContact(contactId) {
+  try {
+    const { listEmailJobs } = await import('../../email/emailJobService.js');
+    const jobs = listEmailJobs({ relatedEntityType: 'contact_request', relatedEntityId: contactId, limit: 10 });
+    const allSent = jobs.data.every(j => j.status === 'SENT');
+    const anySent = jobs.data.some(j => j.status === 'SENT');
+    if (allSent && jobs.data.length > 0) return 'sent';
+    if (anySent) return 'partial';
+    return 'pending';
+  } catch {
+    return 'pending';
+  }
+}
 
 router.get("/contact-requests", requireAuth, requireRole("owner", "admin"), (req, res) => {
   try {

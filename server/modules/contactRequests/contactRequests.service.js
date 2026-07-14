@@ -11,6 +11,13 @@ const DATA_DIR = path.join(__dirname, "..", "..", "..", "data");
 const VALID_STATUSES = ["new", "contacted", "quoted", "won", "lost", "archived"];
 const VALID_PRIORITIES = ["low", "normal", "high", "urgent"];
 
+function generateReferenceNumber() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const seq = Math.floor(Math.random() * 90000) + 10000;
+  return `TNA-${year}-${seq}`;
+}
+
 function getJsonBackupPath() {
   const dir = path.join(DATA_DIR);
   if (!fs.existsSync(dir)) {
@@ -90,7 +97,73 @@ export function submitContactRequest(data) {
 
   appendToJsonBackup(submission);
 
-  return { id, ...submission };
+  // Create email job records synchronously, process asynchronously
+  const referenceNumber = generateReferenceNumber();
+  createQuoteEmailJobs(submission, id, referenceNumber);
+
+  return { id, referenceNumber, ...submission };
+}
+
+async function createQuoteEmailJobs(submission, contactId, referenceNumber) {
+  try {
+    const { quoteRequestConfirmation } = await import('../../email/templates/quoteRequestConfirmation.js');
+    const { newQuoteAdmin } = await import('../../email/templates/newQuoteAdmin.js');
+    const { createEmailJob, processEmailJob } = await import('../../email/emailJobService.js');
+
+    const customerEmail = quoteRequestConfirmation({
+      customerName: `${submission.firstName} ${submission.lastName}`,
+      referenceNumber,
+    });
+
+    const customerJobId = createEmailJob({
+      type: 'QUOTE_RECEIVED_CUSTOMER',
+      recipient: submission.email,
+      subject: customerEmail.subject,
+      relatedEntityType: 'contact_request',
+      relatedEntityId: contactId,
+      payloadJson: {
+        html: customerEmail.html,
+        text: customerEmail.text,
+      },
+    });
+
+    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
+    const adminEmail = newQuoteAdmin({
+      referenceNumber,
+      customerName: `${submission.firstName} ${submission.lastName}`,
+      customerEmail: submission.email,
+      customerPhone: submission.phone,
+      company: null,
+      message: submission.message,
+      adminQuoteUrl: `${appUrl}/platform/quote-requests?id=${contactId}`,
+    });
+
+    const adminRecipient = process.env.ADMIN_EMAIL || 'info@tnaprovider.com.au';
+    const adminJobId = createEmailJob({
+      type: 'QUOTE_RECEIVED_ADMIN',
+      recipient: adminRecipient,
+      subject: adminEmail.subject,
+      relatedEntityType: 'contact_request',
+      relatedEntityId: contactId,
+      payloadJson: {
+        html: adminEmail.html,
+        text: adminEmail.text,
+        replyTo: submission.email,
+      },
+    });
+
+    // Process asynchronously - don't block response
+    Promise.all([
+      processEmailJob(customerJobId),
+      processEmailJob(adminJobId),
+    ]).then(results => {
+      console.log(`[email] Quote emails for ${referenceNumber}: customer=${results[0].success ? 'sent' : 'failed'}, admin=${results[1].success ? 'sent' : 'failed'}`);
+    }).catch(err => {
+      console.error('[email] Failed to process quote emails:', err.message);
+    });
+  } catch (err) {
+    console.error('[email] Failed to create quote email jobs:', err.message);
+  }
 }
 
 export function listContactRequests(query, userId, role) {

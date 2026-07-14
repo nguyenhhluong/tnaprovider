@@ -5,11 +5,6 @@ import { verifySchemaContract, EXPECTED_MIGRATIONS } from "./schema-contract.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.join(__dirname, "migrations");
-const REQUIRED_FILES = [
-  "001-initial-schema.js", "002-auth-invites.js", "003-client-portal.js",
-  "004-realtime-timesheets.js", "005-pay-rules.js", "006-platform-modules.js",
-  "007-contact-requests.js", "008-professional-quotes.js",
-];
 
 export async function runVersionedMigrations(db) {
   // ── Require migration directory and files ──
@@ -22,12 +17,14 @@ export async function runVersionedMigrations(db) {
   }
 
   // ── Preflight: load + validate before any DB mutation ──
-  if (files.length !== REQUIRED_FILES.length) {
-    throw new Error(`Expected ${REQUIRED_FILES.length} migration files, found ${files.length}`);
+  // Accept any valid prefix (001..N) or the full set
+  if (files.length > EXPECTED_MIGRATIONS.length) {
+    throw new Error(`Expected at most ${EXPECTED_MIGRATIONS.length} migration files, found ${files.length}`);
   }
-  for (let i = 0; i < REQUIRED_FILES.length; i++) {
-    if (files[i] !== REQUIRED_FILES[i]) {
-      throw new Error(`Migration file ${i + 1}: expected "${REQUIRED_FILES[i]}", got "${files[i]}"`);
+  for (let i = 0; i < files.length; i++) {
+    const expectedFile = `${String(i + 1).padStart(3, "0")}-${EXPECTED_MIGRATIONS[i].name}.js`;
+    if (files[i] !== expectedFile) {
+      throw new Error(`Migration file ${i + 1}: expected "${expectedFile}", got "${files[i]}"`);
     }
   }
 

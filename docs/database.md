@@ -151,6 +151,7 @@ Migrations are idempotent — they use `CREATE TABLE IF NOT EXISTS`, `CREATE IND
 | `006-platform-modules.js` | 006 | Lead activities, followups, quotes, tasks, documents, proposals, notifications, reminders + users table expansion |
 | `007-contact-requests.js` | 007 | `contact_requests` table |
 | `008-professional-quotes.js` | 008 | Quote builder upgrades: sections, professional fields, templates, review events |
+| `009-email-jobs.js` | 009 | `email_jobs` table for tracking automated transactional email delivery |
 
 ### `schema_migrations` Table
 
