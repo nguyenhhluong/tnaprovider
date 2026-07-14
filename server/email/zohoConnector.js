@@ -1,5 +1,6 @@
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
+import { simpleParser } from "mailparser";
 
 let imapClient = null;
 let smtpTransporter = null;
@@ -103,8 +104,10 @@ function convertMessage(src, folder) {
     email: a.address || "",
   }));
 
+  // Use ImapFlow's text/html body fields if available, else derive from source
   const textPart = src.text?.substring?.(0, 500) || "";
   const htmlPart = src.html || "";
+  const preview = textPart.slice(0, 100) || htmlPart.replace(/<[^>]*>/g, "").slice(0, 100) || (envelope.subject || "").slice(0, 100);
 
   return {
     id: String(src.uid),
@@ -119,7 +122,7 @@ function convertMessage(src, folder) {
     cc: ccAddrs.length > 0 ? ccAddrs : undefined,
     bcc: bccAddrs.length > 0 ? bccAddrs : undefined,
     subject: envelope.subject || "(No subject)",
-    preview: textPart.slice(0, 100) || htmlPart.replace(/<[^>]*>/g, "").slice(0, 100),
+    preview,
     bodyText: textPart || undefined,
     bodyHtml: htmlPart || undefined,
     receivedAt: src.internalDate?.toISOString?.() || new Date().toISOString(),
@@ -167,12 +170,17 @@ export async function listMessages({ folder }) {
       flags: true,
       bodyStructure: true,
       internalDate: true,
-      source: true,
+      body: true,
     })) {
       const parsed = convertMessage(msg, folder);
-      if (msg.body && msg.body instanceof Buffer) {
-        const text = msg.body.toString("utf-8");
-        if (!parsed.bodyText) parsed.bodyText = text.slice(0, 500);
+      // If ImapFlow didn't extract text/html, use simpleParser on body bytes
+      if (!parsed.bodyText && !parsed.bodyHtml && msg.body && msg.body instanceof Buffer) {
+        try {
+          const parsedMail = await simpleParser(msg.body);
+          parsed.bodyText = parsedMail.text || undefined;
+          parsed.bodyHtml = parsedMail.html || undefined;
+          parsed.preview = (parsedMail.text || parsedMail.html?.replace(/<[^>]*>/g, "") || "").slice(0, 100);
+        } catch {}
       }
       messages.push(parsed);
     }
@@ -262,13 +270,22 @@ export async function searchMessages({ folder, search, from, to, since, before, 
     const items = [];
     for await (const msg of client.fetch(
       { uid: pageUids },
-      { uid: true, envelope: true, flags: true, bodyStructure: true, internalDate: true }
+      { uid: true, envelope: true, flags: true, bodyStructure: true, internalDate: true, body: true }
     )) {
       const envelope = msg.envelope || {};
       const fromAddr = (envelope.from || [])[0] || {};
       const toAddrs = (envelope.to || []).map((a) => ({ name: a.name || undefined, email: a.address || "" }));
       const textPart = msg.text?.substring?.(0, 200) || "";
       const htmlPart = msg.html || "";
+      let preview = textPart.slice(0, 100) || htmlPart.replace(/<[^>]*>/g, "").slice(0, 100);
+
+      // Fallback: use mailparser if ImapFlow didn't decode body
+      if (!preview && msg.body && msg.body instanceof Buffer) {
+        try {
+          const parsedMail = await simpleParser(msg.body);
+          preview = (parsedMail.text || parsedMail.html?.replace(/<[^>]*>/g, "") || "").slice(0, 100);
+        } catch {}
+      }
 
       items.push({
         id: String(msg.uid),
@@ -278,7 +295,7 @@ export async function searchMessages({ folder, search, from, to, since, before, 
         from: { name: fromAddr.name || undefined, address: fromAddr.address || "" },
         to: toAddrs,
         subject: envelope.subject || "(No subject)",
-        preview: textPart.slice(0, 100) || htmlPart.replace(/<[^>]*>/g, "").slice(0, 100),
+        preview,
         receivedAt: msg.internalDate?.toISOString?.() || new Date().toISOString(),
         isRead: !!msg.flags?.includes?.("\\Seen"),
         isStarred: !!msg.flags?.includes?.("\\Flagged"),
@@ -299,24 +316,36 @@ export async function searchMessages({ folder, search, from, to, since, before, 
 export async function getMessage({ messageId }) {
   const client = await ensureConnected();
   try {
-    const mailbox = await client.mailboxOpen("INBOX");
-    if (!mailbox) {
+    // Try INBOX first, then search other folders
+    let msg = null;
+    try {
+      await client.mailboxOpen("INBOX");
+      msg = await client.fetchOne(parseInt(messageId), {
+        uid: true,
+        envelope: true,
+        flags: true,
+        bodyStructure: true,
+        internalDate: true,
+        source: true,
+      });
+    } catch {}
+    
+    if (!msg) {
       for (const f of Object.values(folderMap)) {
         try {
           await client.mailboxOpen(f);
-          break;
+          msg = await client.fetchOne(parseInt(messageId), {
+            uid: true,
+            envelope: true,
+            flags: true,
+            bodyStructure: true,
+            internalDate: true,
+            source: true,
+          });
+          if (msg) break;
         } catch {}
       }
     }
-
-    const msg = await client.fetchOne(parseInt(messageId), {
-      uid: true,
-      envelope: true,
-      flags: true,
-      bodyStructure: true,
-      internalDate: true,
-      source: true,
-    });
 
     if (!msg) {
       const err = new Error("Message not found");
@@ -326,13 +355,22 @@ export async function getMessage({ messageId }) {
 
     const result = convertMessage(msg, "inbox");
 
+    // Use mailparser to properly parse MIME structure
     if (msg.source) {
-      const raw = msg.source.toString("utf-8");
-      const htmlMatch = raw.match(/<html[^>]*>[\s\S]*?<\/html>/i);
-      if (htmlMatch) result.bodyHtml = htmlMatch[0];
-      const textMatch = raw.match(/Content-Type:\s*text\/plain[\s\S]*?(?=\n--|\n$)/i);
-      if (textMatch) {
-        result.bodyText = textMatch[0].replace(/^.*\n/, "").trim().slice(0, 5000);
+      try {
+        const parsed = await simpleParser(msg.source);
+        result.bodyText = parsed.text || undefined;
+        result.bodyHtml = parsed.html || undefined;
+        result.attachments = parsed.attachments.map((att) => ({
+          id: att.contentId || att.filename || String(Math.random()),
+          filename: att.filename || "unnamed",
+          mimeType: att.contentType || "application/octet-stream",
+          sizeBytes: att.size || 0,
+          contentId: att.contentId,
+        }));
+        result.hasAttachments = parsed.attachments.length > 0;
+      } catch (parseErr) {
+        console.error("[zohoConnector] mailparser error for message", messageId, ":", parseErr.message);
       }
     }
 
