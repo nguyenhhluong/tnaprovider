@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, FolderKanban, DollarSign, Mail, MoreHorizontal, X,
   Users, CheckSquare, File, BarChart, Settings, HardDrive, MessageSquare,
-  LogOut,
+  LogOut, Clock,
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { appPath } from "../../utils/host";
@@ -68,10 +68,11 @@ export function MobileBottomNav() {
   ].filter((t) => t.roles.includes(role));
 
   const moreItems = [
+    { name: "My Timesheet", path: appPath("/platform/realtime-timesheet"), icon: Clock, roles: ["owner", "admin", "manager", "worker"] },
     { name: "Quote Requests", path: appPath("/platform/quote-requests"), icon: MessageSquare, roles: ["owner", "admin", "manager"] },
-    { name: "Users", path: appPath("/platform/users"), icon: Users, roles: ["owner", "admin"] },
     { name: "Tasks", path: appPath("/platform/tasks"), icon: CheckSquare, roles: ["owner", "admin", "manager", "worker"] },
-    { name: "Documents", path: appPath("/platform/documents"), icon: File, roles: ["owner", "admin", "manager"] },
+    { name: "Documents", path: appPath("/platform/documents"), icon: File, roles: ["owner", "admin", "manager", "worker", "client"] },
+    { name: "Users", path: appPath("/platform/users"), icon: Users, roles: ["owner", "admin"] },
     { name: "Reports", path: appPath("/platform/reports"), icon: BarChart, roles: ["owner", "admin", "manager"] },
     { name: "Email Center", path: appPath("/platform/email-center"), icon: Mail, roles: ["owner", "admin"] },
     { name: "Admin Tools", path: appPath("/platform/admin-tools"), icon: HardDrive, roles: ["owner", "admin"] },

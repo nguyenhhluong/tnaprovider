@@ -53,25 +53,34 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
   useEffect(() => {
     try {
       const saved = localStorage.getItem(DRAFT_KEY);
-      if (saved) {
-        const d = JSON.parse(saved);
-        // Validate version and shape
-        if (d.version !== 1) return;
-        if (d.mode !== mode) return;
-        if (d.sourceMessageId !== sourceId) return;
-        // Check expiry (7 days)
-        if (d.savedAt && Date.now() - new Date(d.savedAt).getTime() > 7 * 86400000) {
-          localStorage.removeItem(DRAFT_KEY);
-          return;
-        }
-        if (d.to) setTo(d.to);
-        if (d.cc) setCc(d.cc);
-        if (d.bcc) setBcc(d.bcc);
-        if (d.subject) setSubject(d.subject);
-        if (d.bodyText) setBodyText(d.bodyText);
-        setDraftRestored(true);
+      if (!saved) return;
+      const d = JSON.parse(saved);
+      if (typeof d !== "object" || d === null) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
       }
-    } catch {}
+      if (d.version !== 1 || d.mode !== mode || d.sourceMessageId !== sourceId) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      if (d.savedAt && Date.now() - new Date(d.savedAt).getTime() > 7 * 86400000) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      if (typeof d.to !== "string") d.to = "";
+      if (typeof d.cc !== "string") d.cc = "";
+      if (typeof d.bcc !== "string") d.bcc = "";
+      if (typeof d.subject !== "string") d.subject = "";
+      if (typeof d.bodyText !== "string") d.bodyText = "";
+      if (d.to) setTo(d.to);
+      if (d.cc) setCc(d.cc);
+      if (d.bcc) setBcc(d.bcc);
+      if (d.subject) setSubject(d.subject);
+      if (d.bodyText) setBodyText(d.bodyText);
+      setDraftRestored(true);
+    } catch (e) {
+      localStorage.removeItem(DRAFT_KEY);
+    }
   }, []);
 
   // Save draft on changes — skip if discarding
@@ -86,7 +95,9 @@ export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: Compose
           savedAt: new Date().toISOString(),
           to, cc, bcc, subject, bodyText,
         }));
-      } catch {}
+      } catch (e) {
+        // Best-effort draft save — compose must remain usable
+      }
     }, 2000);
     return () => clearTimeout(timer);
   }, [to, cc, bcc, subject, bodyText, DRAFT_KEY, mode, sourceId]);
