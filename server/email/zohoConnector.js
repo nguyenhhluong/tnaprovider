@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { ImapFlow } from "imapflow";
 import nodemailer from "nodemailer";
 import { simpleParser } from "mailparser";
@@ -81,74 +82,142 @@ function getSmtpTransporter() {
 }
 
 // ── Atomic idempotency store ──
+// ── Atomic idempotency store ──
 // Single-process in-memory. Not cluster-safe. Lost on restart.
 
 const idempotencyStore = new Map();
-const IDEMPOTENCY_TTL = 3600000;
+const IDEMPOTENCY_TTL = parseInt(process.env.EMAIL_IDEMPOTENCY_TTL_MS || "3600000", 10);
+const IDEMPOTENCY_CLEANUP_INTERVAL = parseInt(process.env.EMAIL_IDEMPOTENCY_CLEANUP_INTERVAL_MS || "300000", 10);
+const MAX_REQUEST_ID_LENGTH = 256;
 
-function payloadHash(payload) {
-  const obj = {
-    to: payload.to,
-    cc: payload.cc,
-    bcc: payload.bcc,
-    subject: payload.subject,
-    bodyTextLen: (payload.bodyText || "").length,
-    bodyHtmlLen: (payload.bodyHtml || "").length,
-    attachments: (payload.attachments || []).map((a) => ({ filename: a.filename, mimeType: a.mimeType, size: (a.buffer || a.content || "").length })),
+let cleanupTimer = null;
+function startCleanup() {
+  if (cleanupTimer) return;
+  cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of idempotencyStore) {
+      if (now >= entry.expiresAt) idempotencyStore.delete(key);
+    }
+  }, IDEMPOTENCY_CLEANUP_INTERVAL);
+  if (cleanupTimer.unref) cleanupTimer.unref();
+}
+startCleanup();
+
+function normalizeAddresses(arr) {
+  if (!arr || !Array.isArray(arr)) return [];
+  const seen = new Set();
+  return arr
+    .filter((a) => a && a.email)
+    .map((a) => ({ name: (a.name || "").trim(), email: a.email.toLowerCase().trim() }))
+    .filter((a) => { const k = a.email; if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => a.email.localeCompare(b.email));
+}
+
+function computePayloadHash(payload) {
+  const canonical = {
+    to: normalizeAddresses(payload.to),
+    cc: normalizeAddresses(payload.cc),
+    bcc: normalizeAddresses(payload.bcc),
+    subject: (payload.subject || "").trim(),
+    bodyText: payload.bodyText || "",
+    bodyHtml: payload.bodyHtml || "",
+    replyToMessageId: payload.replyToMessageId || "",
+    references: (payload.references || []).slice().sort(),
+    attachments: (payload.attachments || []).map((a) => {
+      const buf = a.buffer || a.content || Buffer.alloc(0);
+      const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+      return { filename: a.filename || "attachment", mimeType: a.mimeType || "application/octet-stream", size: buf.length, sha256 };
+    }),
   };
-  const json = JSON.stringify(obj);
-  let hash = 0;
-  for (let i = 0; i < json.length; i++) { const c = json.charCodeAt(i); hash = ((hash << 5) - hash) + c; hash |= 0; }
-  return hash.toString(36);
+  const keys = Object.keys(canonical).sort();
+  const json = JSON.stringify(canonical, keys);
+  return crypto.createHash("sha256").update(json).digest("hex");
+}
+
+function generateMessageId() {
+  const ts = Date.now();
+  const rnd = crypto.randomBytes(8).toString("hex");
+  const domain = (process.env.EMAIL_FROM_ADDRESS || "tnaprovider.com.au").split("@").pop() || "tnaprovider.com.au";
+  return `<${ts}.${rnd}@${domain}>`;
+}
+
+function validateRequestId(rid) {
+  if (!rid || typeof rid !== "string") return "requestId is required";
+  if (rid.length > MAX_REQUEST_ID_LENGTH) return "requestId exceeds maximum length";
+  if (!rid.trim()) return "requestId must not be empty";
+  return null;
+}
+
+function classifyError(err) {
+  const msg = (err.message || "").toLowerCase();
+  const code = (err.code || "").toLowerCase();
+  if (["invalid_recipients", "missing_smtp_config", "invalid_multipart_payload", "attachment_too_large"].includes(code)) return "FAILED_RETRYABLE";
+  if (msg.includes("auth") || msg.includes("authenticate") || msg.includes("credentials")) return "FAILED_RETRYABLE";
+  if (msg.includes("connect econnrefused") || msg.includes("connect etimedout") || msg.includes("enotfound")) return "FAILED_RETRYABLE";
+  if (err.statusCode === 400 || msg.includes("rejected") || msg.includes("spam") || msg.includes("blocked")) return "FAILED_FINAL";
+  if (msg.includes("timeout") || msg.includes("socket") || msg.includes("econnreset") || msg.includes("epipe")) return "AMBIGUOUS";
+  return "FAILED_RETRYABLE";
+}
+
+async function reconcileFromSent(messageId) {
+  if (!messageId) return null;
+  try {
+    const sentId = await findInSent(messageId);
+    if (sentId) return { success: true, messageId, accepted: [], rejected: [], sentSync: { status: "confirmed", folder: "Sent", messageId: sentId }, reconciled: true };
+  } catch {}
+  return null;
 }
 
 async function withIdempotency(requestId, payload, sendFn) {
-  if (!requestId) return sendFn();
+  const verr = validateRequestId(requestId);
+  if (verr) { const e = new Error(verr); e.statusCode = 400; e.code = "INVALID_REQUEST_ID"; throw e; }
 
-  const existing = idempotencyStore.get(requestId);
+  const incomingHash = computePayloadHash(payload);
+  let entry = idempotencyStore.get(requestId);
 
-  // If SUCCEEDED, return cached result
-  if (existing && existing.status === "SUCCEEDED") {
-    return existing.result;
-  }
+  if (entry && Date.now() >= entry.expiresAt) { idempotencyStore.delete(requestId); entry = null; }
 
-  // If same key with different payload, reject
-  if (existing && existing.status !== "PENDING") {
-    const ph = payloadHash(payload);
-    if (existing.payloadHash && existing.payloadHash !== ph) {
-      const err = new Error("Idempotency key conflict: different payload");
-      err.statusCode = 409;
-      err.code = "IDEMPOTENCY_KEY_CONFLICT";
-      throw err;
+  if (entry) {
+    if (entry.payloadHash !== incomingHash) {
+      const e = new Error("Idempotency key conflict: different payload");
+      e.statusCode = 409; e.code = "IDEMPOTENCY_KEY_CONFLICT"; throw e;
+    }
+    if (entry.status === "SUCCEEDED") return entry.result;
+    if (entry.status === "PENDING" && entry.promise) return entry.promise;
+    if (entry.status === "FAILED_RETRYABLE") { /* fall through to re-reserve */ }
+    if (entry.status === "FAILED_FINAL") {
+      const e = new Error("Previous send failed with a non-recoverable error");
+      e.statusCode = 409; e.code = "IDEMPOTENCY_KEY_BLOCKED"; e.previousError = entry.errorCode; throw e;
+    }
+    if (entry.status === "AMBIGUOUS") {
+      const rec = await reconcileFromSent(entry.messageId);
+      if (rec) { entry.status = "SUCCEEDED"; entry.result = rec; return rec; }
+      const e = new Error("Previous send status is ambiguous. Check Sent folder.");
+      e.statusCode = 409; e.code = "IDEMPOTENCY_KEY_AMBIGUOUS"; throw e;
     }
   }
 
-  // If PENDING, wait for the in-flight promise
-  if (existing && existing.status === "PENDING" && existing.promise) {
-    return existing.promise;
-  }
-
-  // Reserve as PENDING before SMTP
-  const ph = payloadHash(payload);
-  const entry = { status: "PENDING", payloadHash: ph, promise: null, result: null, expiresAt: Date.now() + IDEMPOTENCY_TTL };
-  idempotencyStore.set(requestId, entry);
+  const messageId = generateMessageId();
+  const newEntry = { status: "PENDING", payloadHash: incomingHash, promise: null, result: null, errorCode: null, messageId, expiresAt: Date.now() + IDEMPOTENCY_TTL, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  idempotencyStore.set(requestId, newEntry);
 
   const promise = (async () => {
     try {
-      const result = await sendFn();
-      entry.status = "SUCCEEDED";
-      entry.result = result;
-      entry.promise = null;
+      const result = await sendFn(messageId);
+      newEntry.status = "SUCCEEDED"; newEntry.result = result; newEntry.promise = null; newEntry.updatedAt = new Date().toISOString();
       return result;
     } catch (err) {
-      entry.status = "FAILED";
-      entry.result = null;
-      entry.promise = null;
+      const cat = classifyError(err);
+      newEntry.status = cat; newEntry.errorCode = err.code || cat; newEntry.promise = null; newEntry.updatedAt = new Date().toISOString();
+      if (cat === "AMBIGUOUS") {
+        const rec = await reconcileFromSent(newEntry.messageId);
+        if (rec) { newEntry.status = "SUCCEEDED"; newEntry.result = rec; return rec; }
+      }
       throw err;
     }
   })();
 
-  entry.promise = promise;
+  newEntry.promise = promise;
   return promise;
 }
 
@@ -389,7 +458,7 @@ export async function getMessage({ messageId }) {
 }
 
 export async function sendMessage({ mailbox, payload, requestId }) {
-  const sendFn = async () => {
+  const sendFn = async (preGeneratedMessageId) => {
     validateSmtpConfig();
 
     if (!payload.to || payload.to.length === 0) {
@@ -408,6 +477,7 @@ export async function sendMessage({ mailbox, payload, requestId }) {
       subject: payload.subject,
       text: payload.bodyText || (payload.bodyHtml ? payload.bodyHtml.replace(/<[^>]*>/g, "") : ""),
       html: payload.bodyHtml || undefined,
+      messageId: preGeneratedMessageId || undefined,
     };
 
     if (payload.attachments?.length > 0) {
