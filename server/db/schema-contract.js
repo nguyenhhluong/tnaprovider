@@ -7,6 +7,7 @@ export const EXPECTED_MIGRATIONS = [
   { version: "006", name: "platform-modules" },
   { version: "007", name: "contact-requests" },
   { version: "008", name: "professional-quotes" },
+  { version: "009", name: "email-jobs" },
 ];
 
 const TABLES = {
@@ -26,6 +27,7 @@ const TABLES = {
   quote_review_events: { cols: ["id","quote_id","from_status","to_status","note","changed_by","created_at"] },
   quote_templates: { cols: ["id","name","description","category","is_default","created_at","updated_at"] },
   quote_template_items: { cols: ["id","template_id","section_title","description","unit","unit_price","item_type","sort_order"] },
+  email_jobs: { cols: ["id","type","recipient","subject","related_entity_type","related_entity_id","payload_json","status","attempt_count","last_error","smtp_message_id","scheduled_at","sent_at","created_at","updated_at"], checks: ["status","type"] },
 };
 
 const CRITICAL_COLUMNS = [
@@ -72,6 +74,10 @@ export const INDEXES = [
   { table: "contact_requests", name: "idx_contact_requests_received_at", columns: ["received_at"], unique: false },
   { table: "contact_requests", name: "idx_contact_requests_email", columns: ["email"], unique: false },
   { table: "contact_requests", name: "idx_contact_requests_phone", columns: ["phone"], unique: false },
+  { table: "email_jobs", name: "idx_email_jobs_status", columns: ["status"], unique: false },
+  { table: "email_jobs", name: "idx_email_jobs_type", columns: ["type"], unique: false },
+  { table: "email_jobs", name: "idx_email_jobs_related", columns: ["related_entity_type","related_entity_id"], unique: false },
+  { table: "email_jobs", name: "idx_email_jobs_scheduled", columns: ["scheduled_at"], unique: false },
 ];
 
 const CHECK_CONSTRAINTS = {
@@ -79,6 +85,7 @@ const CHECK_CONSTRAINTS = {
   shift_sessions: { status: "'active','on_break','pending_approval','approved','rejected','auto_closed','correction_requested'" },
   shift_events: { event_type: "'check_in','break_start','break_end','check_out','auto_check_out','correction_requested','admin_approved','admin_rejected'", source: "'web','mobile','kiosk','admin','system','qr','offline_qr'" },
   quotes: { status: "'draft','in_review','approved','sent','accepted','rejected','expired','converted'" },
+  email_jobs: { status: "'PENDING','PROCESSING','SENT','FAILED','CANCELLED'", type: "'QUOTE_RECEIVED_CUSTOMER','QUOTE_RECEIVED_ADMIN','USER_INVITATION','PASSWORD_RESET','QUOTE_STATUS_CHANGED'" },
 };
 
 export function verifySchemaContract(db, appliedOverride) {

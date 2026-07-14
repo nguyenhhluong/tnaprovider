@@ -515,6 +515,45 @@ router.get("/:id/pdf", (req, res) => {
   } catch (err) { console.error("Error serving PDF:", err.message); res.status(500).json({ error: "Failed to serve PDF" }); }
 });
 
+async function sendQuoteStatusChangedEmail(quote, oldStatus, newStatus) {
+  try {
+    if (!quote.client_email) return;
+    const { quoteStatusChanged } = await import('../email/templates/quoteStatusChanged.js');
+    const { createEmailJob, processEmailJob } = await import('../email/emailJobService.js');
+
+    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
+    const quoteUrl = quote.public_token
+      ? `${appUrl}/quote/${quote.public_token}`
+      : `${appUrl}/platform/quotes?id=${quote.id}`;
+
+    const emailContent = quoteStatusChanged({
+      customerName: quote.client_name || 'Valued Customer',
+      referenceNumber: quote.quote_number,
+      oldStatus,
+      newStatus,
+      quoteUrl,
+    });
+
+    const jobId = createEmailJob({
+      type: 'QUOTE_STATUS_CHANGED',
+      recipient: quote.client_email,
+      subject: emailContent.subject,
+      relatedEntityType: 'quote',
+      relatedEntityId: quote.id,
+      payloadJson: {
+        html: emailContent.html,
+        text: emailContent.text,
+      },
+    });
+
+    processEmailJob(jobId).catch(err => {
+      console.error('[email] Failed to send quote status change email:', err.message);
+    });
+  } catch (err) {
+    console.error('[email] Failed to create quote status change email:', err.message);
+  }
+}
+
 // ── Send quote ───────────────────────────────────────────────
 router.post("/:id/send", async (req, res) => {
   try {
@@ -531,6 +570,7 @@ router.post("/:id/send", async (req, res) => {
     db.prepare("UPDATE quotes SET status = 'sent', sent_at = ?, sent_to_email = ?, updated_at = ? WHERE id = ?").run(now, q.client_email || null, now, req.params.id);
     addReviewEvent(db, req.params.id, "approved", "sent", "Quote sent via system", req.user.userId);
     audit(res, "quote_sent", "quote", req.params.id, { sentTo: q.client_email });
+    sendQuoteStatusChangedEmail(q, 'approved', 'sent');
     res.json({ success: true, status: "sent", sent_at: now, message: "Email sending is paused. PDF generated and quote marked as sent. Download the PDF and send manually." });
   } catch (err) { console.error("Error sending quote:", err.message); res.status(500).json({ error: "Failed to send quote" }); }
 });
@@ -547,6 +587,7 @@ router.post("/:id/accept", (req, res) => {
     db.prepare("UPDATE quotes SET status = 'accepted', updated_at = ? WHERE id = ?").run(now, req.params.id);
     addReviewEvent(db, req.params.id, "sent", "accepted", req.body.note || null, req.user.userId);
     audit(res, "quote_accepted", "quote", req.params.id, {});
+    sendQuoteStatusChangedEmail(q, 'sent', 'accepted');
     res.json({ success: true, status: "accepted" });
   } catch (err) { console.error("Error accepting quote:", err.message); res.status(500).json({ error: "Failed to accept quote" }); }
 });
@@ -562,6 +603,7 @@ router.post("/:id/reject", (req, res) => {
     db.prepare("UPDATE quotes SET status = 'rejected', updated_at = ? WHERE id = ?").run(now, req.params.id);
     addReviewEvent(db, req.params.id, q.status, "rejected", req.body.note || null, req.user.userId);
     audit(res, "quote_rejected", "quote", req.params.id, {});
+    sendQuoteStatusChangedEmail(q, q.status, 'rejected');
     res.json({ success: true, status: "rejected" });
   } catch (err) { console.error("Error rejecting quote:", err.message); res.status(500).json({ error: "Failed to reject quote" }); }
 });
@@ -577,6 +619,7 @@ router.post("/:id/expire", (req, res) => {
     db.prepare("UPDATE quotes SET status = 'expired', updated_at = ? WHERE id = ?").run(now, req.params.id);
     addReviewEvent(db, req.params.id, q.status, "expired", req.body.note || null, req.user.userId);
     audit(res, "quote_expired", "quote", req.params.id, {});
+    sendQuoteStatusChangedEmail(q, q.status, 'expired');
     res.json({ success: true, status: "expired" });
   } catch (err) { console.error("Error expiring quote:", err.message); res.status(500).json({ error: "Failed to expire quote" }); }
 });

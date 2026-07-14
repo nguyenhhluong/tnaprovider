@@ -101,3 +101,77 @@ See [email-dns-checklist.md](./email-dns-checklist.md) for full details.
 - DKIM/SPF/DMARC support
 - REST API for management
 - Fallback if Stalwart deployment is blocked
+
+---
+
+## Phase 2: Zoho Mail SMTP (Transactional Emails)
+
+Zoho Mail Australia SMTP is used for automated transactional emails (quote confirmations, admin notifications, user invitations, password resets).
+
+### Required Environment Variables
+
+| Variable | Value |
+|----------|-------|
+| `ZOHO_SMTP_HOST` | `smtp.zoho.com.au` |
+| `ZOHO_SMTP_PORT` | `465` |
+| `ZOHO_SMTP_SECURE` | `true` |
+| `ZOHO_SMTP_USER` | `info@tnaprovider.com.au` |
+| `ZOHO_SMTP_PASSWORD` | (Zoho app password) |
+| `EMAIL_FROM_NAME` | `TNA Provider` |
+| `EMAIL_FROM_ADDRESS` | `info@tnaprovider.com.au` |
+| `ADMIN_EMAIL` | `info@tnaprovider.com.au` |
+| `APP_URL` | `https://tnaprovider.com.au` |
+
+### How to Generate a Zoho App Password
+
+1. Log in to your Zoho Mail account at https://mail.zoho.com.au
+2. Go to Settings → Account → App Passwords
+3. Generate a new app password for "TNA Provider SMTP"
+4. Copy the generated password and set it as `ZOHO_SMTP_PASSWORD`
+
+### SMTP Verification
+
+```bash
+npm run email:verify
+```
+
+This command tests the SMTP connection without sending an email.
+
+### Email Types
+
+| Type | Purpose |
+|------|---------|
+| `QUOTE_RECEIVED_CUSTOMER` | Confirmation sent to customer after quote request |
+| `QUOTE_RECEIVED_ADMIN` | Notification sent to admin when new quote arrives |
+| `USER_INVITATION` | Invitation email for new user account |
+| `PASSWORD_RESET` | Password reset link email |
+| `QUOTE_STATUS_CHANGED` | Notification when quote status is updated (sent/accepted/rejected/expired) |
+
+### How to Test Quote Emails
+
+1. Submit a quote request via the contact form (POST /api/contact)
+2. Check the email_jobs table for delivery status
+3. For development, use the email preview endpoint:
+   ```
+   GET /dev/email-preview/quote-confirmation
+   GET /dev/email-preview/new-quote-admin
+   ```
+
+### How to Test Account Invitations
+
+1. Log in as an admin and invite a user via POST /api/platform/users/invite
+2. In non-production mode, the API returns `devToken` for testing
+3. Use the devToken with POST /api/auth/accept-invite to complete the flow
+
+### Email Retry Behaviour
+
+- Failed email jobs can be retried via `POST /api/admin/email-jobs/:id/retry`
+- Retry increments attempt_count and preserves the original business record
+- Already-sent jobs cannot be retried (returns 400)
+- Successful jobs are never retried accidentally
+
+### Delivery Logs in Admin
+
+- `GET /api/admin/email-jobs` — list all email jobs with status filters
+- `GET /api/admin/email-jobs/:id` — view single job details
+- `GET /api/admin/email-delivery-status/:entityType/:entityId` — view delivery status per business record

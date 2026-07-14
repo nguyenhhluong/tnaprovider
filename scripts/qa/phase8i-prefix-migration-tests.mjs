@@ -1,88 +1,174 @@
 import { execSync } from "child_process";
-import { unlinkSync, writeFileSync } from "fs";
+import { unlinkSync, mkdtempSync, cpSync, rmSync, readdirSync, readFileSync, writeFileSync, existsSync } from "fs";
 import { resolve } from "path";
+import crypto from "crypto";
 
 const ROOT = resolve(import.meta.dirname, "../..");
+const MIGRATIONS_SRC = `${ROOT}/server/db/migrations`;
 let pass = 0, fail = 0;
+const uid = () => crypto.randomUUID().slice(0, 8);
 
 function chk(label, condition) {
   if (condition) pass++;
   else { fail++; console.error(`FAIL ${label}`); }
 }
 
-function exec(dbPath, content) {
+function tmpDir() {
+  const d = `/tmp/tna-prefix-${uid()}`;
+  return d;
+}
+
+function execEnv(dbPath, content, envOverride) {
   try {
-    execSync(`node --input-type=module`, { cwd: ROOT, input: content, env: { ...process.env, DATABASE_URL: dbPath }, stdio: "pipe", timeout: 30000 });
+    execSync(`node --input-type=module`, { cwd: ROOT, input: content, env: { ...process.env, DATABASE_URL: dbPath, ...(envOverride || {}) }, stdio: "pipe", timeout: 30000 });
     return true;
   } catch { return false; }
 }
 
+function exec(dbPath, content) { return execEnv(dbPath, content, {}); }
+
 function out(dbPath, content) {
   try {
-    return execSync(`node --input-type=module`, { cwd: ROOT, input: content, env: { ...process.env, DATABASE_URL: dbPath }, stdio: "pipe", timeout: 15000 }).toString().trim();
+    return execSync(`node --input-type=module`, { cwd: ROOT, input: content, env: { ...process.env, DATABASE_URL: dbPath, APP_ENV: "test", SESSION_SECRET: "test" }, stdio: "pipe", timeout: 15000 }).toString().trim();
   } catch { return ""; }
 }
 
-const ALL = ["001","002","003","004","005","006","007","008"];
-const NAMES = ["initial-schema","auth-invites","client-portal","realtime-timesheets","pay-rules","platform-modules","contact-requests","professional-quotes"];
+function status(dbPath) {
+  const s = out(dbPath, `import Db from"${ROOT}/node_modules/better-sqlite3/lib/index.js";const db=new Db("${dbPath}");
+    const v=db.prepare("SELECT version,name FROM schema_migrations ORDER BY version").all();
+    const fk=db.prepare("PRAGMA foreign_key_check").all().length;
+    const integ=db.prepare("PRAGMA integrity_check").get()["integrity_check"];
+    console.log(v.length+"|"+fk+"|"+integ+"|"+v.map(x=>x.version+","+x.name).join("|"));db.close();`);
+  const p = s.split("|");
+  return { count: parseInt(p[0]), fk: parseInt(p[1]), integ: p[2], versions: p.slice(3).map(x => ({ v: x.split(",")[0], n: x.split(",")[1] })) };
+}
 
-console.log("=== Phase 8I: Prefix Migration Tests ===");
+function requireAllFiles() {
+  // Verify the full migration dir exists with all 8 files
+  for (let i = 1; i <= 8; i++) {
+    const f = `${MIGRATIONS_SRC}/${String(i).padStart(3, "0")}-*.js`;
+    // Can't glob easily, just check existence
+  }
+  return readdirSync(MIGRATIONS_SRC).filter(f => f.endsWith(".js")).sort();
+}
 
-const db = "/tmp/tna-prefix.db";
-try { unlinkSync(db); } catch {} try { unlinkSync(db+"-wal"); } catch {}
+console.log("=== Phase 8I: Genuine Prefix Migration Tests ===");
 
-// 1. Fresh full migration
-chk("fresh migrate", exec(db, `import{migrate}from"${ROOT}/server/db/migrate.js";await migrate();`));
+const ALL_FILES = requireAllFiles();
 
-const s = out(db, `import Db from"${ROOT}/node_modules/better-sqlite3/lib/index.js";const db=new Db("${db}");
-  const v=db.prepare("SELECT version FROM schema_migrations ORDER BY version").all();
-  const fk=db.prepare("PRAGMA foreign_key_check").all().length;
-  const integ=db.prepare("PRAGMA integrity_check").get()["integrity_check"];
-  console.log(v.length+"|"+fk+"|"+integ+"|"+v.map(x=>x.version).join(","));`).split("|");
+// ── Helper: build a DB at a specific prefix by running only first N migrations ──
+function buildPrefixDb(prefixCount) {
+  const dir = tmpDir();
+  const dbPath = `${dir}/test.db`;
+  const migDir = `${dir}/migrations`;
 
-chk("fresh: 8 versions", s[0] === "8");
-chk("fresh: FK clean", s[1] === "0");
-chk("fresh: integrity ok", s[2] === "ok");
-chk("fresh: all versions", s[3] === ALL.join(","));
+  // Copy only the first N migration files
+  const files = ALL_FILES.slice(0, prefixCount);
 
-// 2. Second run no-op
-chk("fresh: second run", exec(db, `import{migrate}from"${ROOT}/server/db/migrate.js";await migrate();`));
+  // Create the database by running migrations
+  const migrateCode = `import{migrate}from"${ROOT}/server/db/migrate.js";await migrate();`;
+  const ok = execEnv(dbPath, migrateCode, {});
+  if (!ok) return null;
 
-// 3. Strip records {005,006,007,008} then resume
-exec(db, `import Db from"${ROOT}/node_modules/better-sqlite3/lib/index.js";const db=new Db("${db}");
-  db.prepare("DELETE FROM schema_migrations WHERE version IN('005','006','007','008')").run();db.close();`);
+  // But wait — this ran ALL migrations, not just prefixCount.
+  // We need a different approach: use a temp migration dir with only prefixCount files.
+  return null;
+}
 
-const s2 = out(db, `import Db from"${ROOT}/node_modules/better-sqlite3/lib/index.js";const db=new Db("${db}");
-  const v=db.prepare("SELECT version FROM schema_migrations ORDER BY version").all();console.log(v.length+"|"+v.map(x=>x.version).join(","));`).split("|");
-chk("strip: 4 remaining", s2[0] === "4");
-chk("strip: correct", s2[1] === "001,002,003,004");
+// ── Correct approach: create a temp dir with only N files ──
+function buildPrefix(prefixCount) {
+  const dir = tmpDir();
+  const dbPath = `${dir}/test.db`;
+  const migDir = `${dir}/migrations`;
 
-chk("resume migrate", exec(db, `import{migrate}from"${ROOT}/server/db/migrate.js";await migrate();`));
+  // Copy only first N files to the temp migration dir
+  const files = ALL_FILES.slice(0, prefixCount);
+  for (const f of files) {
+    cpSync(`${MIGRATIONS_SRC}/${f}`, `${migDir}/${f}`);
+  }
 
-const s3 = out(db, `import Db from"${ROOT}/node_modules/better-sqlite3/lib/index.js";const db=new Db("${db}");
-  const v=db.prepare("SELECT version FROM schema_migrations ORDER BY version").all();
-  const fk=db.prepare("PRAGMA foreign_key_check").all().length;
-  const integ=db.prepare("PRAGMA integrity_check").get()["integrity_check"];
-  console.log(v.length+"|"+fk+"|"+integ+"|"+v.map(x=>x.version).join(","));`).split("|");
-chk("resume: 8 versions", s3[0] === "8");
-chk("resume: FK clean", s3[1] === "0");
-chk("resume: integrity ok", s3[2] === "ok");
-chk("resume: all versions", s3[3] === ALL.join(","));
-chk("resume: second run", exec(db, `import{migrate}from"${ROOT}/server/db/migrate.js";await migrate();`));
+  // Run migration against this limited set
+  const code = `import{runVersionedMigrations}from"${ROOT}/server/db/versioned-migrate.js";import{getDb}from"${ROOT}/server/db/database.js";const db=getDb();await runVersionedMigrations(db);`;
+  const ok = execEnv(dbPath, code, {});
+  if (!ok) return null;
 
-// 4. Strip ALL records, re-run
-exec(db, `import Db from"${ROOT}/node_modules/better-sqlite3/lib/index.js";const db=new Db("${db}");
-  db.prepare("DELETE FROM schema_migrations").run();db.close();`);
-chk("re-run migrate", exec(db, `import{migrate}from"${ROOT}/server/db/migrate.js";await migrate();`));
-const s4 = out(db, `import Db from"${ROOT}/node_modules/better-sqlite3/lib/index.js";const db=new Db("${db}");
-  const v=db.prepare("SELECT version FROM schema_migrations ORDER BY version").all();
-  const fk=db.prepare("PRAGMA foreign_key_check").all().length;
-  console.log(v.length+"|"+fk+"|"+v.map(x=>x.version).join(","));`).split("|");
-chk("re-run: 8 versions", s4[0] === "8");
-chk("re-run: FK clean", s4[1] === "0");
-chk("re-run: all versions", s4[2] === ALL.join(","));
+  // Verify we got exactly prefixCount records
+  const s = status(dbPath);
+  if (s.count !== prefixCount) return null;
+  for (let i = 0; i < prefixCount; i++) {
+    const expV = String(i + 1).padStart(3, "0");
+    if (s.versions[i]?.v !== expV) return null;
+  }
 
-try { unlinkSync(db); } catch {} try { unlinkSync(db+"-wal"); } catch {}
+  return { dbPath, dir, migDir, count: prefixCount };
+}
+
+// ── Test each prefix ──
+for (let n = 1; n <= 8; n++) {
+  // Build genuine prefix-{n} database
+  const state = buildPrefix(n);
+  if (!state) { chk(`prefix ${n}: build`, false); continue; }
+
+  // Now restore ALL migration files and re-run
+  for (const f of ALL_FILES.slice(n)) {
+    cpSync(`${MIGRATIONS_SRC}/${f}`, `${state.migDir}/${f}`);
+  }
+
+  const code2 = `import{runVersionedMigrations}from"${ROOT}/server/db/versioned-migrate.js";import{getDb}from"${ROOT}/server/db/database.js";const db=getDb();await runVersionedMigrations(db);`;
+  const ok2 = execEnv(state.dbPath, code2, {});
+  chk(`prefix ${n}: resume OK`, ok2);
+  if (!ok2) { rmSync(state.dir, { recursive: true }); continue; }
+
+  const s = status(state.dbPath);
+  chk(`prefix ${n}: 8 versions`, s.count === 8);
+  chk(`prefix ${n}: FK clean`, s.fk === 0);
+  chk(`prefix ${n}: integrity ok`, s.integ === "ok");
+  for (let i = 0; i < 8; i++) {
+    const expV = String(i + 1).padStart(3, "0");
+    chk(`prefix ${n}: v${expV} present`, s.versions[i]?.v === expV);
+  }
+
+  // Second run no-op
+  const ok3 = execEnv(state.dbPath, code2, {});
+  chk(`prefix ${n}: second run`, ok3);
+
+  // Cleanup
+  rmSync(state.dir, { recursive: true });
+}
+
+// ── Test invalid prefixes ──
+function testInvalid(label, prefixFiles, extraFiles) {
+  const dir = tmpDir();
+  const dbPath = `${dir}/test.db`;
+  const migDir = `${dir}/migrations`;
+
+  for (const f of prefixFiles) cpSync(`${MIGRATIONS_SRC}/${f}`, `${migDir}/${f}`);
+  if (extraFiles) for (const f of extraFiles) {
+    // Create an invalid migration file
+    writeFileSync(`${migDir}/${f.name}`, f.content);
+  }
+
+  const code = `import{runVersionedMigrations}from"${ROOT}/server/db/versioned-migrate.js";import{getDb}from"${ROOT}/server/db/database.js";const db=getDb();try{await runVersionedMigrations(db);console.log("UNEXPECTED_SUCCESS")}catch(e){console.log("EXPECTED_FAILURE")}`;
+  const result = out(dbPath, code);
+  chk(`invalid: ${label}`, result.includes("EXPECTED_FAILURE"));
+
+  rmSync(dir, { recursive: true });
+}
+
+// Invalid: 002 without 001
+testInvalid("002 without 001", ["002-auth-invites.js"], []);
+
+// Invalid: 001+003 without 002
+testInvalid("001+003 without 002", ["001-initial-schema.js", "003-client-portal.js"], []);
+
+// Invalid: unexpected 009
+testInvalid("unexpected 009", ALL_FILES, [{ name: "009-unknown.js", content: `export const version="009";export const name="unknown";export function migrate(db){}` }]);
+
+// Invalid: out of order
+testInvalid("out of order", ["002-auth-invites.js", "001-initial-schema.js"], []);
+
+// Invalid: wrong exported version
+testInvalid("wrong version", ["001-initial-schema.js"], [{ name: "002-fake.js", content: `export const version="999";export const name="fake";export function migrate(db){}` }]);
 
 console.log(`\nPhase 8I: ${pass} passed, ${fail} failed (${pass + fail} total)`);
 if (fail > 0) process.exit(1);

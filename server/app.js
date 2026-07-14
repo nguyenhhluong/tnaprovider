@@ -23,6 +23,8 @@ import realtimeTimesheetsRoutes from './routes/realtimeTimesheets.js';
 import healthRoutes from './routes/health.js';
 import contactRequestRoutes from './modules/contactRequests/contactRequests.routes.js';
 import usersRoutes from './modules/users/users.routes.js';
+import emailAdminRoutes from './routes/emailAdmin.js';
+import emailPreviewRoutes from './routes/emailPreview.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,6 +65,8 @@ export function createApp() {
   app.use('/api/realtime-timesheets', realtimeTimesheetsRoutes);
   app.use('/api', contactRequestRoutes);
   app.use('/api/users', usersRoutes);
+  app.use('/api/admin', emailAdminRoutes);
+  app.use('/', emailPreviewRoutes);
 
   // Email API
   function attachMailbox(req, res, next) {
