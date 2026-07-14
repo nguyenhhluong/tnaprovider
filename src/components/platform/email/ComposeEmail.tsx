@@ -18,11 +18,12 @@ function textToHtml(text: string): string {
 
 interface ComposeEmailProps {
   replyTo?: EmailMessage | null;
+  forwardMsg?: EmailMessage | null;
   onSend: (payload: ComposeEmailPayload) => Promise<void>;
   onDiscard: () => void;
 }
 
-export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) {
+export function ComposeEmail({ replyTo, forwardMsg, onSend, onDiscard }: ComposeEmailProps) {
   // Generate idempotency key once per compose session
   const requestIdRef = useRef(generateIdempotencyKey());
   function getRequestId() { return requestIdRef.current; }
@@ -33,6 +34,7 @@ export function ComposeEmail({ replyTo, onSend, onDiscard }: ComposeEmailProps) 
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
   const [subject, setSubject] = useState(
+    forwardMsg ? (forwardMsg.subject.startsWith("Fwd:") ? forwardMsg.subject : `Fwd: ${forwardMsg.subject}`) :
     replyTo ? (replyTo.subject.startsWith("Re:") ? replyTo.subject : `Re: ${replyTo.subject}`) : ""
   );
   const [bodyText, setBodyText] = useState("");
