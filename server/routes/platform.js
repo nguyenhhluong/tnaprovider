@@ -9,7 +9,7 @@ import { validate, schemas } from "../middleware/validate.js";
 import { hashPassword } from "../auth/hash.js";
 import { generateToken, hashToken } from "../auth/tokens.js";
 import { revokeAllUserSessions } from "../auth/session.js";
-import { calculatePayBreakdownServer } from "./realtimeTimesheets.js";
+import { calculatePayBreakdown as calculatePayBreakdownServer } from "../../shared/timesheet/calculations.js";
 
 const router = Router();
 
@@ -132,7 +132,7 @@ router.patch("/users/:id", requireRole("owner", "admin"), (req, res) => {
 
 // ── Invite User ──
 
-router.post("/users/invite", requireRole("owner", "admin"), validate(schemas.inviteUser), (req, res) => {
+router.post("/users/invite", requireRole("owner", "admin"), validate(schemas.inviteUser), async (req, res) => {
   const db = getDb();
   const { email, name, role } = req.body;
   const normalizedEmail = email.toLowerCase().trim();
@@ -149,14 +149,14 @@ router.post("/users/invite", requireRole("owner", "admin"), validate(schemas.inv
 
   const rawToken = generateToken();
   const tokenHash = hashToken(rawToken);
-  const id = crypto.randomUUID();
+  const tokenId = crypto.randomUUID();
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   db.prepare(`
     INSERT INTO user_invite_tokens (id, email, role, name, token_hash, expires_at, created_by, created_at, created_ip)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, normalizedEmail, role, name, tokenHash, expiresAt, req.user.userId, now, req.ip);
+  `).run(tokenId, normalizedEmail, role, name, tokenHash, expiresAt, req.user.userId, now, req.ip);
 
   // If user exists, mark as invited to prevent login until accepted
   if (existing) {
@@ -172,8 +172,38 @@ router.post("/users/invite", requireRole("owner", "admin"), validate(schemas.inv
     userAgent: req.headers["user-agent"],
   });
 
+  // Send invitation email
+  try {
+    const { userInvitation } = await import('../email/templates/userInvitation.js');
+    const { createEmailJob, processEmailJob } = await import('../email/emailJobService.js');
+
+    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
+    const inviteUrl = `${appUrl}/accept-invite?token=${encodeURIComponent(rawToken)}`;
+
+    const emailContent = userInvitation({ name, email: normalizedEmail, inviteUrl, expiresAt });
+
+    const jobId = createEmailJob({
+      type: 'USER_INVITATION',
+      recipient: normalizedEmail,
+      subject: emailContent.subject,
+      relatedEntityType: 'user_invite_token',
+      relatedEntityId: tokenId,
+      payloadJson: {
+        html: emailContent.html,
+        text: emailContent.text,
+      },
+      scheduledAt: now,
+    });
+
+    processEmailJob(jobId).catch(err => {
+      console.error('[email] Failed to send invitation email:', err.message);
+    });
+  } catch (err) {
+    console.error('[email] Failed to create invitation email:', err.message);
+  }
+
   if (process.env.APP_ENV !== "production") {
-    res.status(201).json({ message: "Invite created", devToken: rawToken, inviteId: id });
+    res.status(201).json({ message: "Invite created", devToken: rawToken, inviteId: tokenId });
   } else {
     res.status(201).json({ message: "Invite sent" });
   }
@@ -647,6 +677,21 @@ router.get("/users/:userId/profile", requireRole("owner"), (req, res) => {
     },
     activeShift: { active: activeShift.c > 0 },
   });
+});
+
+// GET /api/platform/users/:userId/invitation
+router.get("/users/:userId/invitation", requireRole("owner", "admin"), (req, res) => {
+  const db = getDb();
+  try {
+    const user = db.prepare("SELECT id, email, status FROM users WHERE id = ?").get(req.params.userId);
+    if (!user) return res.status(404).json({ success: false, error: "User not found" });
+
+    const invite = db.prepare("SELECT id, email, role, name, expires_at, accepted_at, created_at FROM user_invite_tokens WHERE email = ? ORDER BY created_at DESC LIMIT 1").get(user.email);
+    res.json({ success: true, data: { user, invitation: invite || null } });
+  } catch (err) {
+    console.error("Error getting invitation:", err.message);
+    res.status(500).json({ success: false, error: "Failed to get invitation" });
+  }
 });
 
 // GET /api/platform/users/:userId/timesheet-week?weekStart=YYYY-MM-DD

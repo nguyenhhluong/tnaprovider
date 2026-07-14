@@ -25,7 +25,7 @@ await withServer({
   const c = await mustGetCookie("owner@test.com", "ChangeMe123!", "owner");
 
   const email = await check("email/status", `${BASE}/api/email/status`);
-  if (email && email.provider !== "mock") { fail++; console.error("FAIL: email provider not mock"); }
+  if (email && email.available !== true) { fail++; console.error("FAIL: email status not available"); }
 
   await check("reports/dashboard", `${BASE}/api/reports/dashboard`, auth(c));
   await check("quotes", `${BASE}/api/quotes`, auth(c));

@@ -58,6 +58,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
     { name: "Users", path: appPath("/platform/users"), icon: Users, roles: ["owner", "admin"] },
     { name: "Security", path: appPath("/platform/security"), icon: Shield, roles: ["owner", "admin"] },
     { name: "Reports", path: appPath("/platform/reports"), icon: BarChart, roles: ["owner", "admin", "manager"] },
+    { name: "Email Center", path: appPath("/platform/email-center"), icon: Mail, roles: ["owner", "admin"] },
     { name: "Admin Tools", path: appPath("/platform/admin-tools"), icon: HardDrive, roles: ["owner", "admin"] },
     { name: "Audit Log", path: appPath("/platform/audit"), icon: FileText, roles: ["owner", "admin"] },
     { name: "Notifications", path: appPath("/platform/notifications"), icon: Bell, roles: ["owner", "admin", "manager", "worker", "client"] },
