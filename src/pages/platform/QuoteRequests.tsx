@@ -203,10 +203,11 @@ export function QuoteRequests() {
       ) : (
         <div className="space-y-4">
           {/* Mobile cards */}
-          <div className="md:hidden space-y-3">
+          <div className="md:hidden space-y-3" data-testid="quote-request-mobile-list">
             {data.requests.map((r) => (
               <div
                 key={r.id}
+                data-testid={`quote-request-card-${r.id}`}
                 role="button"
                 tabIndex={0}
                 onClick={() => handleSelect(r)}

@@ -82,6 +82,7 @@ export function PlatformSidebar({ open, onClose }: { open: boolean; onClose: () 
           "fixed top-0 left-0 z-50 h-full w-64 bg-white dark:bg-brand-darker border-r border-gray-200 dark:border-gray-800 flex flex-col transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto",
           open ? "translate-x-0" : "-translate-x-full"
         )}
+        data-testid="desktop-sidebar"
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
           <Link to={appPath("/platform")} className="flex items-center gap-2" onClick={onClose}>

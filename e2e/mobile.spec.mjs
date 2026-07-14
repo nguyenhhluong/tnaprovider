@@ -1,89 +1,123 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/auth.mjs';
+import { setupConsoleGate } from './support/consoleGate.mjs';
 
-const ADMIN = { email: 'admin@tnaprovider.com', password: 'AdminPass123!' };
-
-async function login(page) {
-  await page.goto('/login');
-  await page.fill('input[type="email"]', ADMIN.email);
-  await page.fill('input[type="password"]', ADMIN.password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/dashboard/);
+async function expectNoOverflow(page) {
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
 }
 
-test.describe('Mobile Navigation', () => {
-  test('bottom navigation visible on mobile viewport', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await login(page);
-    const bottomNav = page.locator('nav').filter({ hasText: 'Home' });
-    await expect(bottomNav).toBeVisible();
+test.describe('Mobile Navigation Shell', () => {
+  test('bottom navigation visible and no overflow', async ({ adminPage }) => {
+    const gate = await setupConsoleGate(adminPage);
+    await adminPage.goto('/platform/dashboard');
+    await expect(adminPage.locator('[data-testid="mobile-bottom-nav"]')).toBeVisible();
+    await expectNoOverflow(adminPage);
+    gate.expectNoErrors();
   });
 
-  test('desktop sidebar hidden on mobile', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await login(page);
-    const sidebar = page.locator('aside');
-    await expect(sidebar).not.toBeVisible();
+  test('More sheet opens and Escape closes it', async ({ adminPage }) => {
+    const gate = await setupConsoleGate(adminPage);
+    await adminPage.goto('/platform/dashboard');
+    await adminPage.click('[data-testid="mobile-more-button"]');
+    await expect(adminPage.locator('[data-testid="mobile-more-sheet"]')).toBeVisible();
+    await adminPage.keyboard.press('Escape');
+    await expect(adminPage.locator('[data-testid="mobile-more-sheet"]')).not.toBeVisible();
+    gate.expectNoErrors();
   });
 
-  test('More sheet opens and closes', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await login(page);
-    await page.click('button[aria-label="More menu"]');
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('dialog')).not.toBeVisible();
+  test('desktop sidebar hidden on mobile', async ({ adminPage }) => {
+    await adminPage.setViewportSize({ width: 390, height: 844 });
+    await adminPage.goto('/platform/dashboard');
+    await expect(adminPage.locator('[data-testid="desktop-sidebar"]')).not.toBeVisible();
   });
 
-  test('no horizontal overflow on dashboard', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await login(page);
-    const overflow = await page.evaluate(() =>
-      document.documentElement.scrollWidth <= document.documentElement.clientWidth
-    );
-    expect(overflow).toBe(true);
+  test('desktop sidebar visible on desktop', async ({ adminPage }) => {
+    await adminPage.goto('/platform/dashboard');
+    await expect(adminPage.locator('[data-testid="desktop-sidebar"]')).toBeVisible();
   });
 });
 
-test.describe('Quote Requests Mobile', () => {
-  test('cards visible on mobile, table hidden', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await login(page);
-    await page.goto('/quote-requests');
-    await page.waitForSelector('[role="button"]');
-    await expect(page.locator('[role="button"]').first()).toBeVisible();
+test.describe('Role-Based Navigation', () => {
+  test('admin can access email', async ({ adminPage }) => {
+    const gate = await setupConsoleGate(adminPage);
+    await adminPage.goto('/platform/email');
+    await expect(adminPage).toHaveURL(/\/platform\/email/);
+    gate.expectNoErrors();
   });
 
-  test('no horizontal overflow on quote requests', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await login(page);
-    await page.goto('/quote-requests');
-    const overflow = await page.evaluate(() =>
-      document.documentElement.scrollWidth <= document.documentElement.clientWidth
-    );
-    expect(overflow).toBe(true);
+  test('worker cannot access email', async ({ workerPage }) => {
+    await workerPage.goto('/platform/email');
+    await expect(workerPage.getByText(/permission denied|access denied|forbidden/i)).toBeVisible();
+  });
+
+  test('manager cannot access email', async ({ managerPage }) => {
+    await managerPage.goto('/platform/email');
+    await expect(managerPage.getByText(/permission denied|access denied|forbidden/i)).toBeVisible();
+  });
+
+  test('worker sees timesheet in More sheet', async ({ workerPage }) => {
+    await workerPage.goto('/platform/dashboard');
+    await workerPage.click('[data-testid="mobile-more-button"]');
+    await expect(workerPage.getByText(/Timesheet/i)).toBeVisible();
   });
 });
 
-test.describe('Business Email Mobile', () => {
-  test('inbox loads without horizontal overflow', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await login(page);
-    await page.goto('/email');
-    const overflow = await page.evaluate(() =>
-      document.documentElement.scrollWidth <= document.documentElement.clientWidth
-    );
-    expect(overflow).toBe(true);
+test.describe('Quote Requests', () => {
+  test('mobile cards visible on mobile', async ({ adminPage }) => {
+    const gate = await setupConsoleGate(adminPage);
+    await adminPage.setViewportSize({ width: 390, height: 844 });
+    await adminPage.goto('/platform/quote-requests');
+    await adminPage.waitForSelector('[data-testid="quote-request-mobile-list"]');
+    const cards = adminPage.locator('[data-testid^="quote-request-card-"]');
+    const count = await cards.count();
+    expect(count).toBeGreaterThan(0);
+    await expectNoOverflow(adminPage);
+    gate.expectNoErrors();
   });
 });
 
-test.describe('Email Center Mobile', () => {
-  test('email center loads without horizontal overflow', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await login(page);
-    await page.goto('/email-center');
-    const overflow = await page.evaluate(() =>
-      document.documentElement.scrollWidth <= document.documentElement.clientWidth
-    );
-    expect(overflow).toBe(true);
+test.describe('Business Email', () => {
+  test('inbox loads without overflow', async ({ adminPage }) => {
+    const gate = await setupConsoleGate(adminPage);
+    await adminPage.goto('/platform/email');
+    await adminPage.waitForTimeout(2000);
+    await expect(adminPage).toHaveURL(/\/platform\/email/);
+    await expectNoOverflow(adminPage);
+    gate.expectNoErrors();
   });
+});
+
+test.describe('Email Center', () => {
+  test('loads without overflow', async ({ adminPage }) => {
+    const gate = await setupConsoleGate(adminPage);
+    await adminPage.goto('/platform/email-center');
+    await adminPage.waitForTimeout(1000);
+    await expect(adminPage).toHaveURL(/\/platform\/email-center/);
+    await expectNoOverflow(adminPage);
+    gate.expectNoErrors();
+  });
+});
+
+test.describe('Route Accessibility', () => {
+  const ROUTES = [
+    '/platform/dashboard',
+    '/platform/projects',
+    '/platform/quotes',
+    '/platform/quote-requests',
+    '/platform/email',
+    '/platform/email-center',
+    '/platform/settings',
+  ];
+  for (const route of ROUTES) {
+    test(`${route} loads without page error`, async ({ adminPage }) => {
+      const gate = await setupConsoleGate(adminPage);
+      await adminPage.goto(route);
+      await adminPage.waitForTimeout(1000);
+      await expect(adminPage).toHaveURL(route);
+      gate.expectNoErrors();
+    });
+  }
 });
