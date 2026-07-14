@@ -176,6 +176,39 @@ export function updateEmailJobStatus(id, status, result = {}) {
   db.prepare(`UPDATE email_jobs SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 }
 
+function createAttemptRecord(jobId, attemptNumber) {
+  const db = getDb();
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO email_job_attempts (id, email_job_id, attempt_number, status, started_at, created_at)
+    VALUES (?, ?, ?, 'PROCESSING', ?, ?)
+  `).run(id, jobId, attemptNumber, now, now);
+  return id;
+}
+
+function updateAttemptRecord(id, status, result = {}) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const sets = ['status = ?', 'completed_at = ?'];
+  const params = [status, now];
+  if (result.smtpMessageId !== undefined) {
+    sets.push('smtp_message_id = ?');
+    params.push(result.smtpMessageId);
+  }
+  if (result.errorMessage !== undefined) {
+    sets.push('error_message = ?');
+    params.push(result.errorMessage);
+  }
+  params.push(id);
+  db.prepare(`UPDATE email_job_attempts SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+}
+
+export function getAttemptsForJob(jobId) {
+  const db = getDb();
+  return db.prepare('SELECT * FROM email_job_attempts WHERE email_job_id = ? ORDER BY attempt_number DESC').all(jobId);
+}
+
 export async function processEmailJob(id) {
   const job = getEmailJob(id);
   if (!job) {
@@ -189,6 +222,9 @@ export async function processEmailJob(id) {
   }
 
   updateEmailJobStatus(id, 'PROCESSING');
+
+  const attemptNumber = job.attempt_count + 1;
+  const attemptId = createAttemptRecord(id, attemptNumber);
 
   try {
     const { sendEmail } = await import('./mailer.js');
@@ -205,18 +241,25 @@ export async function processEmailJob(id) {
       replyTo: payload?.replyTo,
     });
 
+    updateAttemptRecord(attemptId, 'SENT', {
+      smtpMessageId: result.messageId,
+    });
+
     updateEmailJobStatus(id, 'SENT', {
       smtpMessageId: result.messageId,
       sentAt: new Date().toISOString(),
-      attemptCount: job.attempt_count + 1,
+      attemptCount: attemptNumber,
     });
 
     return { success: true, messageId: result.messageId };
   } catch (err) {
-    const newAttemptCount = job.attempt_count + 1;
+    updateAttemptRecord(attemptId, 'FAILED', {
+      errorMessage: err.message,
+    });
+
     updateEmailJobStatus(id, 'FAILED', {
       lastError: err.message,
-      attemptCount: newAttemptCount,
+      attemptCount: attemptNumber,
     });
 
     return { success: false, error: err.message };

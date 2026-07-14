@@ -679,6 +679,21 @@ router.get("/users/:userId/profile", requireRole("owner"), (req, res) => {
   });
 });
 
+// GET /api/platform/users/:userId/invitation
+router.get("/users/:userId/invitation", requireRole("owner", "admin"), (req, res) => {
+  const db = getDb();
+  try {
+    const user = db.prepare("SELECT id, email, status FROM users WHERE id = ?").get(req.params.userId);
+    if (!user) return res.status(404).json({ success: false, error: "User not found" });
+
+    const invite = db.prepare("SELECT id, email, role, name, expires_at, accepted_at, created_at FROM user_invite_tokens WHERE email = ? ORDER BY created_at DESC LIMIT 1").get(user.email);
+    res.json({ success: true, data: { user, invitation: invite || null } });
+  } catch (err) {
+    console.error("Error getting invitation:", err.message);
+    res.status(500).json({ success: false, error: "Failed to get invitation" });
+  }
+});
+
 // GET /api/platform/users/:userId/timesheet-week?weekStart=YYYY-MM-DD
 router.get("/users/:userId/timesheet-week", requireRole("owner"), (req, res) => {
   const db = getDb();
