@@ -101,7 +101,26 @@ export function createApp() {
 
   app.get("/api/email/messages", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
     try {
-      const { folder } = req.query;
+      const { folder, search, from, to, since, before, unread, starred, page, pageSize } = req.query;
+
+      // If any search parameters are provided, use server-side IMAP search
+      if (search || from || to || since || before || unread !== undefined || starred !== undefined) {
+        const result = await mailConnector.searchMessages({
+          mailbox: req.mailbox,
+          folder: folder || "inbox",
+          search,
+          from,
+          to,
+          since,
+          before,
+          unread,
+          starred,
+          page: parseInt(page) || 1,
+          pageSize: Math.min(parseInt(pageSize) || 25, 100),
+        });
+        return res.json(result);
+      }
+
       const messages = await mailConnector.listMessages({
         mailbox: req.mailbox,
         folder: folder || "inbox",

@@ -29,6 +29,15 @@ export async function listMessages({ mailbox, folder }) {
   return getConnector().listMessages({ mailbox, folder });
 }
 
+export async function searchMessages({ mailbox, folder, search, from, to, since, before, unread, starred, page, pageSize }) {
+  const connector = getConnector();
+  if (connector.searchMessages) {
+    return connector.searchMessages({ folder, search, from, to, since, before, unread, starred, page, pageSize });
+  }
+  // Fallback: list all and filter client-side
+  return getConnector().listMessages({ mailbox, folder });
+}
+
 export async function getMessage({ mailbox, messageId }) {
   return getConnector().getMessage({ mailbox, messageId });
 }

@@ -22,8 +22,44 @@ async function apiRequest<T>(
   return res.json();
 }
 
-export async function listMessages(folder: EmailFolder): Promise<EmailMessage[]> {
-  return apiRequest("GET", `/messages?folder=${folder}`);
+export interface SearchParams {
+  search?: string;
+  from?: string;
+  to?: string;
+  since?: string;
+  before?: string;
+  unread?: string;
+  starred?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface SearchResult {
+  items: EmailMessage[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  folder: string;
+  query: any;
+}
+
+export async function listMessages(folder: EmailFolder, searchParams?: SearchParams): Promise<EmailMessage[] | SearchResult> {
+  const params = new URLSearchParams({ folder });
+  if (searchParams) {
+    Object.entries(searchParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") params.set(key, String(value));
+    });
+  }
+  const qs = params.toString();
+  const result = await apiRequest<any>("GET", `/messages?${qs}`);
+
+  // If it has items and totalItems, it's a search result (paginated)
+  if (result.items !== undefined) {
+    return result;
+  }
+  // Otherwise it's a flat array of messages (legacy)
+  return result;
 }
 
 export async function getMessage(messageId: string): Promise<EmailMessage> {

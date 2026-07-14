@@ -48,10 +48,14 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
     messages,
     loading,
     error,
+    searchResult,
     markRead,
     moveMessage,
     deleteMsg,
     addSentMessage,
+    refresh,
+    debouncedSearch,
+    setSearchParams,
   } = useEmailData(currentFolder);
 
   const selectedMessage = messages.find((m) => m.id === selectedMessageId) || null;
@@ -132,20 +136,24 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
     setSelectedMessageId(null);
   }, []);
 
-  const filteredMessages = messages.filter((m) => {
+  // Use server-side search when searchQuery is set, otherwise client-side filtering for unread/starred
+  const displayMessages = searchQuery ? messages : messages.filter((m) => {
     if (unreadOnly && m.isRead) return false;
     if (starredOnly && !m.isStarred) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return (
-        m.subject.toLowerCase().includes(q) ||
-        m.from.email.toLowerCase().includes(q) ||
-        (m.from.name || "").toLowerCase().includes(q) ||
-        m.preview.toLowerCase().includes(q)
-      );
-    }
     return true;
   });
+
+  // Trigger server-side search when searchQuery changes
+  useEffect(() => {
+    if (searchQuery) {
+      const params: any = { search: searchQuery, page: 1 };
+      if (unreadOnly) params.unread = "true";
+      if (starredOnly) params.starred = "true";
+      debouncedSearch(params);
+    } else {
+      setSearchParams(undefined);
+    }
+  }, [searchQuery, unreadOnly, starredOnly]);
 
   const currentFolderLabel = folders.find((f) => f.id === currentFolder)?.label || currentFolder;
 
@@ -253,12 +261,13 @@ export function EmailLayout({ currentFolder, onFolderChange }: EmailLayoutProps)
         selectedMessageId && "hidden lg:flex"
       )}>
         <MessageList
-          messages={filteredMessages}
+          messages={displayMessages}
           selectedId={selectedMessageId}
           onSelect={handleSelectMessage}
           loading={loading}
           error={error || uiError}
           onErrorDismiss={clearError}
+          searchResult={searchResult}
         />
       </div>
 

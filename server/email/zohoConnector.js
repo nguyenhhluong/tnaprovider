@@ -185,6 +185,104 @@ export async function listMessages({ folder }) {
   }
 }
 
+export async function searchMessages({ folder, search, from, to, since, before, unread, starred, page = 1, pageSize = 25 }) {
+  const resolvedFolder = resolveFolder(folder);
+  const client = await ensureConnected();
+  try {
+    const mailbox = await client.mailboxOpen(resolvedFolder);
+    if (!mailbox || mailbox.exists === 0) {
+      return { items: [], page, pageSize, totalItems: 0, totalPages: 0, folder: resolvedFolder, query: { search, from } };
+    }
+
+    // Build ImapFlow search criteria
+    const criteria = [];
+
+    if (search) {
+      criteria.push(["OR", ["SUBJECT", search], ["TEXT", search]]);
+    }
+    if (from) {
+      criteria.push(["FROM", from]);
+    }
+    if (to) {
+      criteria.push(["TO", to]);
+    }
+    if (since) {
+      criteria.push(["SINCE", new Date(since)]);
+    }
+    if (before) {
+      criteria.push(["BEFORE", new Date(before)]);
+    }
+    if (unread === "true" || unread === true) {
+      criteria.push(["UNSEEN"]);
+    }
+    if (unread === "false" || unread === false) {
+      criteria.push(["SEEN"]);
+    }
+    if (starred === "true" || starred === true) {
+      criteria.push(["FLAGGED"]);
+    }
+
+    // Execute search
+    let uids;
+    if (criteria.length > 0) {
+      uids = await client.search({ uid: true }, criteria);
+    } else {
+      // No criteria - return all
+      uids = mailbox.exists > 0
+        ? Array.from({ length: mailbox.exists }, (_, i) => i + 1)
+        : [];
+    }
+
+    // Sort newest first
+    uids.sort((a, b) => b - a);
+
+    const totalItems = uids.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const startIdx = (page - 1) * pageSize;
+    const pageUids = uids.slice(startIdx, startIdx + pageSize);
+
+    if (pageUids.length === 0) {
+      return { items: [], page, pageSize, totalItems, totalPages, folder: resolvedFolder, query: { search, from } };
+    }
+
+    // Fetch only metadata for the requested page
+    const items = [];
+    for await (const msg of client.fetch(
+      { uid: pageUids },
+      { uid: true, envelope: true, flags: true, bodyStructure: true, internalDate: true }
+    )) {
+      const envelope = msg.envelope || {};
+      const fromAddr = (envelope.from || [])[0] || {};
+      const toAddrs = (envelope.to || []).map((a) => ({ name: a.name || undefined, email: a.address || "" }));
+      const textPart = msg.text?.substring?.(0, 200) || "";
+      const htmlPart = msg.html || "";
+
+      items.push({
+        id: String(msg.uid),
+        uid: msg.uid,
+        folder,
+        messageId: envelope.messageId || "",
+        from: { name: fromAddr.name || undefined, address: fromAddr.address || "" },
+        to: toAddrs,
+        subject: envelope.subject || "(No subject)",
+        preview: textPart.slice(0, 100) || htmlPart.replace(/<[^>]*>/g, "").slice(0, 100),
+        receivedAt: msg.internalDate?.toISOString?.() || new Date().toISOString(),
+        isRead: !!msg.flags?.includes?.("\\Seen"),
+        isStarred: !!msg.flags?.includes?.("\\Flagged"),
+        hasAttachments: (msg.attachments || []).length > 0,
+      });
+    }
+
+    // Restore newest-first order (fetch may not preserve order)
+    items.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+
+    return { items, page, pageSize, totalItems, totalPages, folder: resolvedFolder, query: { search, from } };
+  } finally {
+    try { await client.logout(); } catch {}
+    imapClient = null;
+  }
+}
+
 export async function getMessage({ messageId }) {
   const client = await ensureConnected();
   try {
