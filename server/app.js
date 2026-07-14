@@ -270,7 +270,6 @@ export function createApp() {
   app.get("/api/email/preferences", ...requireAdmin, async (req, res) => {
     const { getDb } = await import('./db/database.js');
     const db = getDb();
-    db.exec("CREATE TABLE IF NOT EXISTS email_preferences (user_id TEXT PRIMARY KEY, preferences TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))");
     let row = db.prepare("SELECT preferences FROM email_preferences WHERE user_id = ?").get(req.user.userId);
     res.json(row ? JSON.parse(row.preferences) : {});
   });
@@ -278,7 +277,6 @@ export function createApp() {
   app.post("/api/email/preferences", ...requireAdmin, async (req, res) => {
     const { getDb } = await import('./db/database.js');
     const db = getDb();
-    db.exec("CREATE TABLE IF NOT EXISTS email_preferences (user_id TEXT PRIMARY KEY, preferences TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))");
     const json = JSON.stringify(req.body);
     db.prepare("INSERT INTO email_preferences (user_id, preferences, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(user_id) DO UPDATE SET preferences = ?, updated_at = datetime('now')").run(req.user.userId, json, json);
     res.json({ success: true });

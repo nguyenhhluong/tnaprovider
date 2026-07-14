@@ -10,6 +10,7 @@ export const EXPECTED_MIGRATIONS = [
   { version: "009", name: "email-jobs" },
   { version: "010", name: "email-job-attempts" },
   { version: "011", name: "schema-repair" },
+  { version: "012", name: "email-preferences" },
 ];
 
 const TABLES = {
@@ -30,6 +31,7 @@ const TABLES = {
   quote_templates: { cols: ["id","name","description","category","is_default","created_at","updated_at"] },
   quote_template_items: { cols: ["id","template_id","section_title","description","unit","unit_price","item_type","sort_order"] },
   email_jobs: { cols: ["id","type","recipient","subject","related_entity_type","related_entity_id","payload_json","status","attempt_count","last_error","smtp_message_id","scheduled_at","sent_at","created_at","updated_at"], checks: ["status","type"] },
+  email_preferences: { cols: ["user_id","preferences","updated_at"] },
   email_job_attempts: { cols: ["id","email_job_id","attempt_number","status","started_at","completed_at","smtp_message_id","error_message","created_at"], checks: ["status"] },
 };
 

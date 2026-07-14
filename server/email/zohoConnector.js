@@ -545,7 +545,7 @@ export async function getMessage({ messageId }) {
 export async function saveDraft({ mailbox, payload }) {
   // Save a draft message to Zoho Drafts folder via IMAP APPEND
   return withClient(async (client) => {
-    try { await client.mailboxOpen("Drafts"); } catch { await client.mailboxOpen("INBOX"); }
+    await client.mailboxOpen("Drafts");
     const cfg = getSmtpConfig();
     const raw = [
       "From: " + `"${cfg.fromName}" <${cfg.fromAddress}>`,
@@ -619,7 +619,9 @@ export async function sendMessage({ mailbox, payload, requestId }) {
       const sentMsgId = await findInSent(info.messageId);
       if (sentMsgId) sentSync = { status: "confirmed", folder: "Sent", messageId: sentMsgId };
       else sentSync = { status: "pending" };
-    } catch {}
+    } catch (sentErr) {
+      console.error("Sent-folder sync failed", { error: sentErr.message });
+    }
 
     return { success: true, messageId: info.messageId, accepted: info.accepted || [], rejected: info.rejected || [], sentSync };
   };
