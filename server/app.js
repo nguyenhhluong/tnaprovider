@@ -82,14 +82,13 @@ export function createApp() {
     next();
   }
 
+  const requireAdmin = [requireSessionAuth, requirePasswordChanged, requireRole("owner", "admin")];
+
   app.get("/api/email/status", (req, res) => {
     res.json({ available: true });
   });
 
-  app.get("/api/email/status/detailed", requireSessionAuth, requirePasswordChanged, (req, res) => {
-    if (req.user.role !== "owner" && req.user.role !== "admin") {
-      return res.status(403).json({ error: "Permission denied" });
-    }
+  app.get("/api/email/status/detailed", ...requireAdmin, (req, res) => {
     const config = mailConnector.getMailConfig();
     res.json({
       provider: config.provider,
@@ -99,8 +98,6 @@ export function createApp() {
       mailbox: process.env.MAIL_DEFAULT_MAILBOX || "info@tnaprovider.com.au",
     });
   });
-
-  const requireAdmin = [requireSessionAuth, requirePasswordChanged, requireRole("owner", "admin")];
 
   app.get("/api/email/messages", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
@@ -137,7 +134,7 @@ export function createApp() {
     }
   });
 
-  app.get("/api/email/messages/:id", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.get("/api/email/messages/:id", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const msg = await mailConnector.getMessage({
         mailbox: req.mailbox,
@@ -150,15 +147,15 @@ export function createApp() {
     }
   });
 
-  app.post("/api/email/send", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.post("/api/email/send", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       let to = [], cc = [], bcc = [], subject = "", bodyText = "", bodyHtml = "";
       let replyToMessageId = "", references = [], requestId = "";
       const attachments = [];
       let totalBytes = 0;
-      const MAX_FILE_BYTES = 25 * 1024 * 1024;
-      const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
-      const MAX_FILES = 10;
+      const MAX_FILE_BYTES = parseInt(process.env.EMAIL_ATTACHMENT_MAX_FILE_BYTES || String(25 * 1024 * 1024), 10);
+      const MAX_TOTAL_BYTES = parseInt(process.env.EMAIL_ATTACHMENT_MAX_TOTAL_BYTES || String(50 * 1024 * 1024), 10);
+      const MAX_FILES = parseInt(process.env.EMAIL_ATTACHMENT_MAX_FILES || "10", 10);
 
       const contentType = req.headers["content-type"] || "";
 
@@ -237,7 +234,7 @@ export function createApp() {
   });
 
   // Forward message
-  app.post("/api/email/messages/:id/forward", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.post("/api/email/messages/:id/forward", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.forwardMessage({
         mailbox: req.mailbox,
@@ -253,7 +250,7 @@ export function createApp() {
   });
 
   // Save draft
-  app.post("/api/email/drafts", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.post("/api/email/drafts", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.saveDraft({
         mailbox: req.mailbox,
@@ -282,7 +279,7 @@ export function createApp() {
     res.json({ success: true });
   });
 
-  app.post("/api/email/messages/:id/read", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.post("/api/email/messages/:id/read", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.markMessageRead({
         mailbox: req.mailbox,
@@ -296,7 +293,7 @@ export function createApp() {
     }
   });
 
-  app.post("/api/email/messages/:id/move", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.post("/api/email/messages/:id/move", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.moveMessage({
         mailbox: req.mailbox,
@@ -310,7 +307,7 @@ export function createApp() {
     }
   });
 
-  app.delete("/api/email/messages/:id", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.delete("/api/email/messages/:id", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.deleteMessage({
         mailbox: req.mailbox,
@@ -335,7 +332,7 @@ export function createApp() {
   });
 
   // Star/unstar message
-  app.post("/api/email/messages/:id/star", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.post("/api/email/messages/:id/star", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.starMessage({
         mailbox: req.mailbox,
@@ -350,7 +347,7 @@ export function createApp() {
   });
 
   // Download attachment
-  app.get("/api/email/messages/:id/attachments/:attachmentId", requireSessionAuth, requirePasswordChanged, attachMailbox, async (req, res) => {
+  app.get("/api/email/messages/:id/attachments/:attachmentId", ...requireAdmin, attachMailbox, async (req, res) => {
     try {
       const result = await mailConnector.fetchAttachment({
         mailbox: req.mailbox,
