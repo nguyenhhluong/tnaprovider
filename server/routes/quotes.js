@@ -521,10 +521,10 @@ async function sendQuoteStatusChangedEmail(quote, oldStatus, newStatus) {
     const { quoteStatusChanged } = await import('../email/templates/quoteStatusChanged.js');
     const { createEmailJob, processEmailJob } = await import('../email/emailJobService.js');
 
-    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
+    const { buildAppUrl } = await import('../config/appUrl.js');
     const quoteUrl = quote.public_token
-      ? `${appUrl}/quote/${quote.public_token}`
-      : `${appUrl}/platform/quotes?id=${quote.id}`;
+      ? buildAppUrl(`/quote/${encodeURIComponent(quote.public_token)}`)
+      : buildAppUrl('/platform/quotes', { id: quote.id });
 
     const emailContent = quoteStatusChanged({
       customerName: quote.client_name || 'Valued Customer',

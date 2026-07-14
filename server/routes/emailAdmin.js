@@ -237,8 +237,8 @@ router.post('/users/:userId/resend-invitation', requireRole('owner', 'admin'), a
     db.prepare("UPDATE users SET status = 'invited', invited_at = ?, updated_at = ? WHERE id = ?").run(now, now, user.id);
 
     // Create and send email
-    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
-    const inviteUrl = `${appUrl}/accept-invite?token=${encodeURIComponent(rawToken)}`;
+    const { buildAppUrl } = await import('../config/appUrl.js');
+    const inviteUrl = buildAppUrl('/accept-invite', { token: rawToken });
 
     const { userInvitation } = await import('../email/templates/userInvitation.js');
     const emailContent = userInvitation({ name: user.name, email: user.email, inviteUrl, expiresAt });

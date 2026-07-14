@@ -177,8 +177,8 @@ router.post("/users/invite", requireRole("owner", "admin"), validate(schemas.inv
     const { userInvitation } = await import('../email/templates/userInvitation.js');
     const { createEmailJob, processEmailJob } = await import('../email/emailJobService.js');
 
-    const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
-    const inviteUrl = `${appUrl}/accept-invite?token=${encodeURIComponent(rawToken)}`;
+  const { buildAppUrl } = await import('../config/appUrl.js');
+  const inviteUrl = buildAppUrl('/accept-invite', { token: rawToken });
 
     const emailContent = userInvitation({ name, email: normalizedEmail, inviteUrl, expiresAt });
 

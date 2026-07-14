@@ -1,7 +1,18 @@
 import { migrate } from './db/migrate.js';
+import { validateAppBaseUrl } from './config/appUrl.js';
 
 export async function runStartupChecks() {
-  // Perform any pre-startup validation
+  const strict = process.env.APP_ENV === 'production';
+  const result = validateAppBaseUrl(strict);
+  if (!result.valid) {
+    const msg = `[startup] APP_BASE_URL validation: ${result.reason}`;
+    if (strict) {
+      throw new Error(msg);
+    }
+    console.warn(msg);
+  } else {
+    console.log(`[startup] APP_BASE_URL: ${result.value}`);
+  }
 }
 
 export async function startServer(app) {
