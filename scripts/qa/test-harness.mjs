@@ -83,7 +83,15 @@ closeDb();`;
 
   const server = spawn("node", ["server.js"], { cwd: ROOT, stdio: "pipe", env: baseEnv });
   let started = false;
+  const prevDbUrl = process.env.DATABASE_URL;
+  const prevMailProvider = process.env.MAIL_PROVIDER;
+  const prevAppEnv = process.env.APP_ENV;
+  const prevBaseUrl = process.env.APP_BASE_URL;
   try {
+    process.env.DATABASE_URL = finalDb;
+    process.env.MAIL_PROVIDER = "mock";
+    process.env.APP_ENV = "test";
+    if (!process.env.APP_BASE_URL) process.env.APP_BASE_URL = "http://127.0.0.1:3007";
     for (let i = 0; i < 30; i++) {
       await new Promise(r => setTimeout(r, 1000));
       try {
@@ -94,6 +102,14 @@ closeDb();`;
     if (!started) throw new Error("Server did not start within 30s");
     await fn();
   } finally {
+    if (prevDbUrl !== undefined) process.env.DATABASE_URL = prevDbUrl;
+    else delete process.env.DATABASE_URL;
+    if (prevMailProvider !== undefined) process.env.MAIL_PROVIDER = prevMailProvider;
+    else delete process.env.MAIL_PROVIDER;
+    if (prevAppEnv !== undefined) process.env.APP_ENV = prevAppEnv;
+    else delete process.env.APP_ENV;
+    if (prevBaseUrl !== undefined) process.env.APP_BASE_URL = prevBaseUrl;
+    else delete process.env.APP_BASE_URL;
     server.kill("SIGTERM");
     // Wait for port to be released
     for (let i = 0; i < 10; i++) {

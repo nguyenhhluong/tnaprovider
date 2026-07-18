@@ -546,9 +546,11 @@ async function sendQuoteStatusChangedEmail(quote, oldStatus, newStatus) {
       },
     });
 
-    processEmailJob(jobId).catch(err => {
-      console.error('[email] Failed to send quote status change email:', err.message);
-    });
+    if (jobId) {
+      processEmailJob(jobId).catch(err => {
+        console.error('[email] Failed to send quote status change email:', err.message);
+      });
+    }
   } catch (err) {
     console.error('[email] Failed to create quote status change email:', err.message);
   }

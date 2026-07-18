@@ -177,9 +177,11 @@ router.post("/forgot-password", rateLimitLogin, validate(schemas.forgotPassword)
       scheduledAt: now,
     });
 
-    processEmailJob(jobId).catch(err => {
-      console.error('[email] Failed to send password reset email:', err.message);
-    });
+    if (jobId) {
+      processEmailJob(jobId).catch(err => {
+        console.error('[email] Failed to send password reset email:', err.message);
+      });
+    }
   } catch (err) {
     console.error('[email] Failed to create password reset email:', err.message);
   }
@@ -290,11 +292,19 @@ router.post("/accept-invite", validate(schemas.acceptInvite), (req, res) => {
 router.post("/resend-invite", requireAuth, requireRole("owner", "admin"), validate(schemas.resendInvite), async (req, res) => {
   const { email } = req.body;
   const db = getDb();
+  const normalizedEmail = email.toLowerCase().trim();
 
-  const existing = db.prepare("SELECT * FROM user_invite_tokens WHERE email = ? AND accepted_at IS NULL AND expires_at > datetime('now')").get(email.toLowerCase().trim());
+  const existing = db.prepare("SELECT * FROM user_invite_tokens WHERE email = ? AND accepted_at IS NULL AND expires_at > datetime('now')").get(normalizedEmail);
 
   if (!existing) {
     return res.status(404).json({ error: "No pending invite found for this email" });
+  }
+
+  const recentResend = db.prepare(
+    "SELECT id FROM user_invite_tokens WHERE email = ? AND created_at > datetime('now', '-5 minutes')"
+  ).get(normalizedEmail);
+  if (recentResend) {
+    return res.status(429).json({ error: "Invitation already sent recently. Please wait before resending." });
   }
 
   // Only owner can resend admin invites
@@ -341,9 +351,11 @@ router.post("/resend-invite", requireAuth, requireRole("owner", "admin"), valida
       scheduledAt: now,
     });
 
-    processEmailJob(jobId).catch(err => {
-      console.error('[email] Failed to resend invitation email:', err.message);
-    });
+    if (jobId) {
+      processEmailJob(jobId).catch(err => {
+        console.error('[email] Failed to resend invitation email:', err.message);
+      });
+    }
   } catch (err) {
     console.error('[email] Failed to create resend invitation email:', err.message);
   }

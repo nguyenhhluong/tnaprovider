@@ -11,6 +11,7 @@ export const EXPECTED_MIGRATIONS = [
   { version: "010", name: "email-job-attempts" },
   { version: "011", name: "schema-repair" },
   { version: "012", name: "email-preferences" },
+  { version: "013", name: "email-jobs-failed-validation-status" },
 ];
 
 const TABLES = {
@@ -94,7 +95,7 @@ const CHECK_CONSTRAINTS = {
   shift_sessions: { status: "'active','on_break','pending_approval','approved','rejected','auto_closed','correction_requested'" },
   shift_events: { event_type: "'check_in','break_start','break_end','check_out','auto_check_out','correction_requested','admin_approved','admin_rejected'", source: "'web','mobile','kiosk','admin','system','qr','offline_qr'" },
   quotes: { status: "'draft','in_review','approved','sent','accepted','rejected','expired','converted'" },
-  email_jobs: { status: "'PENDING','PROCESSING','SENT','FAILED','CANCELLED'", type: "'QUOTE_RECEIVED_CUSTOMER','QUOTE_RECEIVED_ADMIN','USER_INVITATION','PASSWORD_RESET','QUOTE_STATUS_CHANGED'" },
+  email_jobs: { status: "'PENDING','PROCESSING','SENT','FAILED','CANCELLED','FAILED_VALIDATION'", type: "'QUOTE_RECEIVED_CUSTOMER','QUOTE_RECEIVED_ADMIN','USER_INVITATION','PASSWORD_RESET','QUOTE_STATUS_CHANGED'" },
   email_job_attempts: { status: "'PROCESSING','SENT','FAILED'" },
 };
 

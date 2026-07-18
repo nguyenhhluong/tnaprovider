@@ -4,11 +4,18 @@ import { requireRole } from "../../middleware/roles.js";
 import { validate, schemas } from "../../middleware/validate.js";
 import { submitContactRequest, listContactRequests, getContactRequest, updateContactRequest, convertContactRequestToLead } from "./contactRequests.service.js";
 import { submitContactRequest as submitSchema, updateContactRequest as updateSchema } from "./contactRequests.schemas.js";
+import { validateRecipient } from "../../email/recipientPolicy.js";
 
 const router = Router();
 
 router.post("/contact", validate(submitSchema), async (req, res) => {
   try {
+    if (req.body.email) {
+      const policy = validateRecipient(req.body.email);
+      if (!policy.allowed) {
+        return res.status(400).json({ error: "Invalid email address" });
+      }
+    }
     const result = submitContactRequest(req.body);
     const emailDeliveryStatus = await getEmailDeliveryForContact(result.id);
     res.status(200).json({

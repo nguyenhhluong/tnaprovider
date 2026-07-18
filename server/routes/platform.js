@@ -137,6 +137,12 @@ router.post("/users/invite", requireRole("owner", "admin"), validate(schemas.inv
   const { email, name, role } = req.body;
   const normalizedEmail = email.toLowerCase().trim();
 
+  const { validateRecipient } = await import('../email/recipientPolicy.js');
+  const policy = validateRecipient(normalizedEmail);
+  if (!policy.allowed) {
+    return res.status(400).json({ error: "Invalid email address" });
+  }
+
   // Only owner can invite admin
   if (role === "admin" && req.user.role !== "owner") {
     return res.status(403).json({ error: "Only owner can invite admin users" });
@@ -145,6 +151,13 @@ router.post("/users/invite", requireRole("owner", "admin"), validate(schemas.inv
   const existing = db.prepare("SELECT id, status FROM users WHERE email = ?").get(normalizedEmail);
   if (existing && existing.status !== "disabled") {
     return res.status(409).json({ error: "User with this email already exists" });
+  }
+
+  const recentInvite = db.prepare(
+    "SELECT id FROM user_invite_tokens WHERE email = ? AND created_at > datetime('now', '-5 minutes')"
+  ).get(normalizedEmail);
+  if (recentInvite) {
+    return res.status(429).json({ error: "Invitation already sent recently. Please wait before resending." });
   }
 
   const rawToken = generateToken();
@@ -195,9 +208,11 @@ router.post("/users/invite", requireRole("owner", "admin"), validate(schemas.inv
       scheduledAt: now,
     });
 
-    processEmailJob(jobId).catch(err => {
-      console.error('[email] Failed to send invitation email:', err.message);
-    });
+    if (jobId) {
+      processEmailJob(jobId).catch(err => {
+        console.error('[email] Failed to send invitation email:', err.message);
+      });
+    }
   } catch (err) {
     console.error('[email] Failed to create invitation email:', err.message);
   }
