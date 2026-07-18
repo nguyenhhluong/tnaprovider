@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getDb } from '../db/database.js';
+import { validateRecipient } from './recipientPolicy.js';
 
 const VALID_TYPES = [
   'QUOTE_RECEIVED_CUSTOMER',
@@ -9,7 +10,7 @@ const VALID_TYPES = [
   'QUOTE_STATUS_CHANGED',
 ];
 
-const VALID_STATUSES = ['PENDING', 'PROCESSING', 'SENT', 'FAILED', 'CANCELLED'];
+const VALID_STATUSES = ['PENDING', 'PROCESSING', 'SENT', 'FAILED', 'CANCELLED', 'FAILED_VALIDATION'];
 const VALID_SORT_COLUMNS = ['created_at', 'sent_at', 'updated_at', 'recipient', 'status'];
 
 function validateJobData(data) {
@@ -26,6 +27,25 @@ function validateJobData(data) {
 
 export function createEmailJob(data) {
   validateJobData(data);
+
+  const policy = validateRecipient(data.recipient);
+  if (!policy.allowed) {
+    const db = getDb();
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO email_jobs (id, type, recipient, subject, related_entity_type, related_entity_id, payload_json, status, attempt_count, scheduled_at, created_at, updated_at, last_error)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'FAILED_VALIDATION', 0, ?, ?, ?, ?)
+    `).run(
+      id, data.type, data.recipient, data.subject,
+      data.relatedEntityType || null, data.relatedEntityId || null,
+      data.payloadJson ? JSON.stringify(data.payloadJson) : null,
+      data.scheduledAt || now, now, now,
+      `Blocked: ${policy.reason} (${policy.error})`,
+    );
+    console.warn(`[email] Blocked invalid recipient: ${data.recipient} (${policy.reason})`);
+    return null;
+  }
   const db = getDb();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -220,6 +240,9 @@ export async function processEmailJob(id) {
   if (job.status === 'SENT') {
     throw new Error(`Email job ${id} has already been sent`);
   }
+  if (job.status === 'FAILED_VALIDATION') {
+    return { success: false, error: 'Blocked: invalid recipient domain' };
+  }
 
   updateEmailJobStatus(id, 'PROCESSING');
 
@@ -228,6 +251,20 @@ export async function processEmailJob(id) {
 
   try {
     const { sendEmail } = await import('./mailer.js');
+    const { validateRecipient } = await import('./recipientPolicy.js');
+
+    const policy = validateRecipient(job.recipient);
+    if (!policy.allowed) {
+      updateAttemptRecord(attemptId, 'FAILED', {
+        errorMessage: `Blocked: ${policy.reason}`,
+      });
+      updateEmailJobStatus(id, 'FAILED_VALIDATION', {
+        lastError: `Blocked: ${policy.reason} (${policy.error})`,
+        attemptCount: attemptNumber,
+      });
+      return { success: false, error: `Blocked: ${policy.reason}` };
+    }
+
     let payload = null;
     if (job.payload_json) {
       try { payload = JSON.parse(job.payload_json); } catch {}
@@ -273,6 +310,9 @@ export function retryEmailJob(id) {
   }
   if (job.status === 'SENT') {
     throw new Error(`Email job ${id} has already been sent successfully`);
+  }
+  if (job.status === 'FAILED_VALIDATION') {
+    throw new Error(`Email job ${id} cannot be retried: invalid recipient domain`);
   }
 
   updateEmailJobStatus(id, 'PENDING', {
@@ -364,6 +404,10 @@ export async function resendEmailJob(id) {
     relatedEntityId: job.related_entity_id,
     payloadJson: payload || undefined,
   });
+
+  if (!newJobId) {
+    return { newJobId: null, success: false, error: 'Blocked: invalid recipient domain' };
+  }
 
   const result = await processEmailJob(newJobId);
   return { newJobId, ...result };

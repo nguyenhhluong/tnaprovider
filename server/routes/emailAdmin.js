@@ -93,6 +93,9 @@ router.post('/email-jobs/:id/retry', requireRole('owner', 'admin'), async (req, 
     if (job.status === 'SENT') {
       return res.status(400).json({ error: 'This email has already been sent successfully' });
     }
+    if (job.status === 'FAILED_VALIDATION') {
+      return res.status(400).json({ error: 'Cannot retry: invalid recipient domain' });
+    }
 
     retryEmailJob(job.id);
     const result = await processEmailJob(job.id);
@@ -213,6 +216,13 @@ router.post('/users/:userId/resend-invitation', requireRole('owner', 'admin'), a
       }
     }
 
+    const recentResend = db.prepare(
+      "SELECT id FROM user_invite_tokens WHERE email = ? AND created_at > datetime('now', '-5 minutes')"
+    ).get(user.email);
+    if (recentResend) {
+      return res.status(429).json({ error: 'Invitation already sent recently. Please wait before resending.' });
+    }
+
     const { generateToken, hashToken } = await import('../auth/tokens.js');
     const rawToken = generateToken();
     const tokenHash = hashToken(rawToken);
@@ -252,6 +262,10 @@ router.post('/users/:userId/resend-invitation', requireRole('owner', 'admin'), a
       payloadJson: { html: emailContent.html, text: emailContent.text },
       scheduledAt: now,
     });
+
+    if (!newJobId) {
+      return res.status(400).json({ success: false, message: 'Invalid email recipient domain' });
+    }
 
     const sendResult = await processEmailJob(newJobId);
 

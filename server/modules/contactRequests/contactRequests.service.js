@@ -153,14 +153,17 @@ async function createQuoteEmailJobs(submission, contactId, referenceNumber) {
     });
 
     // Process asynchronously - don't block response
-    Promise.all([
-      processEmailJob(customerJobId),
-      processEmailJob(adminJobId),
-    ]).then(results => {
-      console.log(`[email] Quote emails for ${referenceNumber}: customer=${results[0].success ? 'sent' : 'failed'}, admin=${results[1].success ? 'sent' : 'failed'}`);
-    }).catch(err => {
-      console.error('[email] Failed to process quote emails:', err.message);
-    });
+    const jobsToProcess = [];
+    if (customerJobId) jobsToProcess.push(processEmailJob(customerJobId));
+    if (adminJobId) jobsToProcess.push(processEmailJob(adminJobId));
+
+    if (jobsToProcess.length > 0) {
+      Promise.all(jobsToProcess).then(results => {
+        console.log(`[email] Quote emails for ${referenceNumber}: ${results.map(r => r.success ? 'sent' : 'failed').join(', ')}`);
+      }).catch(err => {
+        console.error('[email] Failed to process quote emails:', err.message);
+      });
+    }
   } catch (err) {
     console.error('[email] Failed to create quote email jobs:', err.message);
   }

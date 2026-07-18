@@ -140,6 +140,20 @@ export function createApp() {
         mailbox: req.mailbox,
         messageId: req.params.id,
       });
+
+      if (msg.bodyText || msg.bodyHtml) {
+        try {
+          const { processInboundBounce } = await import('./email/bounceClassifier.js');
+          processInboundBounce({
+            from: msg.from,
+            subject: msg.subject,
+            bodyText: msg.bodyText,
+            bodyHtml: msg.bodyHtml,
+            messageId: msg.messageId,
+          });
+        } catch {}
+      }
+
       res.json(msg);
     } catch (err) {
       console.error("getMessage error:", err.message);

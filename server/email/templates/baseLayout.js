@@ -1,5 +1,7 @@
+import { getAppBaseUrl } from '../../config/appUrl.js';
+
 export function baseLayout({ previewText, body }) {
-  const appUrl = process.env.APP_URL || 'https://tnaprovider.com.au';
+  const appUrl = getAppBaseUrl();
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
