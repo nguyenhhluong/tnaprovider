@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "server": "node server.js",
     "start": "node server.js",
-    "start:e2e": "DATABASE_URL=/tmp/tna-e2e.db node --input-type=module -e \"import {migrate} from './server/db/migrate.js'; await migrate();\" && node server.js",
+    "start:e2e": "node scripts/start-e2e.mjs",
     "preview:server": "NODE_ENV=production node server.js",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
